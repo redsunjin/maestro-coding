@@ -15,6 +15,7 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = resolve(__dirname, '..');
 const ENV_FILE = resolve(ROOT_DIR, '.env');
+const DEFAULT_ALLOWED_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173';
 
 console.log('\n🎼 Maestro Coding — 환경 설정 스크립트 (Node.js)');
 console.log('=================================================\n');
@@ -48,6 +49,18 @@ const response = await prompts(
       validate: (v) => (/^\d+$/.test(v) && parseInt(v) > 0 && parseInt(v) < 65536) || '유효한 포트 번호를 입력하세요 (1-65535)',
     },
     {
+      type: 'text',
+      name: 'HOST',
+      message: 'HOST — 서버 바인딩 호스트 (기본: 127.0.0.1)',
+      initial: '127.0.0.1',
+    },
+    {
+      type: 'text',
+      name: 'ALLOWED_ORIGINS',
+      message: 'ALLOWED_ORIGINS — 허용 Origin 목록 (쉼표 구분)',
+      initial: DEFAULT_ALLOWED_ORIGINS,
+    },
+    {
       type: 'password',
       name: 'MAESTRO_SERVER_TOKEN',
       message: 'MAESTRO_SERVER_TOKEN — 인증 토큰 (빈 값으로 두면 인증 없음)',
@@ -56,7 +69,7 @@ const response = await prompts(
       type: 'text',
       name: 'VITE_WS_URL',
       message: 'VITE_WS_URL — 프론트엔드가 연결할 WebSocket 주소',
-      initial: (_, values) => `ws://localhost:${values.PORT || 8080}`,
+      initial: (_, values) => `ws://${values.HOST || '127.0.0.1'}:${values.PORT || 8080}`,
     },
   ],
   {
@@ -73,6 +86,8 @@ const envContent = [
   '',
   `MAIN_REPO_PATH=${response.MAIN_REPO_PATH}`,
   `PORT=${response.PORT}`,
+  `HOST=${response.HOST || '127.0.0.1'}`,
+  `ALLOWED_ORIGINS=${response.ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS}`,
   `MAESTRO_SERVER_TOKEN=${response.MAESTRO_SERVER_TOKEN || ''}`,
   `VITE_WS_URL=${response.VITE_WS_URL}`,
   '',

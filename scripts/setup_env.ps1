@@ -29,10 +29,16 @@ if ([string]::IsNullOrWhiteSpace($mainRepoPath)) { $mainRepoPath = (Get-Location
 $port = Read-Host "PORT (서버 포트) [기본: 8080]"
 if ([string]::IsNullOrWhiteSpace($port)) { $port = "8080" }
 
+$hostValue = Read-Host "HOST (서버 바인딩 호스트) [기본: 127.0.0.1]"
+if ([string]::IsNullOrWhiteSpace($hostValue)) { $hostValue = "127.0.0.1" }
+
+$allowedOrigins = Read-Host "ALLOWED_ORIGINS (허용 Origin, 쉼표 구분) [기본: 로컬 Vite Origin들]"
+if ([string]::IsNullOrWhiteSpace($allowedOrigins)) { $allowedOrigins = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173" }
+
 $token = Read-Host "MAESTRO_SERVER_TOKEN (인증 토큰, 빈 값으로 두면 인증 없음)"
 
-$wsUrl = Read-Host "VITE_WS_URL (WebSocket 주소) [기본: ws://localhost:$port]"
-if ([string]::IsNullOrWhiteSpace($wsUrl)) { $wsUrl = "ws://localhost:$port" }
+$wsUrl = Read-Host "VITE_WS_URL (WebSocket 주소) [기본: ws://$hostValue:$port]"
+if ([string]::IsNullOrWhiteSpace($wsUrl)) { $wsUrl = "ws://$hostValue:$port" }
 
 $content = @"
 # Maestro Coding — 환경변수 (자동 생성)
@@ -40,6 +46,8 @@ $content = @"
 
 MAIN_REPO_PATH=$mainRepoPath
 PORT=$port
+HOST=$hostValue
+ALLOWED_ORIGINS=$allowedOrigins
 MAESTRO_SERVER_TOKEN=$token
 VITE_WS_URL=$wsUrl
 "@

@@ -33,10 +33,16 @@ MAIN_REPO_PATH="${MAIN_REPO_PATH:-$(pwd)}"
 read -r -p "PORT (서버 포트) [기본: 8080]: " PORT
 PORT="${PORT:-8080}"
 
+read -r -p "HOST (서버 바인딩 호스트) [기본: 127.0.0.1]: " HOST
+HOST="${HOST:-127.0.0.1}"
+
+read -r -p "ALLOWED_ORIGINS (허용 Origin, 쉼표 구분) [기본: 로컬 Vite Origin들]: " ALLOWED_ORIGINS
+ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173}"
+
 read -r -p "MAESTRO_SERVER_TOKEN (인증 토큰, 빈 값으로 두면 인증 없음): " MAESTRO_SERVER_TOKEN
 
-read -r -p "VITE_WS_URL (WebSocket 주소) [기본: ws://localhost:${PORT}]: " VITE_WS_URL
-VITE_WS_URL="${VITE_WS_URL:-ws://localhost:${PORT}}"
+read -r -p "VITE_WS_URL (WebSocket 주소) [기본: ws://${HOST}:${PORT}]: " VITE_WS_URL
+VITE_WS_URL="${VITE_WS_URL:-ws://${HOST}:${PORT}}"
 
 cat > "$ENV_FILE" << ENVEOF
 # Maestro Coding — 환경변수 (자동 생성)
@@ -44,6 +50,8 @@ cat > "$ENV_FILE" << ENVEOF
 
 MAIN_REPO_PATH=${MAIN_REPO_PATH}
 PORT=${PORT}
+HOST=${HOST}
+ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
 MAESTRO_SERVER_TOKEN=${MAESTRO_SERVER_TOKEN}
 VITE_WS_URL=${VITE_WS_URL}
 ENVEOF

@@ -79,6 +79,8 @@ cp .env.example .env
 |------|--------|------|
 | `MAIN_REPO_PATH` | `process.cwd()` | `git merge`/`git reset`을 실행할 메인 레포지토리 경로 (필수 권장) |
 | `PORT` | `8080` | 서버 리스닝 포트 |
+| `HOST` | `127.0.0.1` | 서버 바인딩 호스트 (기본값 유지 권장) |
+| `ALLOWED_ORIGINS` | 로컬 Vite Origin들 | 허용 Origin 화이트리스트 (쉼표 구분) |
 | `MAESTRO_SERVER_TOKEN` | (없음) | 인증 토큰 (설정 시 요청에 `Authorization: Bearer <token>` 헤더 필요) |
 | `VITE_WS_URL` | `ws://localhost:8080` | 프론트엔드가 연결할 WebSocket 주소 |
 
@@ -87,6 +89,8 @@ cp .env.example .env
 ```
 MAIN_REPO_PATH=/home/user/projects/my-main-repo
 PORT=8080
+HOST=127.0.0.1
+ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173
 MAESTRO_SERVER_TOKEN=very-secret-token
 VITE_WS_URL=ws://localhost:8080
 ```
@@ -94,6 +98,7 @@ VITE_WS_URL=ws://localhost:8080
 > ⚠️ `.env` 파일에는 실제 토큰이나 경로 등 민감 정보가 포함될 수 있습니다.  
 > **절대로 `.env`를 Git에 커밋하지 마세요.** `.gitignore`에 이미 포함되어 있습니다.
 > `MAESTRO_SERVER_TOKEN`이 설정된 상태에서 인증 헤더가 없거나 토큰이 다르면 서버는 `401 Unauthorized`를 반환합니다.
+> `ALLOWED_ORIGINS`에 없는 Origin에서 오는 브라우저 요청은 `403 Origin not allowed`로 차단됩니다.
 
 ---
 
@@ -209,6 +214,6 @@ npm run qa
 
 1. **토큰 사용:** `MAESTRO_SERVER_TOKEN` 환경변수를 설정하면 인증되지 않은 요청을 차단합니다. 로컬 전용이더라도 설정을 권장합니다.
 2. **`.env` 파일 보호:** 실제 토큰이나 경로가 포함된 `.env`는 절대 Git에 커밋하지 마세요. `.gitignore`에 이미 포함되어 있습니다.
-3. **로컬 환경 한정:** Maestro 서버는 기본적으로 로컬호스트에서만 동작합니다. 외부에 공개하려면 방화벽 설정과 HTTPS/WSS를 반드시 적용하세요.
+3. **로컬 환경 한정:** 기본값 `HOST=127.0.0.1`를 유지하고, `ALLOWED_ORIGINS`는 최소 범위만 허용하세요. 외부 공개 시 방화벽 설정과 HTTPS/WSS를 반드시 적용하세요.
 4. **git 명령어 경로 검증:** `MAIN_REPO_PATH`에 신뢰할 수 있는 경로만 설정하세요. 악의적인 브랜치 이름으로 인한 명령어 인젝션을 방지하기 위해 서버는 입력값을 검증합니다.
 5. **의존성 관리:** `npm audit`로 취약점을 주기적으로 점검하세요.

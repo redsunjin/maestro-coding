@@ -24,6 +24,9 @@ npm run qa
   - 토큰 비활성: `200`
   - 토큰 활성 + 미인증/오인증: `401`
   - 토큰 활성 + 정인증: `200`
+- CORS 정책 분기
+  - 허용 Origin preflight: `204` + `Access-Control-Allow-Origin`
+  - 비허용 Origin preflight/request: `403`
 - WebSocket 브로드캐스트
   - 승인 요청 생성 시 `AGENT_TASK_READY` 이벤트 수신
 
@@ -45,6 +48,9 @@ npm run qa
 5. 대시보드에서 `Shift + D/F/J/K` 반려 입력 후 확인:
    - `REJECTING...` 상태 표시
    - `AGENT_RESTARTED` 수신 후 노트 제거 + `REJECTED` 피드백 표시
+6. 보안 정책 수동 확인:
+   - 서버 로그에서 `Host/Port`, `허용 Origin` 설정값 확인
+   - 비허용 Origin으로 preflight 시 `403` 반환 확인
 
 ## 게이트 기준
 

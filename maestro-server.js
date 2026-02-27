@@ -24,7 +24,15 @@ function isValidBranchName(name) {
 }
 
 const PORT = process.env.PORT || 8080;
+const HOST = process.env.HOST || '127.0.0.1';
 const SERVER_TOKEN = process.env.MAESTRO_SERVER_TOKEN || '';
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+];
+const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
 
 function extractBearerToken(headerValue) {
   if (typeof headerValue !== 'string') return null;
@@ -40,16 +48,51 @@ function isRequestAuthorized(req) {
   return token === SERVER_TOKEN;
 }
 
+function parseAllowedOrigins(rawValue) {
+  if (!rawValue || !rawValue.trim()) return DEFAULT_ALLOWED_ORIGINS;
+  if (rawValue.trim() === '*') return ['*'];
+  return rawValue
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getCorsAllowedOrigin(req) {
+  const requestOrigin = req.headers.origin;
+  if (!requestOrigin) return null;
+  if (ALLOWED_ORIGINS.includes('*')) return '*';
+  return ALLOWED_ORIGINS.includes(requestOrigin) ? requestOrigin : null;
+}
+
+function applyCorsHeaders(req, res) {
+  const allowedOrigin = getCorsAllowedOrigin(req);
+  if (allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
 // ── HTTP 서버 ────────────────────────────────────────────────────────────────
 
 const server = http.createServer((req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applyCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
+    if (req.headers.origin && !getCorsAllowedOrigin(req)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Origin not allowed' }));
+      return;
+    }
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  if (req.headers.origin && !getCorsAllowedOrigin(req)) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Origin not allowed' }));
     return;
   }
 
@@ -213,14 +256,16 @@ wss.on('connection', (ws) => {
 
 // ── 서버 시작 ─────────────────────────────────────────────────────────────────
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`\n🎼 Maestro Backend Server 시작됨`);
-  console.log(`   WebSocket   : ws://localhost:${PORT}`);
-  console.log(`   에이전트 API : POST http://localhost:${PORT}/api/request`);
-  console.log(`   상태 확인   : GET  http://localhost:${PORT}/health`);
+  console.log(`   Host/Port   : ${HOST}:${PORT}`);
+  console.log(`   WebSocket   : ws://${HOST}:${PORT}`);
+  console.log(`   에이전트 API : POST http://${HOST}:${PORT}/api/request`);
+  console.log(`   상태 확인   : GET  http://${HOST}:${PORT}/health`);
+  console.log(`   허용 Origin : ${ALLOWED_ORIGINS.join(', ')}`);
   console.log(`   인증 모드   : ${SERVER_TOKEN ? 'Bearer token required' : 'disabled'}`);
   console.log(`\n에이전트에서 승인 요청을 보내는 예시:`);
-  console.log(`  curl -X POST http://localhost:${PORT}/api/request \\`);
+  console.log(`  curl -X POST http://${HOST}:${PORT}/api/request \\`);
   console.log(`    -H 'Content-Type: application/json' \\`);
   if (SERVER_TOKEN) {
     console.log(`    -H 'Authorization: Bearer <MAESTRO_SERVER_TOKEN>' \\`);

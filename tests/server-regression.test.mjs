@@ -38,7 +38,7 @@ async function waitForHealth(port, timeoutMs = 5000) {
   throw new Error(`server did not become healthy on port ${port}`);
 }
 
-function startServer({ token = '' } = {}) {
+function startServer({ token = '', host = '127.0.0.1', allowedOrigins = '' } = {}) {
   const port = randomPort();
   let logs = '';
 
@@ -47,7 +47,9 @@ function startServer({ token = '' } = {}) {
     env: {
       ...process.env,
       PORT: String(port),
+      HOST: host,
       MAESTRO_SERVER_TOKEN: token,
+      ALLOWED_ORIGINS: allowedOrigins,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -202,4 +204,59 @@ test('server returns AGENT_RESTARTED event when REJECT action is sent', async (t
 
   assert.equal(event.event, 'AGENT_RESTARTED');
   assert.equal(event.requestId, 'req_reject_1');
+});
+
+test('OPTIONS preflight allows configured origin and returns CORS headers', async (t) => {
+  const allowedOrigin = 'http://localhost:5173';
+  const server = startServer({ allowedOrigins: allowedOrigin });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/request`, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: allowedOrigin,
+      'Access-Control-Request-Method': 'POST',
+    },
+  });
+
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get('access-control-allow-origin'), allowedOrigin);
+});
+
+test('OPTIONS preflight rejects disallowed origin with 403', async (t) => {
+  const server = startServer({ allowedOrigins: 'http://localhost:5173' });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/request`, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'http://evil.example.com',
+      'Access-Control-Request-Method': 'POST',
+    },
+  });
+
+  assert.equal(response.status, 403);
+});
+
+test('POST rejects disallowed origin with 403', async (t) => {
+  const server = startServer({ allowedOrigins: 'http://localhost:5173' });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const response = await postApprovalRequest(server.port, {
+    Origin: 'http://evil.example.com',
+  });
+
+  assert.equal(response.status, 403);
 });
