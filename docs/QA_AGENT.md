@@ -15,7 +15,7 @@ npm run qa
 
 실행 내용:
 
-1. `npm test` (서버 회귀 테스트)
+1. `npm test` (서버 회귀 + UI 회귀 테스트)
 2. `npm run build` (프론트 빌드 검증)
 
 ## 회귀 테스트 범위
@@ -27,6 +27,9 @@ npm run qa
 - CORS 정책 분기
   - 허용 Origin preflight: `204` + `Access-Control-Allow-Origin`
   - 비허용 Origin preflight/request: `403`
+- UI 회귀 테스트
+  - 승인: `MERGE_SUCCESS` 수신 전 확정되지 않아야 함
+  - 반려: `Shift + 키` 입력 시 피드백 전송/취소 동작 보장
 - WebSocket 브로드캐스트
   - 승인 요청 생성 시 `AGENT_TASK_READY` 이벤트 수신
 
