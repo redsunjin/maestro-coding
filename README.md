@@ -107,6 +107,7 @@ npm run qa
 
 QA 범위와 수동 체크리스트는 [`docs/QA_AGENT.md`](docs/QA_AGENT.md)를 참고하세요.
 기본 테스트 구성은 `npm test` (server regression + UI regression)입니다.
+E2E 최소 시나리오는 `npm run test:e2e`로 실행합니다.
 
 ## 기획 문서 / 아키텍처
 

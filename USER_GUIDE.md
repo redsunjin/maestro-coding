@@ -231,6 +231,7 @@ npm run qa
 
 - 서버 회귀 테스트(`npm test`)
 - 프론트 빌드 검증(`npm run build`)
+- E2E 최소 시나리오(`npm run test:e2e`, Playwright 브라우저 필요)
 
 상세 QA 체크리스트는 [`docs/QA_AGENT.md`](docs/QA_AGENT.md)를 참고하세요.
 

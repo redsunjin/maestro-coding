@@ -17,6 +17,7 @@ npm run qa
 
 1. `npm test` (서버 회귀 + UI 회귀 테스트)
 2. `npm run build` (프론트 빌드 검증)
+3. (CI 전용) `npm run test:e2e` (Playwright E2E 최소 시나리오)
 
 ## 회귀 테스트 범위
 
@@ -30,12 +31,18 @@ npm run qa
 - UI 회귀 테스트
   - 승인: `MERGE_SUCCESS` 수신 전 확정되지 않아야 함
   - 반려: `Shift + 키` 입력 시 피드백 전송/취소 동작 보장
+  - `function bach`: 재생/주파수 표시/채널 오버레이 노출 보장
 - WebSocket 브로드캐스트
   - 승인 요청 생성 시 `AGENT_TASK_READY` 이벤트 수신
+- E2E 최소 시나리오
+  - 승인/반려 WebSocket 왕복
+  - `function bach` 재생 버튼/Hz 표시/채널 입력 오버레이
 
 테스트 파일:
 
 - `tests/server-regression.test.mjs`
+- `src/App.ui.test.jsx`
+- `tests/e2e/maestro.e2e.spec.js`
 
 ## 수동 QA 체크리스트 (WP-002)
 
@@ -59,5 +66,6 @@ npm run qa
 ## 게이트 기준
 
 - `npm run qa` 성공
+- (CI) `qa-gate` 워크플로의 `qa` + `e2e` job 성공
 - WP 대상 수동 체크리스트 통과
 - 실패 시 다음 단계 진행 금지, 원인 수정 후 재실행

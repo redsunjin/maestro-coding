@@ -18,11 +18,25 @@
 ## 1-1) 진행 현황 (2026-02-27 업데이트)
 
 - `WP-001` 완료: 토큰 인증 로직/문서 정합성 반영
-- `WP-002` 진행중: 승인 이벤트 처리 정합성 개선 작업 반영
-- `WP-003` 진행중: 대시보드 반려 입력(`Shift + D/F/J/K`) 및 서버 이벤트 연동 반영
+- `WP-002` 완료: 승인 이벤트 처리 정합성 개선 + UI 회귀 테스트 반영
+- `WP-003` 완료: 대시보드 반려 입력(`Shift + D/F/J/K`) + 피드백/취소 흐름 + UI 회귀 테스트 반영
 - `WP-004` 완료: 기본 바인딩(`HOST=127.0.0.1`) + Origin 화이트리스트 CORS 반영
-- `WP-005` 진행중: 서버 회귀 + UI 회귀 테스트 자동화(`npm test`) 반영, E2E/CI 확장 남음
+- `WP-005` 진행중: 서버 회귀 + UI 회귀 테스트 자동화(`npm test`) 완료, E2E/CI 게이트 확장 남음
 - QA 에이전트 설정 완료: `npm run qa` + 회귀 테스트 스위트 + QA 가이드 추가
+- `function bach` 1차 완료: 상단 미니 플레이어, 채널 URL 저장, 재생/일시정지/볼륨, 주파수(Hz) 시각화 반영
+
+## 1-2) 다음 작업 포인트 (즉시 실행)
+
+1. CI 품질게이트: PR/merge 경로에서 `npm run qa` 강제 실행
+2. E2E 최소 시나리오 자동화: 승인/반려/오버레이/`function bach` 표시 검증
+3. 문서 동기화: README/USER_GUIDE/QA 가이드에 CI/E2E 실행 흐름 반영
+
+## 1-3) 즉시 실행 결과 (2026-02-28)
+
+- 완료: `qa-gate` 워크플로 추가 (`pull_request/main`, `push/main`) + `npm run qa` 실행
+- 완료: CI E2E job 추가 (`npm run test:e2e`, Playwright Chromium 설치 포함)
+- 완료: E2E 최소 시나리오 추가 (`tests/e2e/maestro.e2e.spec.js`)
+- 완료: 문서 동기화 (`README.md`, `USER_GUIDE.md`, `docs/QA_AGENT.md`)
 
 ## 2) 우선순위 백로그
 

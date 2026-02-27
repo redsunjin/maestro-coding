@@ -296,6 +296,7 @@ export default function App() {
   const [bachVolume, setBachVolume] = useState(() => getStoredNumber(BACH_VOLUME_STORAGE_KEY, 35));
   const [isBachReady, setIsBachReady] = useState(false);
   const [isBachPlaying, setIsBachPlaying] = useState(false);
+  const [isBachPlaybackRequested, setIsBachPlaybackRequested] = useState(false);
   const [bachVizHz, setBachVizHz] = useState(0);
   const [isBachPanelOpen, setIsBachPanelOpen] = useState(false);
   const [bachError, setBachError] = useState('');
@@ -348,7 +349,7 @@ export default function App() {
   }, [bachVolume, isBachReady]);
 
   useEffect(() => {
-    if (!isBachPlaying) {
+    if (!isBachPlaying && !isBachPlaybackRequested) {
       bachVizTickRef.current = 0;
       setBachVizHz(0);
       return;
@@ -365,7 +366,7 @@ export default function App() {
     updateHz();
     const timerId = setInterval(updateHz, 140);
     return () => clearInterval(timerId);
-  }, [isBachPlaying, bachVolume]);
+  }, [isBachPlaying, isBachPlaybackRequested, bachVolume]);
 
   // YouTube 플레이어 초기화 (BGM)
   useEffect(() => {
@@ -404,14 +405,21 @@ export default function App() {
               const playerState = window.YT?.PlayerState;
               if (!playerState) return;
 
-              if (event.data === playerState.PLAYING) setIsBachPlaying(true);
+              if (event.data === playerState.PLAYING) {
+                setIsBachPlaying(true);
+                setIsBachPlaybackRequested(true);
+              }
               if (event.data === playerState.PAUSED || event.data === playerState.ENDED || event.data === playerState.CUED) {
                 setIsBachPlaying(false);
+                if (event.data !== playerState.CUED) {
+                  setIsBachPlaybackRequested(false);
+                }
               }
             },
             onError: () => {
               if (isDisposed) return;
               setIsBachPlaying(false);
+              setIsBachPlaybackRequested(false);
               setBachError('재생에 실패했습니다. 채널/영상 URL을 확인해주세요.');
             },
           },
@@ -432,6 +440,7 @@ export default function App() {
       bachPlayerRef.current = null;
       setIsBachReady(false);
       setIsBachPlaying(false);
+      setIsBachPlaybackRequested(false);
     };
   }, []);
 
@@ -775,6 +784,7 @@ export default function App() {
     setIsPlaying(false);
     setNotes([]);
     setSfxBursts([]);
+    setIsBachPlaybackRequested(false);
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -783,6 +793,7 @@ export default function App() {
   };
 
   const playBach = useCallback(() => {
+    setIsBachPlaybackRequested(true);
     if (!isBachReady || !bachPlayerRef.current) {
       setBachError('YouTube 플레이어 준비 중입니다.');
       return;
@@ -804,6 +815,7 @@ export default function App() {
       bachPlayerRef.current.pauseVideo();
     }
     setIsBachPlaying(false);
+    setIsBachPlaybackRequested(false);
   }, [isBachReady]);
 
   const toggleBachPlayback = useCallback(() => {
@@ -846,14 +858,14 @@ export default function App() {
         <div className="flex items-center space-x-3">
           <Activity className="w-6 h-6 text-purple-500" />
           <h1 className="text-xl font-bold tracking-tight">Maestro <span className="text-purple-400 font-light">Workspace</span></h1>
-          <div className="relative ml-4 hidden sm:block">
+          <div className="relative ml-3 block">
             <div
               data-testid="function-bach-mini"
               className="flex items-center gap-1 rounded-full border border-amber-400/40 bg-gray-900/80 px-2 py-1 text-[11px] text-gray-200 shadow-lg backdrop-blur"
             >
               <span className="font-semibold text-amber-200">function bach</span>
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${isBachPlaying ? 'bg-green-400' : isBachReady ? 'bg-amber-300' : 'bg-gray-500'}`} />
-              {isBachPlaying && (
+              {(isBachPlaying || isBachPlaybackRequested) && (
                 <span data-testid="function-bach-hz" className="rounded-full border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-mono text-amber-200">
                   ~{bachVizHz}Hz
                 </span>
