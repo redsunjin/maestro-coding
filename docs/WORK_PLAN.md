@@ -24,6 +24,7 @@
 - `WP-005` 진행중: 서버 회귀 + UI 회귀 테스트 자동화(`npm test`) 완료, E2E/CI 게이트 확장 남음
 - QA 에이전트 설정 완료: `npm run qa` + 회귀 테스트 스위트 + QA 가이드 추가
 - `function bach` 1차 완료: 상단 미니 플레이어, 채널 URL 저장, 재생/일시정지/볼륨, 주파수(Hz) 시각화 반영
+- 오픈 이슈 분리 추적: [`docs/KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) (`KI-001`: `function bach` Hz 미노출 환경 조사)
 
 ## 1-2) 다음 작업 포인트 (즉시 실행)
 
