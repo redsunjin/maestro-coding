@@ -13,6 +13,12 @@
 npm run qa
 ```
 
+실연결 스모크(토큰 인증 + 승인/반려/롤백)는 아래 커맨드로 실행합니다.
+
+```bash
+npm run smoke:integration
+```
+
 실행 내용:
 
 1. `npm test` (서버 회귀 + UI 회귀 테스트)
