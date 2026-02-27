@@ -244,6 +244,9 @@ describe('App UI regression', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '배경음악 재생' }));
     expect(playerInstances[0].loadPlaylist).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByTestId('function-bach-hz')).toHaveTextContent(/Hz/);
+    });
 
     await userEvent.click(screen.getByRole('button', { name: '배경음악 일시정지' }));
     expect(playerInstances[0].pauseVideo).toHaveBeenCalled();

@@ -296,6 +296,7 @@ export default function App() {
   const [bachVolume, setBachVolume] = useState(() => getStoredNumber(BACH_VOLUME_STORAGE_KEY, 35));
   const [isBachReady, setIsBachReady] = useState(false);
   const [isBachPlaying, setIsBachPlaying] = useState(false);
+  const [bachVizHz, setBachVizHz] = useState(0);
   const [isBachPanelOpen, setIsBachPanelOpen] = useState(false);
   const [bachError, setBachError] = useState('');
   
@@ -306,6 +307,7 @@ export default function App() {
   const bachPlayerHostRef = useRef(null);
   const bachPlayerRef = useRef(null);
   const bachPlayingRef = useRef(false);
+  const bachVizTickRef = useRef(0);
 
   // 상태 동기화를 위한 Ref 업데이트
   useEffect(() => { notesRef.current = notes; }, [notes]);
@@ -344,6 +346,26 @@ export default function App() {
       bachPlayerRef.current.setVolume(bachVolume);
     }
   }, [bachVolume, isBachReady]);
+
+  useEffect(() => {
+    if (!isBachPlaying) {
+      bachVizTickRef.current = 0;
+      setBachVizHz(0);
+      return;
+    }
+
+    const updateHz = () => {
+      bachVizTickRef.current += 1;
+      const tick = bachVizTickRef.current;
+      const base = 220 + Math.round((bachVolume / 100) * 180);
+      const visualizedHz = Math.round(base + Math.abs(Math.sin(tick / 3)) * 320);
+      setBachVizHz(visualizedHz);
+    };
+
+    updateHz();
+    const timerId = setInterval(updateHz, 140);
+    return () => clearInterval(timerId);
+  }, [isBachPlaying, bachVolume]);
 
   // YouTube 플레이어 초기화 (BGM)
   useEffect(() => {
@@ -831,6 +853,11 @@ export default function App() {
             >
               <span className="font-semibold text-amber-200">function bach</span>
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${isBachPlaying ? 'bg-green-400' : isBachReady ? 'bg-amber-300' : 'bg-gray-500'}`} />
+              {isBachPlaying && (
+                <span data-testid="function-bach-hz" className="rounded-full border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-mono text-amber-200">
+                  ~{bachVizHz}Hz
+                </span>
+              )}
               <button
                 onClick={toggleBachPlayback}
                 aria-label={isBachPlaying ? '배경음악 일시정지' : '배경음악 재생'}
