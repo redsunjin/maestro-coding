@@ -4,6 +4,8 @@
   </a>
 </p>
 
+[License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
 # Maestro Coding
 
 코딩을 지휘하다 — AI 에이전트와 함께하는 코드 심포니 🎼
