@@ -6,7 +6,7 @@
   </a>
 </p>
 
-## 🎼 '마에스트로 코딩(Maestro Coding)' 콘텐츠 기획안
+## 🎼 '마에스트로 코딩(Maestro Coding)' 
 
 ### 1. 핵심 메시지 (Core Message)
 
