@@ -9,6 +9,7 @@
 - [에이전트 연동 예제](#에이전트-연동-예제)
 - [승인(Approve) 시나리오 테스트](#승인approve-시나리오-테스트)
 - [롤백(UNDO) 사용법](#롤백undo-사용법)
+- [QA / 회귀 테스트](#qa--회귀-테스트)
 - [보안 권장사항](#보안-권장사항)
 
 ---
@@ -170,7 +171,8 @@ npm run dev
 sh hooks/notify-maestro.sh feature/test-branch "테스트 커밋" "실제 통신 확인"
 ```
 
-브라우저 대시보드에 노트가 나타나면 `D` `F` `J` `K` 키로 승인하거나 반려할 수 있습니다.  
+브라우저 대시보드에 노트가 나타나면 `D` `F` `J` `K` 키로 승인할 수 있고,  
+`Shift + D/F/J/K`로 반려할 수 있습니다.  
 승인 시 서버가 `git merge <branchName>`을 실행합니다.
 
 ---
@@ -183,6 +185,23 @@ sh hooks/notify-maestro.sh feature/test-branch "테스트 커밋" "실제 통신
 - 성공 시 `UNDO_SUCCESS`, 실패 시 `UNDO_FAILED` 이벤트가 대시보드로 전달됩니다.
 
 > ⚠️ `git reset --hard`는 복구가 어렵습니다. 중요한 작업 전에는 반드시 백업 브랜치를 만들어두세요.
+
+---
+
+## QA / 회귀 테스트
+
+변경 후 다음 단계로 넘어가기 전 아래 커맨드로 품질 게이트를 실행합니다.
+
+```bash
+npm run qa
+```
+
+실행 항목:
+
+- 서버 회귀 테스트(`npm test`)
+- 프론트 빌드 검증(`npm run build`)
+
+상세 QA 체크리스트는 [`docs/QA_AGENT.md`](docs/QA_AGENT.md)를 참고하세요.
 
 ---
 

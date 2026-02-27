@@ -38,10 +38,10 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
   - 승인(`APPROVE`) / 롤백(`UNDO`) 이벤트 처리 및 Git 연동
   - 에이전트 연동용 훅 스크립트(`hooks/notify-maestro.sh`) 제공
 - 확인된 개선 필요 항목
-  - 문서상 토큰 인증(`MAESTRO_SERVER_TOKEN`)과 실제 서버 동작 불일치
-  - 프론트엔드의 낙관적 승인 처리로 인한 상태 불일치 가능성
-  - `REJECT` 사용자 입력 경로 미비
-  - 테스트 자동화 부재
+  - 서버 노출 기본정책(CORS/바인딩) 강화 필요 (`WP-004`)
+  - 프론트엔드 이벤트 정합성 엣지 케이스 검증 확대 필요 (`WP-002`)
+  - `REJECT` UX의 수동 QA 시나리오 보강 필요 (`WP-003`)
+  - 회귀 테스트 범위를 UI/E2E까지 확장 필요 (`WP-005`)
 
 ## 변경 필요 항목 및 작업계획
 
@@ -96,10 +96,21 @@ curl -X POST http://localhost:8080/api/request \
 
 자세한 설치/사용법은 [USER_GUIDE.md](USER_GUIDE.md)를 참고하세요.
 
+## QA Agent / 품질 게이트
+
+변경 후 품질 검증은 프로젝트 QA 에이전트 커맨드로 수행합니다.
+
+```bash
+npm run qa
+```
+
+QA 범위와 수동 체크리스트는 [`docs/QA_AGENT.md`](docs/QA_AGENT.md)를 참고하세요.
+
 ## 기획 문서 / 아키텍처
 
 기획 및 아키텍처 문서는 [`docs/PLAN.md`](docs/PLAN.md)에 보관되어 있습니다.
 진행 현황 기반 작업계획은 [`docs/WORK_PLAN.md`](docs/WORK_PLAN.md)를 참고하세요.
+QA 실행 가이드는 [`docs/QA_AGENT.md`](docs/QA_AGENT.md)를 참고하세요.
 
 ## 기여 방법 (Contributing)
 

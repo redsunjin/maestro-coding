@@ -32,6 +32,11 @@ const BASE_BOTTOM = 180; // 기준선 위치 (화면 하단 기준 픽셀)
 const NOTE_HEIGHT_OFFSET = 85; // 노트가 쌓이는 간격
 const NOTE_SPEED = 14; // 노트 낙하 속도 (픽셀/프레임)
 const SPAWN_BOTTOM = 1000; // 노트 시작 위치 (바닥 기준)
+const NOTE_STATUS = {
+  READY: 'ready',
+  APPROVING: 'approving',
+  REJECTING: 'rejecting',
+};
 
 // --- Web Audio API (타격음 생성기) ---
 const playBeep = (freq, type = 'sine') => {
@@ -78,6 +83,14 @@ export default function App() {
   // 상태 동기화를 위한 Ref 업데이트
   useEffect(() => { notesRef.current = notes; }, [notes]);
   useEffect(() => { activeProjectRef.current = activeProjectId; }, [activeProjectId]);
+
+  function showFeedback(projectId, lane, text, color) {
+    const id = Date.now() + Math.random();
+    setFeedbacks(prev => [...prev, { id, projectId, lane, text, color }]);
+    setTimeout(() => {
+      setFeedbacks(prev => prev.filter(f => f.id !== id));
+    }, 500);
+  }
 
   // WebSocket 연결 정리 (언마운트 시)
   useEffect(() => {
@@ -126,6 +139,7 @@ export default function App() {
             title: data.diffSummary?.title || data.agentId || 'Agent Request',
             diff: data.diffSummary?.shortDescription || '',
             currentBottom: SPAWN_BOTTOM,
+            status: NOTE_STATUS.READY,
           };
 
           setNotes((prev) => {
@@ -133,6 +147,57 @@ export default function App() {
             if (laneNotes.length >= 6) return prev;
             return [...prev, newNote];
           });
+          return;
+        }
+
+        if (data.event === 'MERGE_SUCCESS') {
+          const mergedNote = notesRef.current.find(n => n.requestId === data.requestId);
+          if (!mergedNote) return;
+
+          setNotes(prev => prev.filter(n => n.requestId !== data.requestId));
+          setScore(s => s + 100);
+          setCombo(c => {
+            const newCombo = c + 1;
+            setMaxCombo(max => Math.max(max, newCombo));
+            return newCombo;
+          });
+          showFeedback(mergedNote.projectId, mergedNote.lane, "MERGED!", "text-green-400");
+          return;
+        }
+
+        if (data.event === 'MERGE_FAILED') {
+          const failedNote = notesRef.current.find(n => n.requestId === data.requestId);
+          if (!failedNote) return;
+
+          setNotes(prev => prev.map((note) => (
+              note.requestId === data.requestId
+                ? { ...note, status: NOTE_STATUS.READY }
+                : note
+          )));
+          setCombo(0);
+          showFeedback(failedNote.projectId, failedNote.lane, "MERGE FAILED", "text-red-400");
+          return;
+        }
+
+        if (data.event === 'AGENT_RESTARTED') {
+          const rejectedNote = notesRef.current.find(n => n.requestId === data.requestId);
+          if (!rejectedNote) return;
+
+          setNotes(prev => prev.filter(n => n.requestId !== data.requestId));
+          setCombo(0);
+          showFeedback(rejectedNote.projectId, rejectedNote.lane, "REJECTED", "text-orange-300");
+          return;
+        }
+
+        if (data.event === 'UNDO_SUCCESS') {
+          setScore(s => Math.max(0, s - 100));
+          setCombo(0);
+          showFeedback(activeProjectRef.current, -1, "⏪ ROLLBACK OK", "text-yellow-400");
+          return;
+        }
+
+        if (data.event === 'UNDO_FAILED') {
+          showFeedback(activeProjectRef.current, -1, "UNDO FAILED", "text-red-400");
         }
       } catch {
         // 파싱 오류 무시
@@ -201,6 +266,7 @@ export default function App() {
           title: commitData.title,
           diff: commitData.diff,
           currentBottom: SPAWN_BOTTOM,
+          status: NOTE_STATUS.READY,
         };
         return [...prev, newNote];
       });
@@ -240,30 +306,61 @@ export default function App() {
         playBeep(freqs[laneMatch.id], 'triangle');
 
         const currentNotes = notesRef.current;
-        const laneNotes = currentNotes.filter(n => n.lane === laneMatch.id && n.projectId === currentProjectId);
+        const laneNotes = currentNotes.filter(
+          n => n.lane === laneMatch.id
+            && n.projectId === currentProjectId
+            && n.status === NOTE_STATUS.READY
+        );
+        const hasPendingLaneNote = currentNotes.some(
+          n => n.lane === laneMatch.id
+            && n.projectId === currentProjectId
+            && n.status !== NOTE_STATUS.READY
+        );
         
         if (laneNotes.length > 0) {
           const targetNote = laneNotes[0]; // 가장 아래에 쌓인 노트
-          
-          // 승인 (Merge) 처리
-          setNotes(prev => prev.filter(n => n.id !== targetNote.id));
-          setScore(s => s + 100);
-          setCombo(c => {
-            const newCombo = c + 1;
-            setMaxCombo(max => Math.max(max, newCombo));
-            return newCombo;
-          });
-          showFeedback(currentProjectId, laneMatch.id, "MERGED!", "text-green-400");
+          const isRejectAction = e.shiftKey;
 
           // 라이브 모드: 서버에 승인 이벤트 전송
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            // 서버 확인 응답 전까지 처리중 상태 유지
+            setNotes(prev => prev.map((note) => (
+              note.id === targetNote.id
+                ? { ...note, status: isRejectAction ? NOTE_STATUS.REJECTING : NOTE_STATUS.APPROVING }
+                : note
+            )));
+            showFeedback(
+              currentProjectId,
+              laneMatch.id,
+              isRejectAction ? "REJECTING..." : "APPROVING...",
+              isRejectAction ? "text-orange-300" : "text-yellow-300"
+            );
+
             wsRef.current.send(JSON.stringify({
-              action: 'APPROVE',
+              action: isRejectAction ? 'REJECT' : 'APPROVE',
               requestId: targetNote.requestId,
               branchName: targetNote.branchName,
               laneIndex: laneMatch.id + 1,
+              feedback: isRejectAction ? 'Rejected from dashboard' : '',
             }));
+          } else {
+            // Mock 모드에서는 기존 방식으로 즉시 반영
+            setNotes(prev => prev.filter(n => n.id !== targetNote.id));
+            if (isRejectAction) {
+              setCombo(0);
+              showFeedback(currentProjectId, laneMatch.id, "REJECTED", "text-orange-300");
+            } else {
+              setScore(s => s + 100);
+              setCombo(c => {
+                const newCombo = c + 1;
+                setMaxCombo(max => Math.max(max, newCombo));
+                return newCombo;
+              });
+              showFeedback(currentProjectId, laneMatch.id, "MERGED!", "text-green-400");
+            }
           }
+        } else if (hasPendingLaneNote) {
+          showFeedback(currentProjectId, laneMatch.id, "PENDING", "text-yellow-400");
         } else {
           showFeedback(currentProjectId, laneMatch.id, "EMPTY", "text-gray-500");
           setCombo(0);
@@ -273,13 +370,15 @@ export default function App() {
       // 롤백 (Ctrl + Z)
       if ((e.ctrlKey || e.metaKey) && key === 'z') {
         e.preventDefault();
-        showFeedback(currentProjectId, -1, "⏪ ROLLBACK EXECUTED", "text-yellow-400");
-        setScore(s => Math.max(0, s - 100));
-        setCombo(0);
 
         // 라이브 모드: 서버에 롤백 이벤트 전송
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          showFeedback(currentProjectId, -1, "ROLLBACK REQUESTED", "text-yellow-400");
           wsRef.current.send(JSON.stringify({ action: 'UNDO' }));
+        } else {
+          showFeedback(currentProjectId, -1, "⏪ ROLLBACK EXECUTED", "text-yellow-400");
+          setScore(s => Math.max(0, s - 100));
+          setCombo(0);
         }
       }
     };
@@ -287,14 +386,6 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPlaying, previewNote]); // previewNote 상태 의존성 추가
-
-  const showFeedback = (projectId, lane, text, color) => {
-    const id = Date.now();
-    setFeedbacks(prev => [...prev, { id, projectId, lane, text, color }]);
-    setTimeout(() => {
-      setFeedbacks(prev => prev.filter(f => f.id !== id));
-    }, 500);
-  };
 
   const startGame = () => {
     setNotes([]);
@@ -423,14 +514,38 @@ export default function App() {
                 <div 
                   key={note.id}
                   onClick={() => setPreviewNote(note)} // 클릭 시 코드 미리보기
-                  className={`absolute left-4 right-4 p-3 rounded-lg border shadow-lg transition-colors duration-200 cursor-pointer hover:brightness-125 ${lane.bg} ${lane.border} group`}
+                  className={`absolute left-4 right-4 p-3 rounded-lg border shadow-lg transition-colors duration-200 cursor-pointer group ${
+                    note.status === NOTE_STATUS.APPROVING
+                      ? 'bg-yellow-900/20 border-yellow-500/70 opacity-80 animate-pulse'
+                      : note.status === NOTE_STATUS.REJECTING
+                        ? 'bg-orange-900/20 border-orange-500/70 opacity-80 animate-pulse'
+                      : `${lane.bg} ${lane.border} hover:brightness-125`
+                  }`}
                   style={{ bottom: `${note.currentBottom}px` }}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex items-start space-x-2 overflow-hidden">
-                      <GitCommit className={`w-4 h-4 mt-0.5 shrink-0 ${lane.color}`} />
+                      <GitCommit className={`w-4 h-4 mt-0.5 shrink-0 ${
+                        note.status === NOTE_STATUS.APPROVING
+                          ? 'text-yellow-300'
+                          : note.status === NOTE_STATUS.REJECTING
+                            ? 'text-orange-300'
+                            : lane.color
+                      }`} />
                       <div className="flex flex-col overflow-hidden">
-                        <span className="text-xs text-gray-400 truncate">Agent proposed:</span>
+                        <span className={`text-xs truncate ${
+                          note.status === NOTE_STATUS.APPROVING
+                            ? 'text-yellow-300'
+                            : note.status === NOTE_STATUS.REJECTING
+                              ? 'text-orange-300'
+                              : 'text-gray-400'
+                        }`}>
+                          {note.status === NOTE_STATUS.APPROVING
+                            ? 'Merge pending...'
+                            : note.status === NOTE_STATUS.REJECTING
+                              ? 'Reject pending...'
+                              : 'Agent proposed:'}
+                        </span>
                         <span className="text-sm font-medium truncate group-hover:underline">{note.title}</span>
                       </div>
                     </div>
@@ -478,6 +593,7 @@ export default function App() {
         <div className="flex space-x-4">
           <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1">1</kbd><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mr-1">2</kbd><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">3</kbd> 프로젝트 전환</span>
           <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1 text-gray-300">D F J K</kbd> 승인</span>
+          <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1 text-gray-300">Shift + D F J K</kbd> 반려</span>
           <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mr-1 text-gray-300">Ctrl+Z</kbd> 취소</span>
         </div>
       </footer>

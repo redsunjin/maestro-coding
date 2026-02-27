@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "server": "node maestro-server.js",
+    "test": "node --test tests/*.test.mjs",
+    "qa": "sh scripts/qa-agent.sh",
     "setup": "sh scripts/setup_env.sh",
     "configure": "node scripts/configure.js"
   },
