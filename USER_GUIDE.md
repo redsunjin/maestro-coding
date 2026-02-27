@@ -177,7 +177,7 @@ sh hooks/notify-maestro.sh feature/test-branch "테스트 커밋" "실제 통신
 ```
 
 브라우저 대시보드에 노트가 나타나면 `D` `F` `J` `K` 키로 승인할 수 있고,  
-`Shift + D/F/J/K`로 반려할 수 있습니다.  
+`Shift + D/F/J/K`로 반려할 수 있습니다(피드백 입력 가능, 취소 가능).  
 승인 시 서버가 `git merge <branchName>`을 실행합니다.
 
 ---

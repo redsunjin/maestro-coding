@@ -46,6 +46,7 @@ npm run qa
    - `MERGE_SUCCESS` 수신 후 노트 제거 + 점수/콤보 반영
    - 실패 시 노트 복구(`MERGE FAILED` 표시)
 5. 대시보드에서 `Shift + D/F/J/K` 반려 입력 후 확인:
+   - 반려 사유 입력 프롬프트가 열리고, 취소 시 반려가 취소됨
    - `REJECTING...` 상태 표시
    - `AGENT_RESTARTED` 수신 후 노트 제거 + `REJECTED` 피드백 표시
 6. 보안 정책 수동 확인:

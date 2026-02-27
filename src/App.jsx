@@ -320,6 +320,16 @@ export default function App() {
         if (laneNotes.length > 0) {
           const targetNote = laneNotes[0]; // 가장 아래에 쌓인 노트
           const isRejectAction = e.shiftKey;
+          let rejectFeedback = '';
+
+          if (isRejectAction && typeof window !== 'undefined' && typeof window.prompt === 'function') {
+            const input = window.prompt('반려 사유를 입력하세요 (선택, 취소 시 반려 취소)', '');
+            if (input === null) {
+              showFeedback(currentProjectId, laneMatch.id, "REJECT CANCELED", "text-gray-400");
+              return;
+            }
+            rejectFeedback = input.trim().slice(0, 300);
+          }
 
           // 라이브 모드: 서버에 승인 이벤트 전송
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -341,14 +351,19 @@ export default function App() {
               requestId: targetNote.requestId,
               branchName: targetNote.branchName,
               laneIndex: laneMatch.id + 1,
-              feedback: isRejectAction ? 'Rejected from dashboard' : '',
+              feedback: isRejectAction ? (rejectFeedback || 'Rejected from dashboard') : '',
             }));
           } else {
             // Mock 모드에서는 기존 방식으로 즉시 반영
             setNotes(prev => prev.filter(n => n.id !== targetNote.id));
             if (isRejectAction) {
               setCombo(0);
-              showFeedback(currentProjectId, laneMatch.id, "REJECTED", "text-orange-300");
+              showFeedback(
+                currentProjectId,
+                laneMatch.id,
+                rejectFeedback ? "REJECTED (WITH FEEDBACK)" : "REJECTED",
+                "text-orange-300"
+              );
             } else {
               setScore(s => s + 100);
               setCombo(c => {
@@ -593,7 +608,7 @@ export default function App() {
         <div className="flex space-x-4">
           <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1">1</kbd><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mr-1">2</kbd><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">3</kbd> 프로젝트 전환</span>
           <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1 text-gray-300">D F J K</kbd> 승인</span>
-          <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1 text-gray-300">Shift + D F J K</kbd> 반려</span>
+          <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1 text-gray-300">Shift + D F J K</kbd> 반려(피드백)</span>
           <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mr-1 text-gray-300">Ctrl+Z</kbd> 취소</span>
         </div>
       </footer>
