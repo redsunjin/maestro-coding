@@ -1,3 +1,9 @@
+<p align="center">
+  <a href="https://redsunjin.github.io/maestro-coding/">
+    <img src="https://img.shields.io/badge/🎹%20데모%20바로가기-Maestro%20Coding-blueviolet?style=for-the-badge&logo=github-pages&logoColor=white" alt="Demo">
+  </a>
+</p>
+
 # Maestro Coding
 
 코딩을 지휘하다 — AI 에이전트와 함께하는 코드 심포니 🎼
