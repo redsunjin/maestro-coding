@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Square, GitMerge, GitCommit, Activity, Code, X } from 'lucide-react';
+import { Play, Square, GitMerge, GitCommit, Activity, Code, X, Wifi, WifiOff } from 'lucide-react';
+
+// WebSocket 서버 주소 (maestro-server.js 가 실행되는 호스트)
+// 환경변수 VITE_WS_URL 로 재정의할 수 있습니다.
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
 
 // --- 상수 및 데이터 설정 ---
 const LANES = [
@@ -63,14 +67,78 @@ export default function App() {
   const [maxCombo, setMaxCombo] = useState(0);
   const [feedbacks, setFeedbacks] = useState([]);
   const [previewNote, setPreviewNote] = useState(null); // 코드 미리보기 모달 상태
+  // 'disconnected' | 'connecting' | 'connected'
+  const [wsStatus, setWsStatus] = useState('disconnected');
   
   const requestRef = useRef();
   const notesRef = useRef([]);
   const activeProjectRef = useRef(activeProjectId);
+  const wsRef = useRef(null);
 
   // 상태 동기화를 위한 Ref 업데이트
   useEffect(() => { notesRef.current = notes; }, [notes]);
   useEffect(() => { activeProjectRef.current = activeProjectId; }, [activeProjectId]);
+
+  // WebSocket 연결 정리 (언마운트 시)
+  useEffect(() => {
+    return () => { if (wsRef.current) wsRef.current.close(); };
+  }, []);
+
+  // --- WebSocket 연결 (라이브 모드) ---
+  const connectWebSocket = useCallback(() => {
+    // readyState: 0=CONNECTING, 1=OPEN — 이미 연결 중이거나 연결된 경우 재연결 방지
+    if (wsRef.current && wsRef.current.readyState <= WebSocket.OPEN) return;
+
+    setWsStatus('connecting');
+    const ws = new WebSocket(WS_URL);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setWsStatus('connected');
+      console.log('🎼 Maestro 서버에 연결됨:', WS_URL);
+    };
+
+    ws.onclose = () => {
+      setWsStatus('disconnected');
+      wsRef.current = null;
+    };
+
+    ws.onerror = () => {
+      setWsStatus('disconnected');
+      wsRef.current = null;
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.event === 'AGENT_TASK_READY') {
+          // laneIndex는 서버에서 1-indexed로 옵니다 → 0-indexed로 변환
+          const laneIndex = Math.max(0, Math.min(3, (data.laneIndex || 1) - 1));
+          const projectId = data.projectId || activeProjectRef.current;
+
+          const newNote = {
+            id: data.requestId || (Date.now() + Math.random()),
+            requestId: data.requestId,
+            branchName: data.branchName || null,
+            projectId,
+            lane: laneIndex,
+            title: data.diffSummary?.title || data.agentId || 'Agent Request',
+            diff: data.diffSummary?.shortDescription || '',
+            currentBottom: SPAWN_BOTTOM,
+          };
+
+          setNotes((prev) => {
+            const laneNotes = prev.filter(n => n.lane === laneIndex && n.projectId === projectId);
+            if (laneNotes.length >= 6) return prev;
+            return [...prev, newNote];
+          });
+        }
+      } catch {
+        // 파싱 오류 무시
+      }
+    };
+  }, []);
 
   // --- 게임 루프 (노트 물리 낙하 및 스택 연산) ---
   const updateGame = useCallback(() => {
@@ -112,9 +180,9 @@ export default function App() {
     return () => cancelAnimationFrame(requestRef.current);
   }, [isPlaying, updateGame]);
 
-  // --- 노트(에이전트 커밋) 생성기 ---
+  // --- 노트(에이전트 커밋) 생성기 (Mock 모드 전용) ---
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || wsStatus === 'connected') return; // 라이브 모드에서는 WebSocket 이벤트로 노트 수신
 
     let timeoutId;
     const spawnNote = () => {
@@ -143,7 +211,7 @@ export default function App() {
 
     timeoutId = setTimeout(spawnNote, 1000);
     return () => clearTimeout(timeoutId);
-  }, [isPlaying]);
+  }, [isPlaying, wsStatus]);
 
   // --- 키보드 입력 처리 (마에스트로의 지휘) ---
   useEffect(() => {
@@ -186,6 +254,16 @@ export default function App() {
             return newCombo;
           });
           showFeedback(currentProjectId, laneMatch.id, "MERGED!", "text-green-400");
+
+          // 라이브 모드: 서버에 승인 이벤트 전송
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+              action: 'APPROVE',
+              requestId: targetNote.requestId,
+              branchName: targetNote.branchName,
+              laneIndex: laneMatch.id + 1,
+            }));
+          }
         } else {
           showFeedback(currentProjectId, laneMatch.id, "EMPTY", "text-gray-500");
           setCombo(0);
@@ -198,6 +276,11 @@ export default function App() {
         showFeedback(currentProjectId, -1, "⏪ ROLLBACK EXECUTED", "text-yellow-400");
         setScore(s => Math.max(0, s - 100));
         setCombo(0);
+
+        // 라이브 모드: 서버에 롤백 이벤트 전송
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ action: 'UNDO' }));
+        }
       }
     };
 
@@ -218,11 +301,17 @@ export default function App() {
     setScore(0);
     setCombo(0);
     setIsPlaying(true);
+    connectWebSocket(); // 라이브 모드 연결 시도 (실패 시 Mock 모드로 자동 폴백)
   };
 
   const stopGame = () => {
     setIsPlaying(false);
     setNotes([]);
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setWsStatus('disconnected');
   };
 
   return (
@@ -237,6 +326,22 @@ export default function App() {
             <span className="animate-pulse mr-2 text-green-400">▶</span>
             Playing: J.S. Bach - Cello Suite No.1, Prelude
           </div>
+          {/* WebSocket 연결 상태 배지 */}
+          {wsStatus === 'connected' && (
+            <div className="hidden sm:flex items-center px-2 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-xs text-green-400">
+              <Wifi className="w-3 h-3 mr-1" /> LIVE
+            </div>
+          )}
+          {wsStatus === 'connecting' && (
+            <div className="hidden sm:flex items-center px-2 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full text-xs text-yellow-400 animate-pulse">
+              <Wifi className="w-3 h-3 mr-1" /> 연결 중...
+            </div>
+          )}
+          {wsStatus === 'disconnected' && isPlaying && (
+            <div className="hidden sm:flex items-center px-2 py-1 bg-gray-800 border border-gray-700 rounded-full text-xs text-gray-500">
+              <WifiOff className="w-3 h-3 mr-1" /> Mock
+            </div>
+          )}
         </div>
 
         <div className="flex items-center space-x-6">
