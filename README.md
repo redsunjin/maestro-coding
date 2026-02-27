@@ -49,6 +49,181 @@
 
 ---
 
+## 🔌 `maestro-server.js` 동작 원리
+
+프론트엔드 데모만으로는 실제 에이전트 승인 요청을 받을 수 없습니다.  
+`maestro-server.js`는 **에이전트 ↔ 대시보드** 사이를 연결하는 경량 Node.js 서버입니다.
+
+### 전체 아키텍처 흐름
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                       Maestro 시스템 전체 흐름                         │
+│                                                                     │
+│  AI 에이전트                                                          │
+│  (Codex / Claude /                                                  │
+│   터미널 스크립트 등)                                                   │
+│         │                                                           │
+│         │  ① 작업 완료 후                                             │
+│         │  POST /api/request                                        │
+│         ▼                                                           │
+│  ┌─────────────────────────────────────────────────┐               │
+│  │          maestro-server.js  (포트 8080)           │               │
+│  │                                                 │               │
+│  │  HTTP 서버                WebSocket 서버          │               │
+│  │  ┌──────────────┐        ┌──────────────────┐  │               │
+│  │  │POST /api/req │──②──▶ │broadcast()       │  │               │
+│  │  │GET  /health  │        │AGENT_TASK_READY  │  │               │
+│  │  └──────────────┘        └────────┬─────────┘  │               │
+│  │                                   │             │               │
+│  │  Git 실행 (execFile)  ◀──⑤──────  │             │               │
+│  │  git merge / reset                │             │               │
+│  └───────────────────────────────────┼─────────────┘               │
+│                                      │ ③ WebSocket                 │
+│                                      ▼   ws://localhost:8080        │
+│                         ┌────────────────────────┐                 │
+│                         │  브라우저 대시보드          │                 │
+│                         │  (React / App.jsx)      │                 │
+│                         │                         │                 │
+│                         │  노트가 레인으로 떨어짐 🎵  │                 │
+│                         │                         │                 │
+│                         │  키보드 D/F/J/K 입력 ④   │                 │
+│                         └────────────────────────┘                 │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 단계별 이벤트 흐름
+
+| 단계 | 주체 | 동작 |
+|------|------|------|
+| ① | AI 에이전트 | 작업(커밋) 완료 후 `POST /api/request` 로 승인 요청 전송 |
+| ② | 서버 | JSON 파싱 → `AGENT_TASK_READY` 이벤트를 연결된 모든 대시보드로 브로드캐스트 |
+| ③ | 대시보드 | WebSocket 메시지 수신 → 해당 레인에 노트(음표)가 화면 위에서 아래로 낙하 |
+| ④ | 사용자 | 키보드(`D` `F` `J` `K`)로 노트 승인 → `APPROVE` 이벤트를 서버로 전송 |
+| ⑤ | 서버 | `git merge <branchName>` 실행 → 성공 시 `MERGE_SUCCESS` 응답 |
+
+> **`Ctrl+Z` 롤백 흐름:** 사용자가 `Ctrl+Z`를 누르면 `UNDO` 이벤트가 서버로 전송되고, 서버는 `git reset --hard HEAD~1`을 실행합니다.
+
+---
+
+### 실행 방법
+
+```bash
+# 1. 의존성 설치 (ws 패키지 포함)
+npm install
+
+# 2. 서버 시작
+npm run server
+# 또는
+node maestro-server.js
+
+# 3. 프론트엔드 개발 서버 (별도 터미널)
+npm run dev
+```
+
+서버가 시작되면 대시보드에서 "지휘 시작" 버튼을 눌렀을 때 자동으로 `ws://localhost:8080`에 연결을 시도합니다.  
+연결에 성공하면 헤더에 **🔴 LIVE** 배지가 표시됩니다. 연결 실패 시에는 자동으로 Mock 모드로 동작합니다.
+
+#### 환경 변수
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `PORT` | `8080` | 서버 리스닝 포트 |
+| `MAIN_REPO_PATH` | `process.cwd()` | `git merge`/`git reset` 을 실행할 메인 레포지토리 경로 |
+| `VITE_WS_URL` | `ws://localhost:8080` | 프론트엔드가 연결할 WebSocket 주소 (`.env` 파일에 설정) |
+
+예시:
+```bash
+MAIN_REPO_PATH=/home/user/my-project PORT=9090 node maestro-server.js
+```
+
+---
+
+### HTTP API 레퍼런스
+
+#### `POST /api/request` — 에이전트 승인 요청
+
+에이전트(또는 완료 훅 스크립트)가 작업 완료 시 이 엔드포인트로 요청을 보냅니다.
+
+**요청 본문 (`application/json`)**
+
+```json
+{
+  "requestId":  "req_abc123",
+  "agentId":    "agent_backend_01",
+  "branchName": "feature/jwt-optimization",
+  "projectId":  "proj_b2c",
+  "laneIndex":  2,
+  "diffSummary": {
+    "title":            "JWT 검증 로직 최적화",
+    "impact":           "Medium",
+    "shortDescription": "auth.js 45-60 라인 수정. 예외 처리 추가."
+  }
+}
+```
+
+| 필드 | 필수 | 설명 |
+|------|------|------|
+| `agentId` | 권장 | 에이전트 식별자 |
+| `branchName` | 권장 | 실제 git merge 대상 브랜치 이름 |
+| `projectId` | 선택 | 프론트엔드 탭 선택에 사용 (`proj_b2c`, `proj_admin`, `proj_api`) |
+| `laneIndex` | 선택 | UI 레인 번호 1~4. 생략 시 서버가 랜덤 배정 |
+| `diffSummary` | 선택 | 생략 시 `title` / `description` 최상위 필드를 대체 사용 |
+
+**curl 예시**
+
+```bash
+curl -X POST http://localhost:8080/api/request \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "agentId": "my_agent",
+    "branchName": "feature/my-branch",
+    "laneIndex": 1,
+    "diffSummary": {
+      "title": "작업 완료",
+      "shortDescription": "변경 내용 요약"
+    }
+  }'
+```
+
+**응답**
+
+```json
+{ "success": true, "requestId": "req_1748392839201" }
+```
+
+#### `GET /health` — 서버 상태 확인
+
+```bash
+curl http://localhost:8080/health
+# {"status":"ok","clients":1}
+```
+
+---
+
+### WebSocket 이벤트 목록
+
+#### 서버 → 대시보드 (수신 이벤트)
+
+| 이벤트 | 설명 |
+|--------|------|
+| `AGENT_TASK_READY` | 에이전트 승인 요청. 이 이벤트의 페이로드가 노트(음표)로 화면에 표시됩니다. |
+| `MERGE_SUCCESS` | `git merge` 성공. 노트가 화면에서 사라집니다. |
+| `MERGE_FAILED` | `git merge` 실패. 서버 로그를 확인하세요. |
+| `UNDO_SUCCESS` | `git reset --hard HEAD~1` 성공. |
+| `UNDO_FAILED` | 롤백 실패. |
+| `AGENT_RESTARTED` | 반려(REJECT) 처리 완료 확인. |
+
+#### 대시보드 → 서버 (송신 이벤트)
+
+| 액션 | 설명 |
+|------|------|
+| `APPROVE` | 노트 승인. `branchName`이 있으면 `git merge` 실행. |
+| `REJECT` | 노트 반려. `feedback` 필드로 에이전트에 수정 지시 전달 가능. |
+| `UNDO` | 직전 병합 롤백 (`git reset --hard HEAD~1`). |
+
+---
+
 ### 3. 성공적인 연출을 위한 UX 디테일
 
 * **Diff 하이라이트의 추상화:** 승인 화면에서 코드를 한 줄 한 줄 읽게 하면 리듬이 깨집니다. 에이전트가 "어떤 의도"로 "어느 로직"을 건드렸는지만 3줄 이내의 자연어나 미니 맵 형태로 보여주어 직관적인 판단을 돕습니다.
