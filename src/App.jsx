@@ -768,7 +768,7 @@ export default function App() {
       />
       
       {/* --- 상단 헤더 --- */}
-      <header className="flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur-md z-10 shadow-lg relative">
+      <header className="flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur-md z-30 shadow-lg relative">
         <div className="flex items-center space-x-3">
           <Activity className="w-6 h-6 text-purple-500" />
           <h1 className="text-xl font-bold tracking-tight">Maestro <span className="text-purple-400 font-light">Workspace</span></h1>
