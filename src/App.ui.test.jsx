@@ -52,6 +52,8 @@ describe('App UI regression', () => {
   const originalWebSocket = globalThis.WebSocket;
   const originalPrompt = window.prompt;
   const originalYT = window.YT;
+  const originalAudioContext = window.AudioContext;
+  const originalWebkitAudioContext = window.webkitAudioContext;
 
   beforeEach(() => {
     MockWebSocket.instances = [];
@@ -68,6 +70,18 @@ describe('App UI regression', () => {
       delete window.YT;
     } else {
       window.YT = originalYT;
+    }
+
+    if (typeof originalAudioContext === 'undefined') {
+      delete window.AudioContext;
+    } else {
+      window.AudioContext = originalAudioContext;
+    }
+
+    if (typeof originalWebkitAudioContext === 'undefined') {
+      delete window.webkitAudioContext;
+    } else {
+      window.webkitAudioContext = originalWebkitAudioContext;
     }
   });
 
@@ -244,5 +258,60 @@ describe('App UI regression', () => {
     await userEvent.click(screen.getByRole('button', { name: '저장' }));
 
     expect(window.localStorage.getItem('maestro.function-bach.channel-url')).toBe('https://www.youtube.com/channel/UC2kF6qdHRTM_hDYfEmzkS9w');
+  });
+
+  test('key hit still triggers SFX oscillator while playing', async () => {
+    const instances = [];
+    const oscillators = [];
+
+    class MockAudioContext {
+      constructor() {
+        this.currentTime = 0;
+        this.state = 'running';
+        this.destination = {};
+        instances.push(this);
+      }
+
+      createOscillator() {
+        const osc = {
+          type: 'sine',
+          frequency: { setValueAtTime: vi.fn() },
+          connect: vi.fn(),
+          start: vi.fn(),
+          stop: vi.fn(),
+        };
+        oscillators.push(osc);
+        return osc;
+      }
+
+      createGain() {
+        return {
+          gain: {
+            value: 0,
+            setValueAtTime: vi.fn(),
+            exponentialRampToValueAtTime: vi.fn(),
+          },
+          connect: vi.fn(),
+        };
+      }
+
+      resume() {
+        return Promise.resolve();
+      }
+    }
+
+    window.AudioContext = MockAudioContext;
+    window.webkitAudioContext = undefined;
+
+    await startLiveSession();
+
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'd' });
+    });
+
+    expect(instances.length).toBe(1);
+    expect(oscillators.length).toBe(1);
+    expect(oscillators[0].start).toHaveBeenCalled();
+    expect(oscillators[0].stop).toHaveBeenCalled();
   });
 });

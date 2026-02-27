@@ -217,25 +217,48 @@ const NOTE_STATUS = {
 };
 
 // --- Web Audio API (타격음 생성기) ---
+let sfxAudioContext = null;
+let sfxMasterGain = null;
+
+const ensureSfxAudioContext = () => {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return null;
+
+  if (!sfxAudioContext) {
+    sfxAudioContext = new AudioContext();
+    sfxMasterGain = sfxAudioContext.createGain();
+    sfxMasterGain.gain.value = 0.8;
+    sfxMasterGain.connect(sfxAudioContext.destination);
+  }
+
+  if (sfxAudioContext.state === 'suspended') {
+    sfxAudioContext.resume().catch(() => {
+      // 브라우저 정책으로 실패 가능
+    });
+  }
+
+  return sfxAudioContext;
+};
+
 const playBeep = (freq, type = 'sine') => {
   try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    const ctx = ensureSfxAudioContext();
+    if (!ctx) return;
     const osc = ctx.createOscillator();
     const gainNode = ctx.createGain();
     
     osc.type = type;
     osc.frequency.setValueAtTime(freq, ctx.currentTime);
     
-    gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    gainNode.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
     
     osc.connect(gainNode);
-    gainNode.connect(ctx.destination);
+    gainNode.connect(sfxMasterGain || ctx.destination);
     
     osc.start();
-    osc.stop(ctx.currentTime + 0.1);
+    osc.stop(ctx.currentTime + 0.13);
   } catch (e) {
     // Audio 방어 코드
   }
@@ -691,6 +714,7 @@ export default function App() {
   }, [isPlaying, previewNote]); // previewNote 상태 의존성 추가
 
   const startGame = () => {
+    ensureSfxAudioContext();
     setNotes([]);
     setScore(0);
     setCombo(0);
@@ -852,17 +876,17 @@ export default function App() {
           </div>
           {/* WebSocket 연결 상태 배지 */}
           {wsStatus === 'connected' && (
-            <div className="hidden sm:flex items-center px-2 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-xs text-green-400">
+            <div className="flex shrink-0 items-center px-2 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-[10px] sm:text-xs text-green-400">
               <Wifi className="w-3 h-3 mr-1" /> LIVE
             </div>
           )}
           {wsStatus === 'connecting' && (
-            <div className="hidden sm:flex items-center px-2 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full text-xs text-yellow-400 animate-pulse">
+            <div className="flex shrink-0 items-center px-2 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full text-[10px] sm:text-xs text-yellow-400 animate-pulse">
               <Wifi className="w-3 h-3 mr-1" /> 연결 중...
             </div>
           )}
           {wsStatus === 'disconnected' && isPlaying && (
-            <div className="hidden sm:flex items-center px-2 py-1 bg-gray-800 border border-gray-700 rounded-full text-xs text-gray-500">
+            <div className="flex shrink-0 items-center px-2 py-1 bg-gray-800 border border-gray-700 rounded-full text-[10px] sm:text-xs text-gray-500">
               <WifiOff className="w-3 h-3 mr-1" /> Mock
             </div>
           )}
