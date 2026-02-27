@@ -224,6 +224,149 @@ curl http://localhost:8080/health
 
 ---
 
+## 🤖 실제 AI 개발툴과 연동하기
+
+> **"API 통해서 네트워크 타고 갔다 오는 게 맞나요? 실제 개발툴하고 통신이 되는 건가요?"**  
+> **네, 맞습니다.** `localhost:8080`을 통한 진짜 HTTP/WebSocket 통신입니다.  
+> AI 도구가 작업을 마치는 순간, 실제로 승인 요청이 대시보드에 날아옵니다.
+
+### 전체 통신 흐름 (네트워크 레벨)
+
+```
+[AI 개발툴 (Cursor / Claude Code / aider 등)]
+          │
+          │  ① 작업 완료 → 훅 스크립트 실행
+          │     hooks/notify-maestro.sh
+          │
+          │  ② 진짜 HTTP POST 요청 (로컬호스트)
+          ▼
+ POST http://localhost:8080/api/request
+          │
+          │  ③ JSON 파싱 → WebSocket 브로드캐스트
+          ▼
+ ws://localhost:8080  ───────────────────▶  [브라우저 대시보드]
+                                                     │
+                                            노트가 레인으로 떨어짐 🎵
+                                                     │
+                                            D / F / J / K 키 입력 ④
+                                                     │
+          ◀───────────────── WebSocket APPROVE ──────┘
+          │
+          │  ⑤ git merge <branchName>
+          ▼
+ 브랜치가 메인으로 실제 병합됩니다 ✅
+```
+
+> **"로컬호스트니까 사실상 인터넷은 아니지 않나요?"**  
+> 맞습니다 — 같은 머신 안의 루프백(loopback) 통신입니다. 덕분에 외부 서버 없이, 인터넷 연결 없이도 동작합니다.  
+> 원격 에이전트(다른 PC, 클라우드 서버 등)가 필요하다면 ngrok 등으로 터널링하면 됩니다.
+
+---
+
+### 방법 1 — Claude Code 훅 (가장 쉬움 ⭐)
+
+Claude Code는 에이전트가 작업을 마칠 때 자동으로 쉘 명령을 실행하는 **Stop 훅**을 지원합니다.
+
+**설정 방법 (프로젝트 루트에서):**
+
+```bash
+# .claude 디렉토리가 없으면 생성
+mkdir -p .claude
+
+# 훅 설정 파일 복사
+cp hooks/claude-settings-example.json .claude/settings.json
+```
+
+**.claude/settings.json 내용:**
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh hooks/notify-maestro.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+이후 Claude Code에서 작업이 완료될 때마다 **자동으로** 대시보드에 승인 요청이 나타납니다.
+
+---
+
+### 방법 2 — 터미널에서 직접 호출
+
+어떤 AI 도구든, 어떤 스크립트든 작업 완료 후 한 줄만 추가하면 됩니다:
+
+```bash
+# 가장 간단한 형태 (브랜치·커밋 메시지 자동 감지)
+sh hooks/notify-maestro.sh
+
+# 명시적으로 정보를 전달하는 형태
+sh hooks/notify-maestro.sh feature/auth "JWT 검증 로직 추가" "auth.js 45-60 수정"
+
+# 환경변수로 제어
+AGENT_ID=my_agent LANE_INDEX=2 sh hooks/notify-maestro.sh
+```
+
+---
+
+### 방법 3 — aider, 기타 CLI 에이전트 래퍼
+
+`aider`처럼 반복 실행되는 AI 에이전트라면 완료 후 훅을 래퍼 스크립트로 감쌀 수 있습니다:
+
+```bash
+#!/bin/bash
+# run-agent.sh — aider 실행 후 Maestro 에 알림
+
+aider --model gpt-4o "$@"
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+  sh hooks/notify-maestro.sh
+fi
+```
+
+---
+
+### 방법 4 — git post-commit 훅
+
+커밋이 생성될 때마다 자동으로 승인 요청을 보내려면:
+
+```bash
+# .git/hooks/post-commit 파일에 추가
+echo '#!/bin/sh' > .git/hooks/post-commit
+echo 'sh "$(git rev-parse --show-toplevel)/hooks/notify-maestro.sh"' >> .git/hooks/post-commit
+chmod +x .git/hooks/post-commit
+```
+
+---
+
+### 실제 동작 확인 (30초 테스트)
+
+```bash
+# 터미널 1: 서버 시작
+npm run server
+
+# 터미널 2: 브라우저에서 대시보드 열고 "지휘 시작" 클릭
+npm run dev
+
+# 터미널 3: 승인 요청 직접 발사 — 대시보드에 노트가 나타나는지 확인!
+sh hooks/notify-maestro.sh feature/test-branch "테스트 커밋" "실제 통신 확인"
+```
+
+브라우저 대시보드에 노트가 나타나면, **실제 HTTP → WebSocket 통신**이 작동하는 것입니다.  
+이제 `D` `F` `J` `K` 키를 누르면 서버에서 `git merge` 가 실행됩니다. 🎼
+
+---
+
 ### 3. 성공적인 연출을 위한 UX 디테일
 
 * **Diff 하이라이트의 추상화:** 승인 화면에서 코드를 한 줄 한 줄 읽게 하면 리듬이 깨집니다. 에이전트가 "어떤 의도"로 "어느 로직"을 건드렸는지만 3줄 이내의 자연어나 미니 맵 형태로 보여주어 직관적인 판단을 돕습니다.

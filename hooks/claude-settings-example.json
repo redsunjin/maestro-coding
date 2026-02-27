@@ -1,0 +1,26 @@
+{
+  "_comment": [
+    "Claude Code 훅 설정 파일입니다.",
+    "",
+    "사용 방법:",
+    "  1. 이 파일을 프로젝트 루트의 .claude/settings.json 에 복사합니다.",
+    "  2. maestro-server.js 가 실행 중인지 확인합니다: npm run server",
+    "  3. Claude Code 에서 작업이 완료될 때마다 자동으로 Maestro 대시보드에 승인 요청이 나타납니다.",
+    "",
+    "Claude Code 훅 공식 문서:",
+    "  https://docs.anthropic.com/en/docs/claude-code/hooks"
+  ],
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh hooks/notify-maestro.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
