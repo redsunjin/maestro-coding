@@ -241,9 +241,7 @@ const ensureSfxAudioContext = () => {
 };
 
 const playBeep = (freq, type = 'sine') => {
-  try {
-    const ctx = ensureSfxAudioContext();
-    if (!ctx) return;
+  const triggerBeep = (ctx) => {
     const osc = ctx.createOscillator();
     const gainNode = ctx.createGain();
     
@@ -259,6 +257,23 @@ const playBeep = (freq, type = 'sine') => {
     
     osc.start();
     osc.stop(ctx.currentTime + 0.13);
+  };
+
+  try {
+    const ctx = ensureSfxAudioContext();
+    if (!ctx) return;
+    if (ctx.state !== 'running') {
+      ctx.resume()
+        .then(() => {
+          if (ctx.state === 'running') triggerBeep(ctx);
+        })
+        .catch(() => {
+          // 브라우저 정책으로 resume 실패 가능
+        });
+      return;
+    }
+
+    triggerBeep(ctx);
   } catch (e) {
     // Audio 방어 코드
   }
@@ -272,6 +287,7 @@ export default function App() {
   const [combo, setCombo] = useState(0);
   const [maxCombo, setMaxCombo] = useState(0);
   const [feedbacks, setFeedbacks] = useState([]);
+  const [sfxBursts, setSfxBursts] = useState([]);
   const [previewNote, setPreviewNote] = useState(null); // 코드 미리보기 모달 상태
   // 'disconnected' | 'connecting' | 'connected'
   const [wsStatus, setWsStatus] = useState('disconnected');
@@ -302,6 +318,14 @@ export default function App() {
     setTimeout(() => {
       setFeedbacks(prev => prev.filter(f => f.id !== id));
     }, 500);
+  }
+
+  function showSfxBurst(lane, freq) {
+    const id = Date.now() + Math.random();
+    setSfxBursts(prev => [...prev, { id, lane, label: `${freq.toFixed(2)}Hz` }]);
+    setTimeout(() => {
+      setSfxBursts(prev => prev.filter(effect => effect.id !== id));
+    }, 280);
   }
 
   // WebSocket 연결 정리 (언마운트 시)
@@ -614,7 +638,9 @@ export default function App() {
       
       if (laneMatch) {
         const freqs = [261.63, 329.63, 392.00, 523.25]; // 도미솔도
-        playBeep(freqs[laneMatch.id], 'triangle');
+        const selectedFreq = freqs[laneMatch.id];
+        playBeep(selectedFreq, 'triangle');
+        showSfxBurst(laneMatch.id, selectedFreq);
 
         const currentNotes = notesRef.current;
         const laneNotes = currentNotes.filter(
@@ -716,6 +742,7 @@ export default function App() {
   const startGame = () => {
     ensureSfxAudioContext();
     setNotes([]);
+    setSfxBursts([]);
     setScore(0);
     setCombo(0);
     setIsPlaying(true);
@@ -725,6 +752,7 @@ export default function App() {
   const stopGame = () => {
     setIsPlaying(false);
     setNotes([]);
+    setSfxBursts([]);
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -1024,6 +1052,19 @@ export default function App() {
                   style={{ bottom: `${BASE_BOTTOM}px` }}
                 >
                   {feedback.text}
+                </div>
+              ))}
+
+              {/* 키 타격음 주파수 시각화 */}
+              {sfxBursts.filter(effect => effect.lane === lane.id).map(effect => (
+                <div
+                  key={effect.id}
+                  className="absolute left-1/2 z-40 -translate-x-1/2 pointer-events-none"
+                  style={{ bottom: `${BASE_BOTTOM + 48}px` }}
+                >
+                  <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-mono font-semibold shadow-[0_0_20px_rgba(255,255,255,0.15)] bg-black/70 animate-pulse ${lane.border} ${lane.color}`}>
+                    ♪ {effect.label}
+                  </span>
                 </div>
               ))}
 

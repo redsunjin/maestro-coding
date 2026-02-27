@@ -313,5 +313,6 @@ describe('App UI regression', () => {
     expect(oscillators.length).toBe(1);
     expect(oscillators[0].start).toHaveBeenCalled();
     expect(oscillators[0].stop).toHaveBeenCalled();
+    expect(screen.getByText(/261\.63Hz/)).toBeInTheDocument();
   });
 });
