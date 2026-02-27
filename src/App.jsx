@@ -86,7 +86,8 @@ export default function App() {
 
   // --- WebSocket 연결 (라이브 모드) ---
   const connectWebSocket = useCallback(() => {
-    if (wsRef.current && wsRef.current.readyState < 2) return; // 이미 연결 중 또는 연결됨
+    // readyState: 0=CONNECTING, 1=OPEN — 이미 연결 중이거나 연결된 경우 재연결 방지
+    if (wsRef.current && wsRef.current.readyState <= WebSocket.OPEN) return;
 
     setWsStatus('connecting');
     const ws = new WebSocket(WS_URL);
@@ -255,7 +256,7 @@ export default function App() {
           showFeedback(currentProjectId, laneMatch.id, "MERGED!", "text-green-400");
 
           // 라이브 모드: 서버에 승인 이벤트 전송
-          if (wsRef.current && wsRef.current.readyState === 1) {
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
               action: 'APPROVE',
               requestId: targetNote.requestId,
@@ -277,7 +278,7 @@ export default function App() {
         setCombo(0);
 
         // 라이브 모드: 서버에 롤백 이벤트 전송
-        if (wsRef.current && wsRef.current.readyState === 1) {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           wsRef.current.send(JSON.stringify({ action: 'UNDO' }));
         }
       }

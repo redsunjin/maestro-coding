@@ -10,11 +10,18 @@
 //   GET        /health                  — 서버 상태 확인
 
 import http from 'http';
-import { WebSocketServer } from 'ws';
-import { exec } from 'child_process';
+import { WebSocketServer, WebSocket as WSWebSocket } from 'ws';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-const execPromise = promisify(exec);
+const execFilePromise = promisify(execFile);
+
+// 유효한 git 브랜치명만 허용 (보안: 쉘 인젝션 방지)
+const VALID_BRANCH_RE = /^[a-zA-Z0-9._\-/]+$/;
+
+function isValidBranchName(name) {
+  return typeof name === 'string' && VALID_BRANCH_RE.test(name) && !name.includes('..');
+}
 
 const PORT = process.env.PORT || 8080;
 
@@ -100,7 +107,7 @@ const wss = new WebSocketServer({ server });
 function broadcastToClients(data) {
   const message = JSON.stringify(data);
   wss.clients.forEach((client) => {
-    if (client.readyState === 1 /* WebSocket.OPEN */) {
+    if (client.readyState === WSWebSocket.OPEN) {
       client.send(message);
     }
   });
@@ -111,12 +118,12 @@ function broadcastToClients(data) {
 const gitOps = {
   // 승인 시 메인 브랜치로 병합
   mergeAgentBranch: async (mainPath, branchName) => {
-    const { stdout } = await execPromise(`git -C "${mainPath}" merge "${branchName}"`);
+    const { stdout } = await execFilePromise('git', ['-C', mainPath, 'merge', branchName]);
     return stdout;
   },
   // 실수로 승인했을 때 (Ctrl+Z) 직전 병합 롤백
   undoLastMerge: async (mainPath) => {
-    const { stdout } = await execPromise(`git -C "${mainPath}" reset --hard HEAD~1`);
+    const { stdout } = await execFilePromise('git', ['-C', mainPath, 'reset', '--hard', 'HEAD~1']);
     return stdout;
   },
 };
@@ -141,7 +148,7 @@ wss.on('connection', (ws) => {
     switch (payload.action) {
       case 'APPROVE': {
         console.log(`✅ 승인 타격! requestId=${payload.requestId}, branch=${payload.branchName}`);
-        if (payload.branchName && mainRepoPath) {
+        if (payload.branchName && isValidBranchName(payload.branchName)) {
           const ok = await gitOps
             .mergeAgentBranch(mainRepoPath, payload.branchName)
             .then(() => true)
