@@ -27,6 +27,31 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 - 사용자가 대시보드에서 APPROVE / REJECT / UNDO 조작 가능
 - 승인 시 서버에서 로컬 `git merge`를 수행
 
+## 현재 개발 현황 (2026-02-27 기준)
+
+- 단계: 실행 가능한 MVP
+- 확인된 동작: `npm run build` 성공, 서버 `/health` 응답 확인
+- 완료된 기반 작업
+  - React + Vite + Tailwind 기반 대시보드
+  - WebSocket 기반 승인 요청 수신 및 표시
+  - 승인(`APPROVE`) / 롤백(`UNDO`) 이벤트 처리 및 Git 연동
+  - 에이전트 연동용 훅 스크립트(`hooks/notify-maestro.sh`) 제공
+- 확인된 개선 필요 항목
+  - 문서상 토큰 인증(`MAESTRO_SERVER_TOKEN`)과 실제 서버 동작 불일치
+  - 프론트엔드의 낙관적 승인 처리로 인한 상태 불일치 가능성
+  - `REJECT` 사용자 입력 경로 미비
+  - 테스트 자동화 부재
+
+## 변경 필요 항목 및 작업계획
+
+우선순위 중심의 상세 실행 계획은 [`docs/WORK_PLAN.md`](docs/WORK_PLAN.md)에 정리되어 있습니다.
+
+즉시 진행할 핵심 3가지:
+
+1. P1 보안 정합성: 서버에 `Authorization: Bearer` 검증 로직 추가 + 문서/스크립트 동기화
+2. P1 상태 정합성: 승인 시 서버 응답(`MERGE_SUCCESS`) 확인 후 UI 상태 반영하도록 프론트 로직 개선
+3. P2 사용자 플로우 보강: `REJECT` 입력/전송/피드백 UX 구현
+
 ## 빠른 시작 (Quick Start)
 
 ```bash
@@ -64,6 +89,7 @@ curl -X POST http://localhost:8080/api/request \
 ## 기획 문서 / 아키텍처
 
 기획 및 아키텍처 문서는 [`docs/PLAN.md`](docs/PLAN.md)에 보관되어 있습니다.
+진행 현황 기반 작업계획은 [`docs/WORK_PLAN.md`](docs/WORK_PLAN.md)를 참고하세요.
 
 ## 기여 방법 (Contributing)
 
