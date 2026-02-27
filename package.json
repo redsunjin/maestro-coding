@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node maestro-server.js"
+    "server": "node maestro-server.js",
+    "setup": "sh scripts/setup_env.sh",
+    "configure": "node scripts/configure.js"
   },
   "dependencies": {
     "lucide-react": "^0.511.0",
@@ -17,6 +19,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.6",
     "@vitejs/plugin-react": "^4.4.1",
+    "prompts": "^2.4.2",
     "tailwindcss": "^4.1.6",
     "vite": "^6.3.5",
     "ws": "^8.19.0"
