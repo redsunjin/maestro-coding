@@ -14,9 +14,11 @@
 #   MAESTRO_URL   서버 주소 (기본값: http://localhost:8080)
 #   AGENT_ID      에이전트 식별자 (기본값: terminal_agent)
 #   LANE_INDEX    UI 레인 번호 1~4 (기본값: 서버가 랜덤 배정)
+#   MAESTRO_SERVER_TOKEN  서버 인증 토큰 (설정 시 Authorization 헤더 자동 추가)
 
 MAESTRO_URL="${MAESTRO_URL:-http://localhost:8080}"
 AGENT_ID="${AGENT_ID:-terminal_agent}"
+MAESTRO_SERVER_TOKEN="${MAESTRO_SERVER_TOKEN:-}"
 
 # ── 인자 또는 git 상태에서 정보 수집 ─────────────────────────────────────────
 
@@ -45,15 +47,25 @@ fi
 
 PAYLOAD="{\"agentId\":\"${ESC_AGENT}\",\"branchName\":\"${ESC_BRANCH}\"${LANE_FIELD},\"diffSummary\":{\"title\":\"${ESC_TITLE}\",\"impact\":\"Medium\",\"shortDescription\":\"${ESC_DESC}\"}}"
 
-RESPONSE=$(curl -s -w '\n%{http_code}' -X POST "${MAESTRO_URL}/api/request" \
-  -H "Content-Type: application/json" \
-  -d "$PAYLOAD")
+if [ -n "$MAESTRO_SERVER_TOKEN" ]; then
+  RESPONSE=$(curl -s -w '\n%{http_code}' -X POST "${MAESTRO_URL}/api/request" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer ${MAESTRO_SERVER_TOKEN}" \
+    -d "$PAYLOAD")
+else
+  RESPONSE=$(curl -s -w '\n%{http_code}' -X POST "${MAESTRO_URL}/api/request" \
+    -H "Content-Type: application/json" \
+    -d "$PAYLOAD")
+fi
 
 HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
 BODY=$(echo "$RESPONSE" | head -1)
 
 if [ "$HTTP_STATUS" = "200" ]; then
   echo "✅ Maestro 승인 요청 전송 완료 (branch: ${BRANCH})"
+  echo "   응답: ${BODY}"
+elif [ "$HTTP_STATUS" = "401" ]; then
+  echo "⛔ 인증 실패: MAESTRO_SERVER_TOKEN 값을 확인하세요."
   echo "   응답: ${BODY}"
 else
   echo "⚠️  Maestro 서버에 연결할 수 없습니다 (${MAESTRO_URL})"

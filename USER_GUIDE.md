@@ -92,6 +92,7 @@ VITE_WS_URL=ws://localhost:8080
 
 > ⚠️ `.env` 파일에는 실제 토큰이나 경로 등 민감 정보가 포함될 수 있습니다.  
 > **절대로 `.env`를 Git에 커밋하지 마세요.** `.gitignore`에 이미 포함되어 있습니다.
+> `MAESTRO_SERVER_TOKEN`이 설정된 상태에서 인증 헤더가 없거나 토큰이 다르면 서버는 `401 Unauthorized`를 반환합니다.
 
 ---
 
@@ -115,6 +116,7 @@ curl -X POST http://localhost:8080/api/request \
 ```
 
 토큰 인증을 사용하지 않는다면 `Authorization` 헤더를 생략하세요.
+토큰 인증을 사용하는 경우 헤더가 누락되면 요청은 거절됩니다.
 
 ### 방법 2 — Claude Code 훅 (Stop Hook)
 
@@ -138,6 +140,9 @@ sh hooks/notify-maestro.sh feature/auth "JWT 검증 로직 추가" "auth.js 45-6
 
 # 환경변수로 제어
 AGENT_ID=my_agent LANE_INDEX=2 sh hooks/notify-maestro.sh
+
+# 토큰 인증 사용 시
+MAESTRO_SERVER_TOKEN=very-secret-token sh hooks/notify-maestro.sh
 ```
 
 ### 방법 4 — git post-commit 훅

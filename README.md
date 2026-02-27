@@ -26,6 +26,7 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 - Maestro 서버는 WebSocket으로 대시보드에 알림 브로드캐스트
 - 사용자가 대시보드에서 APPROVE / REJECT / UNDO 조작 가능
 - 승인 시 서버에서 로컬 `git merge`를 수행
+- `MAESTRO_SERVER_TOKEN` 설정 시 `Authorization: Bearer` 인증 적용
 
 ## 현재 개발 현황 (2026-02-27 기준)
 
@@ -79,6 +80,15 @@ npm run dev
 ```bash
 curl -X POST http://localhost:8080/api/request \
   -H 'Content-Type: application/json' \
+  -d '{"agentId":"local_agent","branchName":"feature/x","diffSummary":{"title":"작업 완료","shortDescription":"변경요약"}}'
+```
+
+토큰 인증을 활성화했다면 `Authorization` 헤더를 함께 보내야 합니다.
+
+```bash
+curl -X POST http://localhost:8080/api/request \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <MAESTRO_SERVER_TOKEN>' \
   -d '{"agentId":"local_agent","branchName":"feature/x","diffSummary":{"title":"작업 완료","shortDescription":"변경요약"}}'
 ```
 

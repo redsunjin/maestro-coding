@@ -24,13 +24,28 @@ function isValidBranchName(name) {
 }
 
 const PORT = process.env.PORT || 8080;
+const SERVER_TOKEN = process.env.MAESTRO_SERVER_TOKEN || '';
+
+function extractBearerToken(headerValue) {
+  if (typeof headerValue !== 'string') return null;
+  const prefix = 'Bearer ';
+  if (!headerValue.startsWith(prefix)) return null;
+  const token = headerValue.slice(prefix.length).trim();
+  return token || null;
+}
+
+function isRequestAuthorized(req) {
+  if (!SERVER_TOKEN) return true;
+  const token = extractBearerToken(req.headers.authorization);
+  return token === SERVER_TOKEN;
+}
 
 // ── HTTP 서버 ────────────────────────────────────────────────────────────────
 
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -62,6 +77,12 @@ const server = http.createServer((req, res) => {
   //   }
   // }
   if (req.method === 'POST' && req.url === '/api/request') {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
@@ -197,9 +218,13 @@ server.listen(PORT, () => {
   console.log(`   WebSocket   : ws://localhost:${PORT}`);
   console.log(`   에이전트 API : POST http://localhost:${PORT}/api/request`);
   console.log(`   상태 확인   : GET  http://localhost:${PORT}/health`);
+  console.log(`   인증 모드   : ${SERVER_TOKEN ? 'Bearer token required' : 'disabled'}`);
   console.log(`\n에이전트에서 승인 요청을 보내는 예시:`);
   console.log(`  curl -X POST http://localhost:${PORT}/api/request \\`);
   console.log(`    -H 'Content-Type: application/json' \\`);
+  if (SERVER_TOKEN) {
+    console.log(`    -H 'Authorization: Bearer <MAESTRO_SERVER_TOKEN>' \\`);
+  }
   console.log(`    -d '{"agentId":"my_agent","branchName":"feature/my-branch","laneIndex":1,"diffSummary":{"title":"작업 완료","shortDescription":"변경 내용"}}'`);
   console.log();
 });
