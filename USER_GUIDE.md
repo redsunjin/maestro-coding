@@ -9,6 +9,7 @@
 - [에이전트 연동 예제](#에이전트-연동-예제)
 - [승인(Approve) 시나리오 테스트](#승인approve-시나리오-테스트)
 - [롤백(UNDO) 사용법](#롤백undo-사용법)
+- [배경음악(function bach) 사용법](#배경음악function-bach-사용법)
 - [QA / 회귀 테스트](#qa--회귀-테스트)
 - [보안 권장사항](#보안-권장사항)
 
@@ -190,6 +191,31 @@ sh hooks/notify-maestro.sh feature/test-branch "테스트 커밋" "실제 통신
 - 성공 시 `UNDO_SUCCESS`, 실패 시 `UNDO_FAILED` 이벤트가 대시보드로 전달됩니다.
 
 > ⚠️ `git reset --hard`는 복구가 어렵습니다. 중요한 작업 전에는 반드시 백업 브랜치를 만들어두세요.
+
+---
+
+## 배경음악(function bach) 사용법
+
+- 위치: 대시보드 상단 헤더의 작은 `function bach` 미니 플레이어
+- 기본 채널: 밝은 분위기의 바흐 채널 URL이 기본값으로 등록되어 있습니다.
+- 제공 기능
+  - 재생/일시정지
+  - 볼륨 조절(0~100)
+  - 유튜브 채널 경로(URL) 등록/저장
+
+채널 등록 절차:
+
+1. 상단 `function bach`에서 `채널` 버튼 클릭
+2. `유튜브 채널 경로` 입력
+3. `저장` 클릭
+
+권장 URL 형식:
+
+- `https://www.youtube.com/channel/UC...` (권장)
+- `https://www.youtube.com/playlist?list=...`
+- `https://www.youtube.com/watch?v=...`
+
+> 참고: `@handle` 형식 채널 주소는 직접 재생 대상 해석이 제한될 수 있어 `channel/UC...` 형식을 권장합니다.
 
 ---
 

@@ -1,9 +1,187 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Square, GitMerge, GitCommit, Activity, Code, X, Wifi, WifiOff } from 'lucide-react';
+import { Play, Pause, Square, GitMerge, GitCommit, Activity, Code, X, Wifi, WifiOff } from 'lucide-react';
 
 // WebSocket 서버 주소 (maestro-server.js 가 실행되는 호스트)
 // 환경변수 VITE_WS_URL 로 재정의할 수 있습니다.
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
+
+const BACH_CHANNEL_STORAGE_KEY = 'maestro.function-bach.channel-url';
+const BACH_VOLUME_STORAGE_KEY = 'maestro.function-bach.volume';
+const DEFAULT_BACH_CHANNEL_URL = 'https://www.youtube.com/channel/UC2kF6qdHRTM_hDYfEmzkS9w';
+const YOUTUBE_URL_HELP_TEXT = '채널 URL은 /channel/UC... 형식 또는 재생목록/영상 URL을 사용하세요.';
+
+let youtubeIframeApiPromise = null;
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const getStoredString = (key, fallbackValue) => {
+  if (typeof window === 'undefined' || !window.localStorage) return fallbackValue;
+  const value = window.localStorage.getItem(key);
+  return value ? value : fallbackValue;
+};
+
+const getStoredNumber = (key, fallbackValue) => {
+  if (typeof window === 'undefined' || !window.localStorage) return fallbackValue;
+  const value = Number(window.localStorage.getItem(key));
+  if (Number.isNaN(value)) return fallbackValue;
+  return clamp(value, 0, 100);
+};
+
+const setStoredValue = (key, value) => {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  window.localStorage.setItem(key, value);
+};
+
+const resolveYouTubeTarget = (rawInput) => {
+  const input = String(rawInput || '').trim();
+  if (!input) return null;
+
+  if (/^UC[\w-]{22}$/.test(input)) {
+    return {
+      type: 'playlist',
+      value: `UU${input.slice(2)}`,
+      canonicalUrl: `https://www.youtube.com/channel/${input}`,
+    };
+  }
+
+  if (/^(PL|UU|OLAK5uy_)[\w-]+$/.test(input)) {
+    return {
+      type: 'playlist',
+      value: input,
+      canonicalUrl: `https://www.youtube.com/playlist?list=${input}`,
+    };
+  }
+
+  if (/^[\w-]{11}$/.test(input)) {
+    return {
+      type: 'video',
+      value: input,
+      canonicalUrl: `https://www.youtube.com/watch?v=${input}`,
+    };
+  }
+
+  const normalizedInput = /^https?:\/\//i.test(input) ? input : `https://${input}`;
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(normalizedInput);
+  } catch {
+    return null;
+  }
+
+  const host = parsedUrl.hostname.replace(/^www\./, '').toLowerCase();
+
+  if (host === 'youtu.be') {
+    const videoId = parsedUrl.pathname.split('/').filter(Boolean)[0];
+    if (!videoId) return null;
+    return {
+      type: 'video',
+      value: videoId,
+      canonicalUrl: `https://youtu.be/${videoId}`,
+    };
+  }
+
+  const allowedHosts = ['youtube.com', 'm.youtube.com', 'music.youtube.com'];
+  if (!allowedHosts.includes(host)) return null;
+
+  const listId = parsedUrl.searchParams.get('list');
+  if (listId) {
+    return {
+      type: 'playlist',
+      value: listId,
+      canonicalUrl: `https://www.youtube.com/playlist?list=${listId}`,
+    };
+  }
+
+  const videoId = parsedUrl.searchParams.get('v');
+  if (videoId) {
+    return {
+      type: 'video',
+      value: videoId,
+      canonicalUrl: `https://www.youtube.com/watch?v=${videoId}`,
+    };
+  }
+
+  const parts = parsedUrl.pathname.split('/').filter(Boolean);
+  if (parts[0] === 'channel' && /^UC[\w-]{22}$/.test(parts[1] || '')) {
+    const channelId = parts[1];
+    return {
+      type: 'playlist',
+      value: `UU${channelId.slice(2)}`,
+      canonicalUrl: `https://www.youtube.com/channel/${channelId}`,
+    };
+  }
+
+  if ((parts[0] === 'shorts' || parts[0] === 'embed' || parts[0] === 'live') && parts[1]) {
+    return {
+      type: 'video',
+      value: parts[1],
+      canonicalUrl: `https://www.youtube.com/watch?v=${parts[1]}`,
+    };
+  }
+
+  return null;
+};
+
+const cueYouTubeTarget = (player, target) => {
+  if (!player || !target) return;
+
+  if (target.type === 'playlist' && typeof player.cuePlaylist === 'function') {
+    player.cuePlaylist({ listType: 'playlist', list: target.value, index: 0 });
+    return;
+  }
+
+  if (target.type === 'video' && typeof player.cueVideoById === 'function') {
+    player.cueVideoById(target.value);
+  }
+};
+
+const loadYouTubeTarget = (player, target) => {
+  if (!player || !target) return;
+
+  if (target.type === 'playlist' && typeof player.loadPlaylist === 'function') {
+    player.loadPlaylist({ listType: 'playlist', list: target.value, index: 0 });
+    return;
+  }
+
+  if (target.type === 'video' && typeof player.loadVideoById === 'function') {
+    player.loadVideoById(target.value);
+  }
+};
+
+const loadYouTubeIframeAPI = () => {
+  if (typeof window === 'undefined') return Promise.reject(new Error('browser-only'));
+  if (window.YT && typeof window.YT.Player === 'function') return Promise.resolve(window.YT);
+  if (youtubeIframeApiPromise) return youtubeIframeApiPromise;
+
+  youtubeIframeApiPromise = new Promise((resolve, reject) => {
+    const previousReadyHandler = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof previousReadyHandler === 'function') previousReadyHandler();
+      if (window.YT && typeof window.YT.Player === 'function') {
+        resolve(window.YT);
+        return;
+      }
+      youtubeIframeApiPromise = null;
+      reject(new Error('youtube-api-missing'));
+    };
+
+    const existingScript = document.querySelector('script[data-maestro-youtube-api="true"]');
+    if (existingScript) return;
+
+    const script = document.createElement('script');
+    script.src = 'https://www.youtube.com/iframe_api';
+    script.async = true;
+    script.dataset.maestroYoutubeApi = 'true';
+    script.onerror = () => {
+      youtubeIframeApiPromise = null;
+      reject(new Error('youtube-api-load-failed'));
+    };
+    document.head.appendChild(script);
+  });
+
+  return youtubeIframeApiPromise;
+};
 
 // --- 상수 및 데이터 설정 ---
 const LANES = [
@@ -74,15 +252,26 @@ export default function App() {
   const [previewNote, setPreviewNote] = useState(null); // 코드 미리보기 모달 상태
   // 'disconnected' | 'connecting' | 'connected'
   const [wsStatus, setWsStatus] = useState('disconnected');
+  const [bachChannelUrl, setBachChannelUrl] = useState(() => getStoredString(BACH_CHANNEL_STORAGE_KEY, DEFAULT_BACH_CHANNEL_URL));
+  const [bachChannelInput, setBachChannelInput] = useState(() => getStoredString(BACH_CHANNEL_STORAGE_KEY, DEFAULT_BACH_CHANNEL_URL));
+  const [bachVolume, setBachVolume] = useState(() => getStoredNumber(BACH_VOLUME_STORAGE_KEY, 35));
+  const [isBachReady, setIsBachReady] = useState(false);
+  const [isBachPlaying, setIsBachPlaying] = useState(false);
+  const [isBachPanelOpen, setIsBachPanelOpen] = useState(false);
+  const [bachError, setBachError] = useState('');
   
   const requestRef = useRef();
   const notesRef = useRef([]);
   const activeProjectRef = useRef(activeProjectId);
   const wsRef = useRef(null);
+  const bachPlayerHostRef = useRef(null);
+  const bachPlayerRef = useRef(null);
+  const bachPlayingRef = useRef(false);
 
   // 상태 동기화를 위한 Ref 업데이트
   useEffect(() => { notesRef.current = notes; }, [notes]);
   useEffect(() => { activeProjectRef.current = activeProjectId; }, [activeProjectId]);
+  useEffect(() => { bachPlayingRef.current = isBachPlaying; }, [isBachPlaying]);
 
   function showFeedback(projectId, lane, text, color) {
     const id = Date.now() + Math.random();
@@ -96,6 +285,104 @@ export default function App() {
   useEffect(() => {
     return () => { if (wsRef.current) wsRef.current.close(); };
   }, []);
+
+  // function bach 설정 저장
+  useEffect(() => {
+    setStoredValue(BACH_CHANNEL_STORAGE_KEY, bachChannelUrl);
+  }, [bachChannelUrl]);
+
+  useEffect(() => {
+    setStoredValue(BACH_VOLUME_STORAGE_KEY, String(bachVolume));
+    if (isBachReady && bachPlayerRef.current && typeof bachPlayerRef.current.setVolume === 'function') {
+      bachPlayerRef.current.setVolume(bachVolume);
+    }
+  }, [bachVolume, isBachReady]);
+
+  // YouTube 플레이어 초기화 (BGM)
+  useEffect(() => {
+    let isDisposed = false;
+
+    loadYouTubeIframeAPI()
+      .then((YT) => {
+        if (isDisposed || !bachPlayerHostRef.current) return;
+
+        const player = new YT.Player(bachPlayerHostRef.current, {
+          width: '1',
+          height: '1',
+          playerVars: {
+            autoplay: 0,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            rel: 0,
+            modestbranding: 1,
+            playsinline: 1,
+          },
+          events: {
+            onReady: (event) => {
+              if (isDisposed) return;
+              const target = resolveYouTubeTarget(bachChannelUrl) || resolveYouTubeTarget(DEFAULT_BACH_CHANNEL_URL);
+
+              if (typeof event.target.setVolume === 'function') {
+                event.target.setVolume(bachVolume);
+              }
+              if (target) cueYouTubeTarget(event.target, target);
+
+              setIsBachReady(true);
+              setBachError('');
+            },
+            onStateChange: (event) => {
+              const playerState = window.YT?.PlayerState;
+              if (!playerState) return;
+
+              if (event.data === playerState.PLAYING) setIsBachPlaying(true);
+              if (event.data === playerState.PAUSED || event.data === playerState.ENDED || event.data === playerState.CUED) {
+                setIsBachPlaying(false);
+              }
+            },
+            onError: () => {
+              if (isDisposed) return;
+              setIsBachPlaying(false);
+              setBachError('재생에 실패했습니다. 채널/영상 URL을 확인해주세요.');
+            },
+          },
+        });
+
+        bachPlayerRef.current = player;
+      })
+      .catch(() => {
+        if (isDisposed) return;
+        setBachError('YouTube 플레이어를 로드하지 못했습니다.');
+      });
+
+    return () => {
+      isDisposed = true;
+      if (bachPlayerRef.current && typeof bachPlayerRef.current.destroy === 'function') {
+        bachPlayerRef.current.destroy();
+      }
+      bachPlayerRef.current = null;
+      setIsBachReady(false);
+      setIsBachPlaying(false);
+    };
+  }, []);
+
+  // 채널 URL 갱신 시 플레이어에 반영
+  useEffect(() => {
+    const target = resolveYouTubeTarget(bachChannelUrl);
+    if (!target) {
+      setBachError(YOUTUBE_URL_HELP_TEXT);
+      return;
+    }
+
+    if (!isBachReady || !bachPlayerRef.current) return;
+
+    if (bachPlayingRef.current) {
+      loadYouTubeTarget(bachPlayerRef.current, target);
+      return;
+    }
+
+    cueYouTubeTarget(bachPlayerRef.current, target);
+  }, [bachChannelUrl, isBachReady]);
 
   // --- WebSocket 연결 (라이브 모드) ---
   const connectWebSocket = useCallback(() => {
@@ -285,6 +572,7 @@ export default function App() {
       // 미리보기 모달이 열려있거나 게임 중지 상태면 키보드 이벤트 무시 (Esc 제외)
       if (e.key === 'Escape') {
         setPreviewNote(null);
+        setIsBachPanelOpen(false);
         return;
       }
       if (!isPlaying || previewNote) return;
@@ -420,17 +708,147 @@ export default function App() {
     setWsStatus('disconnected');
   };
 
+  const playBach = useCallback(() => {
+    if (!isBachReady || !bachPlayerRef.current) {
+      setBachError('YouTube 플레이어 준비 중입니다.');
+      return;
+    }
+
+    const target = resolveYouTubeTarget(bachChannelUrl);
+    if (!target) {
+      setBachError(YOUTUBE_URL_HELP_TEXT);
+      return;
+    }
+
+    setBachError('');
+    loadYouTubeTarget(bachPlayerRef.current, target);
+  }, [bachChannelUrl, isBachReady]);
+
+  const pauseBach = useCallback(() => {
+    if (!isBachReady || !bachPlayerRef.current) return;
+    if (typeof bachPlayerRef.current.pauseVideo === 'function') {
+      bachPlayerRef.current.pauseVideo();
+    }
+    setIsBachPlaying(false);
+  }, [isBachReady]);
+
+  const toggleBachPlayback = useCallback(() => {
+    if (isBachPlaying) {
+      pauseBach();
+      return;
+    }
+    playBach();
+  }, [isBachPlaying, pauseBach, playBach]);
+
+  const saveBachChannel = () => {
+    const target = resolveYouTubeTarget(bachChannelInput);
+    if (!target) {
+      setBachError(YOUTUBE_URL_HELP_TEXT);
+      return;
+    }
+
+    setBachChannelUrl(target.canonicalUrl);
+    setBachChannelInput(target.canonicalUrl);
+    setBachError('');
+    setIsBachPanelOpen(false);
+  };
+
+  const resetBachChannel = () => {
+    setBachChannelUrl(DEFAULT_BACH_CHANNEL_URL);
+    setBachChannelInput(DEFAULT_BACH_CHANNEL_URL);
+    setBachError('');
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white font-sans overflow-hidden selection:bg-purple-500/30">
+      <div
+        ref={bachPlayerHostRef}
+        aria-hidden="true"
+        className="absolute -left-[9999px] top-0 h-px w-px overflow-hidden"
+      />
       
       {/* --- 상단 헤더 --- */}
       <header className="flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur-md z-10 shadow-lg relative">
         <div className="flex items-center space-x-3">
           <Activity className="w-6 h-6 text-purple-500" />
           <h1 className="text-xl font-bold tracking-tight">Maestro <span className="text-purple-400 font-light">Workspace</span></h1>
-          <div className="ml-8 hidden sm:flex items-center px-3 py-1 bg-gray-800 rounded-full text-xs text-gray-300 border border-gray-700">
-            <span className="animate-pulse mr-2 text-green-400">▶</span>
-            Playing: J.S. Bach - Cello Suite No.1, Prelude
+          <div className="relative ml-4 hidden sm:block">
+            <div
+              data-testid="function-bach-mini"
+              className="flex items-center gap-1 rounded-full border border-amber-400/40 bg-gray-900/80 px-2 py-1 text-[11px] text-gray-200 shadow-lg backdrop-blur"
+            >
+              <span className="font-semibold text-amber-200">function bach</span>
+              <span className={`inline-block h-1.5 w-1.5 rounded-full ${isBachPlaying ? 'bg-green-400' : isBachReady ? 'bg-amber-300' : 'bg-gray-500'}`} />
+              <button
+                onClick={toggleBachPlayback}
+                aria-label={isBachPlaying ? '배경음악 일시정지' : '배경음악 재생'}
+                className="rounded bg-gray-800/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-100 hover:bg-gray-700"
+              >
+                {isBachPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3 fill-current" />}
+              </button>
+              <label className="flex items-center gap-1 pl-1">
+                <span className="text-[10px] text-gray-400">Vol</span>
+                <input
+                  aria-label="배경음악 볼륨"
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={bachVolume}
+                  onChange={(e) => setBachVolume(clamp(Number(e.target.value), 0, 100))}
+                  className="h-1 w-16 accent-amber-300"
+                />
+              </label>
+              <button
+                onClick={() => setIsBachPanelOpen((open) => !open)}
+                aria-label="배경음악 채널 설정"
+                className="rounded border border-gray-700 px-1.5 py-0.5 text-[10px] text-gray-300 hover:border-amber-300 hover:text-amber-200"
+              >
+                채널
+              </button>
+            </div>
+            {isBachPanelOpen && (
+              <div className="absolute left-0 top-full z-40 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border border-gray-700 bg-gray-900/95 p-3 shadow-2xl">
+                <label htmlFor="bach-channel-input" className="text-[11px] text-gray-300">
+                  유튜브 채널 경로
+                </label>
+                <input
+                  id="bach-channel-input"
+                  type="text"
+                  value={bachChannelInput}
+                  onChange={(e) => setBachChannelInput(e.target.value)}
+                  placeholder="https://www.youtube.com/channel/UC..."
+                  className="mt-1 w-full rounded-md border border-gray-700 bg-gray-950 px-2 py-1.5 text-xs text-gray-100 outline-none focus:border-amber-300"
+                />
+                <p className="mt-1 text-[10px] text-gray-400">
+                  {YOUTUBE_URL_HELP_TEXT}
+                </p>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <button
+                    onClick={resetBachChannel}
+                    className="rounded-md border border-amber-500/40 px-2 py-1 text-[11px] text-amber-200 hover:bg-amber-500/10"
+                  >
+                    기본 바흐 채널
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setBachChannelInput(bachChannelUrl);
+                        setIsBachPanelOpen(false);
+                      }}
+                      className="rounded-md border border-gray-700 px-2 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
+                    >
+                      닫기
+                    </button>
+                    <button
+                      onClick={saveBachChannel}
+                      className="rounded-md bg-amber-500 px-2 py-1 text-[11px] font-semibold text-black hover:bg-amber-400"
+                    >
+                      저장
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           {/* WebSocket 연결 상태 배지 */}
           {wsStatus === 'connected' && (
@@ -446,6 +864,11 @@ export default function App() {
           {wsStatus === 'disconnected' && isPlaying && (
             <div className="hidden sm:flex items-center px-2 py-1 bg-gray-800 border border-gray-700 rounded-full text-xs text-gray-500">
               <WifiOff className="w-3 h-3 mr-1" /> Mock
+            </div>
+          )}
+          {bachError && (
+            <div className="hidden md:block text-[10px] text-amber-300">
+              {bachError}
             </div>
           )}
         </div>

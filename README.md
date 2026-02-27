@@ -28,6 +28,7 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 - 승인 시 서버에서 로컬 `git merge`를 수행
 - `MAESTRO_SERVER_TOKEN` 설정 시 `Authorization: Bearer` 인증 적용
 - 기본 `HOST=127.0.0.1` + `ALLOWED_ORIGINS` 화이트리스트 기반 CORS 적용
+- `function bach`: 상단 미니 플레이어에서 YouTube 기반 BGM 재생/일시정지/볼륨/채널 URL 등록
 
 ## 현재 개발 현황 (2026-02-27 기준)
 
