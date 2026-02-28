@@ -30,19 +30,21 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 - 기본 `HOST=127.0.0.1` + `ALLOWED_ORIGINS` 화이트리스트 기반 CORS 적용
 - `function bach`: 상단 미니 플레이어에서 YouTube 기반 BGM 재생/일시정지/볼륨/채널 URL 등록
 
-## 현재 개발 현황 (2026-02-27 기준)
+## 현재 개발 현황 (2026-02-28 기준)
 
 - 단계: 실행 가능한 MVP
 - 확인된 동작: `npm run build` 성공, 서버 `/health` 응답 확인
 - 완료된 기반 작업
   - React + Vite + Tailwind 기반 대시보드
   - WebSocket 기반 승인 요청 수신 및 표시
-  - 승인(`APPROVE`) / 롤백(`UNDO`) 이벤트 처리 및 Git 연동
+  - 승인(`APPROVE`) / 반려(`REJECT`) / 롤백(`UNDO`) 이벤트 처리 및 Git 연동
   - 에이전트 연동용 훅 스크립트(`hooks/notify-maestro.sh`) 제공
+  - CI 품질 게이트(`npm run qa`, E2E), 통합 스모크(`npm run smoke:integration`) 구축
+  - 터치스크린 조작(레인 승인/반려, 롤백 버튼) 지원
+  - 원클릭 실행 경로(`npm run start:app`, `npm run check:env`) 제공
 - 확인된 개선 필요 항목
-  - 프론트엔드 이벤트 정합성 엣지 케이스 검증 확대 필요 (`WP-002`)
-  - `REJECT` UX의 수동 QA 시나리오 보강 필요 (`WP-003`)
-  - 회귀 테스트 범위를 UI/E2E까지 확장 필요 (`WP-005`)
+  - `start:app` 운영 피드백 기반 preflight/가이드 고도화 필요
+  - `src/App.jsx` 단일 파일 집중도 완화 및 모듈 분해 필요 (`WP-007`)
 
 ## 변경 필요 항목 및 작업계획
 
@@ -50,9 +52,11 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 
 즉시 진행할 핵심 3가지:
 
-1. P1 상태 정합성: 승인/반려 이벤트의 엣지 케이스 정리 및 UI 피드백 고도화 (`WP-002`, `WP-003`)
-2. P2 사용자 플로우 보강: 반려 피드백 입력 UX 고도화 및 운영 시나리오 보강 (`WP-003`)
-3. P3 테스트 확장: UI/E2E 회귀 테스트와 CI 자동 게이트 도입 (`WP-005`)
+1. P1 구조 최적화: `src/App.jsx` 기능별 모듈 분해 (`WP-007`)
+2. P2 설치경로 안정화: `start:app` 운영 피드백 기반 preflight/가이드 개선
+3. P2 문서/운영 동기화: 실행 표준 경로와 장애 대응 가이드 지속 업데이트
+
+설치 단순화 1차 상세 계획은 [`docs/INSTALL_SIMPLIFICATION_PHASE1.md`](docs/INSTALL_SIMPLIFICATION_PHASE1.md)를 참고하세요.
 
 ## 빠른 시작 (Quick Start)
 
@@ -69,11 +73,15 @@ npm run configure
 # 또는 직접 .env.example을 복사해 편집
 cp .env.example .env
 
-# 4. 서버 실행
-npm run server
+# 4. 원클릭 실행 (권장)
+npm run start:app
 
-# 5. 프론트엔드 개발 서버 실행 (별도 터미널)
-npm run dev
+# (대안) 수동 실행
+# 터미널 A: npm run server
+# 터미널 B: npm run dev
+
+# 환경 점검만 먼저 하려면
+npm run check:env
 ```
 
 에이전트(또는 훅)에서 승인 요청 전송 예시:

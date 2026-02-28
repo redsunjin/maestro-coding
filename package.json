@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "server": "node maestro-server.js",
+    "check:env": "node scripts/preflight.mjs",
+    "start:app": "npm run check:env && node scripts/start-app.mjs",
     "test": "npm run test:server && npm run test:ui",
     "test:server": "node --test tests/*.test.mjs",
     "test:ui": "vitest run --passWithNoTests",

@@ -5,6 +5,7 @@
 **목차**
 - [요구사항 (Prerequisites)](#요구사항-prerequisites)
 - [빠른 설치 & 실행](#빠른-설치--실행)
+- [실행 트러블슈팅](#실행-트러블슈팅)
 - [환경변수(.env) 설정 방법](#환경변수env-설정-방법)
 - [에이전트 연동 예제](#에이전트-연동-예제)
 - [승인(Approve) 시나리오 테스트](#승인approve-시나리오-테스트)
@@ -51,19 +52,35 @@ npm run setup
 # scripts/setup_env.ps1
 ```
 
-**4. 서버 실행**
+**4. 원클릭 실행 (권장)**
 
 ```bash
-npm run server
+npm run start:app
 ```
 
-**5. 프론트엔드 개발 서버 실행 (별도 터미널)**
+`start:app`은 실행 전에 `check:env`를 자동 수행하며, 서버와 프론트를 함께 시작합니다.
+종료할 때는 `Ctrl+C`를 누르면 두 프로세스가 함께 종료됩니다.
+
+**(대안) 수동 실행**
 
 ```bash
+# 터미널 1
+npm run server
+
+# 터미널 2
 npm run dev
 ```
 
 브라우저에서 대시보드를 열고 **"지휘 시작"** 버튼을 클릭하면 `ws://localhost:8080`에 자동 연결됩니다.
+
+---
+
+## 실행 트러블슈팅
+
+- `npm run start:app`에서 `.env 파일이 없습니다` 오류가 나면: `npm run configure`를 먼저 실행하세요.
+- `PORT ... 이미 사용 중` 오류가 나면: 기존 서버를 종료하거나 `.env`의 `PORT`를 변경하세요.
+- `MAIN_REPO_PATH가 git 레포가 아닙니다` 오류가 나면: `.env`에서 `MAIN_REPO_PATH`를 실제 git 레포 경로로 수정하세요.
+- `VITE_WS_URL` 연결 실패가 반복되면: `PORT`, `HOST`, `VITE_WS_URL` 값을 서로 일치시키고 다시 실행하세요.
 
 ---
 
