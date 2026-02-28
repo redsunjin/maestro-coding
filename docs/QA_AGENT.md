@@ -59,7 +59,10 @@ npm run smoke:integration
 테스트 파일:
 
 - `tests/server-regression.test.mjs`
-- `src/App.ui.test.jsx`
+- `src/App.approval.ui.test.jsx`
+- `src/App.touch.ui.test.jsx`
+- `src/App.function-bach.ui.test.jsx`
+- `src/App.sfx.ui.test.jsx`
 - `tests/e2e/maestro.e2e.spec.js`
 
 ## 수동 QA 체크리스트 (WP-002)
