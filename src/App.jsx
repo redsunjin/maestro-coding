@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, Square, GitMerge, GitCommit, Activity, Code, X, Wifi, WifiOff } from 'lucide-react';
 import {
   WS_URL,
   BACH_CHANNEL_STORAGE_KEY,
@@ -24,6 +23,11 @@ import {
   loadYouTubeTarget,
   loadYouTubeIframeAPI,
 } from './utils/youtube.js';
+import MaestroHeader from './components/maestro/MaestroHeader.jsx';
+import ProjectTabs from './components/maestro/ProjectTabs.jsx';
+import LaneBoard from './components/maestro/LaneBoard.jsx';
+import FooterHelp from './components/maestro/FooterHelp.jsx';
+import PreviewModal from './components/maestro/PreviewModal.jsx';
 
 export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -611,6 +615,19 @@ export default function App() {
     setBachError('');
   };
 
+  const handleBachVolumeChange = useCallback((value) => {
+    setBachVolume(clamp(value, 0, 100));
+  }, []);
+
+  const handleBachPanelToggle = useCallback(() => {
+    setIsBachPanelOpen((open) => !open);
+  }, []);
+
+  const handleBachPanelClose = useCallback(() => {
+    setBachChannelInput(bachChannelUrl);
+    setIsBachPanelOpen(false);
+  }, [bachChannelUrl]);
+
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white font-sans overflow-hidden selection:bg-purple-500/30">
       <div
@@ -618,355 +635,56 @@ export default function App() {
         aria-hidden="true"
         className="absolute -left-[9999px] top-0 h-px w-px overflow-hidden"
       />
-      
-      {/* --- 상단 헤더 --- */}
-      <header className="flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur-md z-50 shadow-lg relative">
-        <div className="flex items-center space-x-3">
-          <Activity className="w-6 h-6 text-purple-500" />
-          <h1 className="text-xl font-bold tracking-tight">Maestro <span className="text-purple-400 font-light">Workspace</span></h1>
-          <div className="relative ml-3 block">
-            <div
-              data-testid="function-bach-mini"
-              className="flex items-center gap-1 rounded-full border border-amber-400/40 bg-gray-900/80 px-2 py-1 text-[11px] text-gray-200 shadow-lg backdrop-blur"
-            >
-              <span className="font-semibold text-amber-200">function bach</span>
-              <span className={`inline-block h-1.5 w-1.5 rounded-full ${isBachPlaying ? 'bg-green-400' : isBachReady ? 'bg-amber-300' : 'bg-gray-500'}`} />
-              {(isBachPlaying || isBachPlaybackRequested) && (
-                <span data-testid="function-bach-hz" className="rounded-full border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-mono text-amber-200">
-                  ~{bachVizHz}Hz
-                </span>
-              )}
-              <button
-                onClick={toggleBachPlayback}
-                aria-label={isBachPlaying ? '배경음악 일시정지' : '배경음악 재생'}
-                className="rounded bg-gray-800/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-100 hover:bg-gray-700"
-              >
-                {isBachPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3 fill-current" />}
-              </button>
-              <label className="flex items-center gap-1 pl-1">
-                <span className="text-[10px] text-gray-400">Vol</span>
-                <input
-                  aria-label="배경음악 볼륨"
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={bachVolume}
-                  onChange={(e) => setBachVolume(clamp(Number(e.target.value), 0, 100))}
-                  className="h-1 w-16 accent-amber-300"
-                />
-              </label>
-              <button
-                onClick={() => setIsBachPanelOpen((open) => !open)}
-                aria-label="배경음악 채널 설정"
-                className="rounded border border-gray-700 px-1.5 py-0.5 text-[10px] text-gray-300 hover:border-amber-300 hover:text-amber-200"
-              >
-                채널
-              </button>
-            </div>
-            {isBachPanelOpen && (
-              <div className="absolute left-0 top-full z-40 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border border-gray-700 bg-gray-900/95 p-3 shadow-2xl">
-                <label htmlFor="bach-channel-input" className="text-[11px] text-gray-300">
-                  유튜브 채널 경로
-                </label>
-                <input
-                  id="bach-channel-input"
-                  type="text"
-                  value={bachChannelInput}
-                  onChange={(e) => setBachChannelInput(e.target.value)}
-                  placeholder="https://www.youtube.com/channel/UC..."
-                  className="mt-1 w-full rounded-md border border-gray-700 bg-gray-950 px-2 py-1.5 text-xs text-gray-100 outline-none focus:border-amber-300"
-                />
-                <p className="mt-1 text-[10px] text-gray-400">
-                  {YOUTUBE_URL_HELP_TEXT}
-                </p>
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <button
-                    onClick={resetBachChannel}
-                    className="rounded-md border border-amber-500/40 px-2 py-1 text-[11px] text-amber-200 hover:bg-amber-500/10"
-                  >
-                    기본 바흐 채널
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setBachChannelInput(bachChannelUrl);
-                        setIsBachPanelOpen(false);
-                      }}
-                      className="rounded-md border border-gray-700 px-2 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
-                    >
-                      닫기
-                    </button>
-                    <button
-                      onClick={saveBachChannel}
-                      className="rounded-md bg-amber-500 px-2 py-1 text-[11px] font-semibold text-black hover:bg-amber-400"
-                    >
-                      저장
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          {/* WebSocket 연결 상태 배지 */}
-          {wsStatus === 'connected' && (
-            <div className="flex shrink-0 items-center px-2 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-[10px] sm:text-xs text-green-400">
-              <Wifi className="w-3 h-3 mr-1" /> LIVE
-            </div>
-          )}
-          {wsStatus === 'connecting' && (
-            <div className="flex shrink-0 items-center px-2 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full text-[10px] sm:text-xs text-yellow-400 animate-pulse">
-              <Wifi className="w-3 h-3 mr-1" /> 연결 중...
-            </div>
-          )}
-          {wsStatus === 'disconnected' && isPlaying && (
-            <div className="flex shrink-0 items-center px-2 py-1 bg-gray-800 border border-gray-700 rounded-full text-[10px] sm:text-xs text-gray-500">
-              <WifiOff className="w-3 h-3 mr-1" /> Mock
-            </div>
-          )}
-          {bachError && (
-            <div className="hidden md:block text-[10px] text-amber-300">
-              {bachError}
-            </div>
-          )}
-        </div>
 
-        <div className="flex items-center space-x-6">
-          <div className="flex flex-col items-end">
-            <span className="text-xs text-gray-400 uppercase tracking-wider">Merged PRs</span>
-            <span className="text-2xl font-mono font-bold text-green-400">{score / 100}</span>
-          </div>
-          <div className="flex flex-col items-end">
-            <span className="text-xs text-gray-400 uppercase tracking-wider">Max Combo</span>
-            <span className="text-2xl font-mono font-bold text-purple-400">{maxCombo}</span>
-          </div>
-          
-          {!isPlaying ? (
-            <button onClick={startGame} className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-md font-medium transition-all shadow-[0_0_15px_rgba(168,85,247,0.5)]">
-              <Play className="w-4 h-4 mr-2 fill-current" /> 지휘 시작
-            </button>
-          ) : (
-            <button onClick={stopGame} className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-md font-medium transition-all">
-              <Square className="w-4 h-4 mr-2 fill-current" /> 중지
-            </button>
-          )}
-          {isPlaying && (
-            <button
-              type="button"
-              onClick={triggerUndoAction}
-              aria-label="롤백 실행"
-              className="flex items-center rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs font-semibold text-yellow-200 transition-colors hover:bg-yellow-500/20 touch-manipulation"
-            >
-              Ctrl+Z / Tap Undo
-            </button>
-          )}
-        </div>
-      </header>
+      <MaestroHeader
+        isBachPlaying={isBachPlaying}
+        isBachReady={isBachReady}
+        isBachPlaybackRequested={isBachPlaybackRequested}
+        bachVizHz={bachVizHz}
+        toggleBachPlayback={toggleBachPlayback}
+        bachVolume={bachVolume}
+        onBachVolumeChange={handleBachVolumeChange}
+        isBachPanelOpen={isBachPanelOpen}
+        onToggleBachPanel={handleBachPanelToggle}
+        bachChannelInput={bachChannelInput}
+        onBachChannelInputChange={setBachChannelInput}
+        onResetBachChannel={resetBachChannel}
+        onCloseBachPanel={handleBachPanelClose}
+        onSaveBachChannel={saveBachChannel}
+        youtubeUrlHelpText={YOUTUBE_URL_HELP_TEXT}
+        bachError={bachError}
+        wsStatus={wsStatus}
+        isPlaying={isPlaying}
+        score={score}
+        maxCombo={maxCombo}
+        onStartGame={startGame}
+        onStopGame={stopGame}
+        onUndo={triggerUndoAction}
+      />
 
-      {/* --- 프로젝트 탭 바 --- */}
-      <div className="flex bg-gray-900 border-b border-gray-800 px-4 overflow-x-auto z-10">
-        {PROJECTS.map((project, idx) => {
-          const pendingCount = notes.filter(n => n.projectId === project.id).length;
-          const isActive = activeProjectId === project.id;
-          return (
-            <button
-              key={project.id}
-              onClick={() => setActiveProjectId(project.id)}
-              className={`flex items-center px-6 py-3 border-b-2 font-medium text-sm transition-colors relative ${
-                isActive ? 'border-purple-500 text-purple-400 bg-gray-800/50' : 'border-transparent text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
-              }`}
-            >
-              <kbd className="hidden sm:inline-block mr-2 text-[10px] bg-gray-800 border border-gray-700 rounded px-1 text-gray-500">{idx + 1}</kbd>
-              {project.name}
-              {pendingCount > 0 && (
-                <span className={`ml-3 px-2 py-0.5 rounded-full text-xs font-bold ${isActive ? 'bg-purple-500/20 text-purple-300' : 'bg-red-500/20 text-red-400 animate-pulse'}`}>
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <ProjectTabs
+        projects={PROJECTS}
+        notes={notes}
+        activeProjectId={activeProjectId}
+        onSelectProject={setActiveProjectId}
+      />
 
-      {/* --- 메인 스테이지 --- */}
-      <main className="flex-1 relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black">
-        
-        {combo > 2 && (
-          <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-0 opacity-20 pointer-events-none flex flex-col items-center">
-            <span className="text-8xl font-black italic">{combo}</span>
-            <span className="text-2xl tracking-widest">COMBO</span>
-          </div>
-        )}
+      <LaneBoard
+        lanes={LANES}
+        notes={notes}
+        activeProjectId={activeProjectId}
+        combo={combo}
+        feedbacks={feedbacks}
+        sfxBursts={sfxBursts}
+        baseBottom={BASE_BOTTOM}
+        noteStatus={NOTE_STATUS}
+        onPreviewNote={setPreviewNote}
+        onLaneAction={triggerLaneAction}
+      />
 
-        {feedbacks.filter(f => f.lane === -1 && f.projectId === activeProjectId).map(feedback => (
-          <div key={feedback.id} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 animate-bounce">
-            <span className={`text-3xl font-bold bg-black/80 px-6 py-3 rounded-lg border border-yellow-500 shadow-[0_0_30px_rgba(234,179,8,0.5)] ${feedback.color}`}>
-              {feedback.text}
-            </span>
-          </div>
-        ))}
+      <FooterHelp />
 
-        {/* 4개의 레인 */}
-        <div className="absolute inset-0 flex justify-center max-w-5xl mx-auto px-4">
-          {LANES.map((lane) => (
-            <div key={lane.id} className="relative flex-1 flex flex-col border-r border-l border-gray-800/50 bg-gray-900/10 backdrop-blur-[2px]">
-              
-              <div className="absolute top-0 w-full p-4 text-center z-10 bg-gradient-to-b from-gray-900 to-transparent">
-                <span className={`text-sm font-semibold tracking-wider ${lane.color}`}>{lane.name}</span>
-              </div>
-
-              {/* 쌓여있는 노트들 렌더링 */}
-              {notes.filter(n => n.lane === lane.id && n.projectId === activeProjectId).map((note) => (
-                <div 
-                  key={note.id}
-                  onClick={() => setPreviewNote(note)} // 클릭 시 코드 미리보기
-                  className={`absolute left-4 right-4 p-3 rounded-lg border shadow-lg transition-colors duration-200 cursor-pointer group ${
-                    note.status === NOTE_STATUS.APPROVING
-                      ? 'bg-yellow-900/20 border-yellow-500/70 opacity-80 animate-pulse'
-                      : note.status === NOTE_STATUS.REJECTING
-                        ? 'bg-orange-900/20 border-orange-500/70 opacity-80 animate-pulse'
-                      : `${lane.bg} ${lane.border} hover:brightness-125`
-                  }`}
-                  style={{ bottom: `${note.currentBottom}px` }}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-start space-x-2 overflow-hidden">
-                      <GitCommit className={`w-4 h-4 mt-0.5 shrink-0 ${
-                        note.status === NOTE_STATUS.APPROVING
-                          ? 'text-yellow-300'
-                          : note.status === NOTE_STATUS.REJECTING
-                            ? 'text-orange-300'
-                            : lane.color
-                      }`} />
-                      <div className="flex flex-col overflow-hidden">
-                        <span className={`text-xs truncate ${
-                          note.status === NOTE_STATUS.APPROVING
-                            ? 'text-yellow-300'
-                            : note.status === NOTE_STATUS.REJECTING
-                              ? 'text-orange-300'
-                              : 'text-gray-400'
-                        }`}>
-                          {note.status === NOTE_STATUS.APPROVING
-                            ? 'Merge pending...'
-                            : note.status === NOTE_STATUS.REJECTING
-                              ? 'Reject pending...'
-                              : 'Agent proposed:'}
-                        </span>
-                        <span className="text-sm font-medium truncate group-hover:underline">{note.title}</span>
-                      </div>
-                    </div>
-                    <Code className="w-4 h-4 text-gray-500 group-hover:text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </div>
-              ))}
-
-              {/* 피드백 텍스트 */}
-              {feedbacks.filter(f => f.lane === lane.id && f.projectId === activeProjectId).map(feedback => (
-                <div 
-                  key={feedback.id} 
-                  className={`absolute w-full text-center z-50 font-bold text-xl tracking-widest animate-pulse ${feedback.color}`}
-                  style={{ bottom: `${BASE_BOTTOM}px` }}
-                >
-                  {feedback.text}
-                </div>
-              ))}
-
-              {/* 키 타격음 주파수 시각화 */}
-              {sfxBursts.filter(effect => effect.lane === lane.id).map(effect => (
-                <div
-                  key={effect.id}
-                  className="absolute left-1/2 z-40 -translate-x-1/2 pointer-events-none"
-                  style={{ bottom: `${BASE_BOTTOM + 48}px` }}
-                >
-                  <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-mono font-semibold shadow-[0_0_20px_rgba(255,255,255,0.15)] bg-black/70 animate-pulse ${lane.border} ${lane.color}`}>
-                    ♪ {effect.label}
-                  </span>
-                </div>
-              ))}
-
-              {/* 하단 판정선 및 단축키 안내 */}
-              <div className="absolute w-full bottom-0 h-48 bg-gradient-to-t from-gray-900 to-transparent border-t border-gray-800 flex flex-col items-center justify-end pb-8">
-                <div className={`absolute w-full h-1 bg-gray-700 shadow-[0_0_10px_rgba(255,255,255,0.1)]`} style={{ bottom: `${BASE_BOTTOM - 15}px` }} />
-                
-                <div className="relative flex flex-col items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => triggerLaneAction(lane.id)}
-                    aria-label={`${lane.name} 승인`}
-                    className={`h-16 w-16 rounded-xl border-2 bg-gray-900 ${lane.border} shadow-[0_0_15px_rgba(0,0,0,0.5)] touch-manipulation transition-transform active:scale-95`}
-                  >
-                    <span className={`text-2xl font-bold uppercase ${lane.color}`}>{lane.key}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => triggerLaneAction(lane.id, { isRejectAction: true, promptFeedback: true })}
-                    aria-label={`${lane.name} 반려`}
-                    className="min-h-[32px] rounded-md border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-[11px] font-semibold text-orange-200 transition-colors hover:bg-orange-500/20 touch-manipulation"
-                  >
-                    Reject
-                  </button>
-                </div>
-                
-                <div className="mt-2 text-xs text-gray-500 font-mono">
-                  <GitMerge className="mr-1 inline h-3 w-3" /> Tap: Approve / Reject
-                </div>
-              </div>
-
-            </div>
-          ))}
-        </div>
-      </main>
-
-      {/* --- 하단 툴바 --- */}
-      <footer className="p-3 bg-gray-900 border-t border-gray-800 text-xs text-gray-500 flex justify-between items-center z-10">
-        <div>
-          Tip: 떨어지는 노트를 <strong className="text-gray-300">클릭</strong>하여 코드 수정 내역(Diff)을 살짝 엿볼 수 있습니다.
-        </div>
-        <div className="flex space-x-4">
-          <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1">1</kbd><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mr-1">2</kbd><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">3</kbd> 프로젝트 전환</span>
-          <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1 text-gray-300">D F J K</kbd> 승인</span>
-          <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1 text-gray-300">Shift + D F J K</kbd> 반려(피드백)</span>
-          <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mr-1 text-gray-300">Ctrl+Z</kbd> 취소</span>
-          <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1 text-gray-300">Tap</kbd> 하단 레인 버튼으로 승인/반려</span>
-        </div>
-      </footer>
-
-      {/* --- 코드 미리보기 (Diff Peek) 모달 --- */}
-      {previewNote && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center p-4 border-b border-gray-800 bg-gray-800/50">
-              <div className="flex items-center space-x-2">
-                <GitCommit className="w-5 h-5 text-purple-400" />
-                <h3 className="font-semibold text-gray-100">{previewNote.title}</h3>
-              </div>
-              <button onClick={() => setPreviewNote(null)} className="text-gray-400 hover:text-white transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-4 bg-gray-950 font-mono text-sm overflow-x-auto whitespace-pre">
-              {previewNote.diff.split('\n').map((line, i) => {
-                let colorClass = "text-gray-300";
-                let bgClass = "";
-                if (line.startsWith('+')) { colorClass = "text-green-400"; bgClass = "bg-green-900/20 w-full inline-block"; }
-                if (line.startsWith('-')) { colorClass = "text-red-400"; bgClass = "bg-red-900/20 w-full inline-block"; }
-                if (line.startsWith('@@')) { colorClass = "text-blue-400"; }
-                
-                return (
-                  <span key={i} className={`${colorClass} ${bgClass} block px-2`}>
-                    {line}
-                  </span>
-                );
-              })}
-            </div>
-            <div className="p-3 border-t border-gray-800 bg-gray-900 text-right">
-              <span className="text-xs text-gray-500 mr-4"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded">Esc</kbd> 로 닫기</span>
-              <button onClick={() => setPreviewNote(null)} className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-sm transition-colors">
-                확인
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PreviewModal previewNote={previewNote} onClose={() => setPreviewNote(null)} />
 
     </div>
   );
