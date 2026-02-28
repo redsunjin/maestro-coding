@@ -42,9 +42,10 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
   - CI 품질 게이트(`npm run qa`, E2E), 통합 스모크(`npm run smoke:integration`) 구축
   - 터치스크린 조작(레인 승인/반려, 롤백 버튼) 지원
   - 원클릭 실행 경로(`npm run start:app`, `npm run check:env`) 제공
+  - `start:app` 오류 조치 메시지/대시보드 URL 자동 감지 고도화
 - 확인된 개선 필요 항목
-  - `start:app` 운영 피드백 기반 preflight/가이드 고도화 필요
-  - `src/App.jsx` 단일 파일 집중도 완화 및 모듈 분해 필요 (`WP-007`)
+  - 조건부 자동승인(`WP-008`) 안전정책 설계/검증 필요
+  - 승인 이력 악보뷰(`WP-009`) 데이터 모델/UX 설계 필요
 
 ## 변경 필요 항목 및 작업계획
 
@@ -52,8 +53,8 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 
 즉시 진행할 핵심 3가지:
 
-1. P1 구조 최적화: `src/App.jsx` 기능별 모듈 분해 (`WP-007`)
-2. P2 설치경로 안정화: `start:app` 운영 피드백 기반 preflight/가이드 개선
+1. P1 조건부 자동승인: 정책/가드레일/롤백 안전장치 설계(`WP-008`)
+2. P2 승인 이력 시각화: 악보 컨셉 이력 모델 + UI 설계/구현(`WP-009`)
 3. P2 문서/운영 동기화: 실행 표준 경로와 장애 대응 가이드 지속 업데이트
 
 설치 단순화 1차 상세 계획은 [`docs/INSTALL_SIMPLIFICATION_PHASE1.md`](docs/INSTALL_SIMPLIFICATION_PHASE1.md)를 참고하세요.

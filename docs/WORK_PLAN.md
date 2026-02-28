@@ -48,9 +48,9 @@
 
 ## 1-2) 다음 작업 포인트 (즉시 실행)
 
-1. 설치 경로 운영 안정화: `start:app` 사용 데이터 기반 오류 메시지/가이드 고도화
-2. `WP-008` 조건부 자동승인 기능 설계/리스크 검토/안전장치 적용
-3. `WP-009` 승인 이력(악보 컨셉) 설계/구현/회귀 검증
+1. `WP-008` 조건부 자동승인 기능 설계/리스크 검토/안전장치 적용
+2. `WP-009` 승인 이력(악보 컨셉) 설계/구현/회귀 검증
+3. 문서/운영 동기화: 실행 표준 경로와 장애 대응 가이드 지속 업데이트
 
 ## 1-3) 즉시 실행 결과 (2026-02-28)
 
@@ -185,8 +185,7 @@
 진행 상태:
 
 - Stage 0 완료: `useMaestroRealtime` / `useMaestroGameLoop` / `useMaestroKeyboardControls` 도입 + `npm run qa` 통과
-- Stage 1 부분 완료: UI 회귀 테스트를 기능 스위트로 분해(`approval`, `touch`, `function-bach`, `sfx`) + `npm run qa` 통과
-- Stage 1 잔여: `start:app` 운영 안정화 항목
+- Stage 1 완료: UI 회귀 테스트 스위트 분해 + `start:app` 오류 메시지/URL 안내 고도화 + `npm run qa` 통과
 
 ## 6) 추가 기능 계획: `function bach`
 

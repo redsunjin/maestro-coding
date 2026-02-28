@@ -60,6 +60,7 @@ npm run start:app
 
 `start:app`은 실행 전에 `check:env`를 자동 수행하며, 서버와 프론트를 함께 시작합니다.
 종료할 때는 `Ctrl+C`를 누르면 두 프로세스가 함께 종료됩니다.
+정상 기동 시 `health / ws / dashboard(Local URL)` 경로를 함께 출력합니다.
 
 **(대안) 수동 실행**
 
@@ -78,9 +79,11 @@ npm run dev
 ## 실행 트러블슈팅
 
 - `npm run start:app`에서 `.env 파일이 없습니다` 오류가 나면: `npm run configure`를 먼저 실행하세요.
+- `의존성이 설치되어 있지 않습니다 (node_modules 없음)` 오류가 나면: `npm install` 후 재시도하세요.
 - `PORT ... 이미 사용 중` 오류가 나면: 기존 서버를 종료하거나 `.env`의 `PORT`를 변경하세요.
 - `MAIN_REPO_PATH가 git 레포가 아닙니다` 오류가 나면: `.env`에서 `MAIN_REPO_PATH`를 실제 git 레포 경로로 수정하세요.
 - `VITE_WS_URL` 연결 실패가 반복되면: `PORT`, `HOST`, `VITE_WS_URL` 값을 서로 일치시키고 다시 실행하세요.
+- 원인 분리가 필요하면: `npm run check:env` -> `npm run server` -> `npm run dev` 순서로 단독 실행하여 실패 지점을 확인하세요.
 
 ---
 

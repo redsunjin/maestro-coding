@@ -29,8 +29,27 @@ const runtimeEnv = {
 
 const children = [];
 let isShuttingDown = false;
+let dashboardUrl = '';
 
-function pipeOutput(stream, label, isError = false) {
+function stripAnsi(text) {
+  return text.replace(/\u001b\[[0-9;]*m/g, '');
+}
+
+function detectLocalUrl(line) {
+  const plain = stripAnsi(line);
+  const localMatch = plain.match(/Local:\s*(https?:\/\/\S+)/i);
+  if (localMatch) return localMatch[1];
+
+  const fallbackMatch = plain.match(/(https?:\/\/\S+)/i);
+  if (!fallbackMatch) return '';
+  const url = fallbackMatch[1];
+  if (url.includes('localhost') || url.includes('127.0.0.1')) {
+    return url;
+  }
+  return '';
+}
+
+function pipeOutput(stream, label, isError = false, onLine) {
   if (!stream) return;
   const write = isError ? process.stderr.write.bind(process.stderr) : process.stdout.write.bind(process.stdout);
   let buffer = '';
@@ -42,6 +61,9 @@ function pipeOutput(stream, label, isError = false) {
       const line = buffer.slice(0, lineBreakIndex);
       buffer = buffer.slice(lineBreakIndex + 1);
       write(`[${label}] ${line}\n`);
+      if (typeof onLine === 'function') {
+        onLine(line);
+      }
       lineBreakIndex = buffer.indexOf('\n');
     }
   });
@@ -49,8 +71,22 @@ function pipeOutput(stream, label, isError = false) {
   stream.on('end', () => {
     if (buffer.length > 0) {
       write(`[${label}] ${buffer}\n`);
+      if (typeof onLine === 'function') {
+        onLine(buffer);
+      }
     }
   });
+}
+
+function printExitHint(label) {
+  if (label === 'server') {
+    console.error('[start:app] server 점검: npm run check:env 또는 npm run server 단독 실행으로 원인 확인');
+    return;
+  }
+
+  if (label === 'ui') {
+    console.error('[start:app] ui 점검: npm run dev 단독 실행으로 포트/의존성 문제 확인');
+  }
 }
 
 function startProcess(label, npmScript) {
@@ -60,12 +96,23 @@ function startProcess(label, npmScript) {
     stdio: ['inherit', 'pipe', 'pipe'],
   });
 
-  pipeOutput(child.stdout, label, false);
-  pipeOutput(child.stderr, label, true);
+  const onUiLine = label === 'ui'
+    ? (line) => {
+      if (dashboardUrl) return;
+      const detected = detectLocalUrl(line);
+      if (!detected) return;
+      dashboardUrl = detected;
+      console.log(`[start:app] dashboard detected: ${dashboardUrl}`);
+    }
+    : undefined;
+
+  pipeOutput(child.stdout, label, false, onUiLine);
+  pipeOutput(child.stderr, label, true, onUiLine);
 
   child.on('error', (error) => {
     if (isShuttingDown) return;
     console.error(`[start:app] ${label} 프로세스 시작 실패: ${error.message}`);
+    printExitHint(label);
     void shutdown(1);
   });
 
@@ -73,6 +120,7 @@ function startProcess(label, npmScript) {
     if (isShuttingDown) return;
     const exitCode = typeof code === 'number' ? code : 1;
     console.error(`[start:app] ${label} 종료 (code=${exitCode}, signal=${signal || 'none'})`);
+    printExitHint(label);
     void shutdown(exitCode);
   });
 
@@ -99,6 +147,7 @@ async function waitForHealth() {
         resolve(false);
       });
     });
+
     if (isHealthy) return healthUrl;
     await delay(300);
   }
@@ -143,12 +192,13 @@ startProcess('ui', 'dev');
 
 try {
   const healthUrl = await waitForHealth();
-  console.log(`[start:app] ready`);
-  console.log(`  - health : ${healthUrl}`);
-  console.log(`  - ws     : ${wsUrl}`);
-  console.log('  - dashboard: Vite 출력의 Local URL을 열어주세요.');
-  console.log('[start:app] 종료하려면 Ctrl+C를 누르세요.');
+  console.log('[start:app] ready');
+  console.log(`  - health   : ${healthUrl}`);
+  console.log(`  - ws       : ${wsUrl}`);
+  console.log(`  - dashboard: ${dashboardUrl || 'Vite 출력의 Local URL을 열어주세요.'}`);
+  console.log('  - stop     : Ctrl+C');
 } catch (error) {
   console.error(`[start:app] ${error.message}`);
+  console.error('[start:app] 점검 순서: npm run check:env -> npm run server -> npm run dev');
   await shutdown(1);
 }
