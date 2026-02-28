@@ -41,6 +41,7 @@
 - `WP-005` 완료: 서버/UI/E2E + CI 게이트 + 통합 스모크(`npm run smoke:integration`) 반영
 - `WP-006` 완료: `check:env` preflight + `start:app` 원클릭 런처 + 가이드 반영
 - `WP-007` 진행중: 1차(상수/유틸 분리) + 2차(UI 컴포넌트 분해) + 3차(게임/입력/WebSocket 훅 분리) 완료
+- `WP-008` 진행중: 1차(조건부 자동승인 정책 골격 + 기본 OFF + 서버 회귀 테스트) 완료
 - QA 에이전트 설정 완료: `npm run qa` + 회귀 테스트 스위트 + QA 가이드 추가
 - `function bach` 1차 완료: 상단 미니 플레이어, 채널 URL 저장, 재생/일시정지/볼륨, 주파수(Hz) 시각화 반영
 - 터치 입력 대응 완료: 레인 승인/반려 버튼 + 터치 롤백 버튼 + UI 회귀 테스트 반영
@@ -48,7 +49,7 @@
 
 ## 1-2) 다음 작업 포인트 (즉시 실행)
 
-1. `WP-008` 조건부 자동승인 기능 설계/리스크 검토/안전장치 적용
+1. `WP-008` 2차: 자동승인 가드레일(조건 조합/중복 승인 방지/운영 스위치) 고도화
 2. `WP-009` 승인 이력(악보 컨셉) 설계/구현/회귀 검증
 3. 문서/운영 동기화: 실행 표준 경로와 장애 대응 가이드 지속 업데이트
 
@@ -186,6 +187,7 @@
 
 - Stage 0 완료: `useMaestroRealtime` / `useMaestroGameLoop` / `useMaestroKeyboardControls` 도입 + `npm run qa` 통과
 - Stage 1 완료: UI 회귀 테스트 스위트 분해 + `start:app` 오류 메시지/URL 안내 고도화 + `npm run qa` 통과
+- Stage 2 진행중: 조건부 자동승인 1차 골격 반영 + 서버 회귀 테스트(`auto-approve`) 추가
 
 ## 6) 추가 기능 계획: `function bach`
 

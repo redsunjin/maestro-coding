@@ -104,6 +104,10 @@ cp .env.example .env
 | `ALLOWED_ORIGINS` | 로컬 Vite Origin들 | 허용 Origin 화이트리스트 (쉼표 구분) |
 | `MAESTRO_SERVER_TOKEN` | (없음) | 인증 토큰 (설정 시 요청에 `Authorization: Bearer <token>` 헤더 필요) |
 | `VITE_WS_URL` | `ws://localhost:8080` | 프론트엔드가 연결할 WebSocket 주소 |
+| `MAESTRO_AUTO_APPROVE_ENABLED` | `false` | 조건부 자동승인 활성화 여부 (`true/false`) |
+| `MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS` | (빈 값) | 자동승인 허용 `agentId` 목록 (쉼표 구분) |
+| `MAESTRO_AUTO_APPROVE_BRANCH_PREFIX` | (빈 값) | 자동승인 허용 브랜치 접두사 |
+| `MAESTRO_AUTO_APPROVE_MAX_DESC_LENGTH` | `180` | 자동승인 허용 `shortDescription` 최대 길이 |
 
 예시 `.env`:
 
@@ -114,6 +118,10 @@ HOST=127.0.0.1
 ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173
 MAESTRO_SERVER_TOKEN=very-secret-token
 VITE_WS_URL=ws://localhost:8080
+MAESTRO_AUTO_APPROVE_ENABLED=false
+MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS=
+MAESTRO_AUTO_APPROVE_BRANCH_PREFIX=
+MAESTRO_AUTO_APPROVE_MAX_DESC_LENGTH=180
 ```
 
 > ⚠️ `.env` 파일에는 실제 토큰이나 경로 등 민감 정보가 포함될 수 있습니다.  
@@ -200,6 +208,8 @@ sh hooks/notify-maestro.sh feature/test-branch "테스트 커밋" "실제 통신
 브라우저 대시보드에 노트가 나타나면 `D` `F` `J` `K` 키로 승인할 수 있고,  
 `Shift + D/F/J/K`로 반려할 수 있습니다(피드백 입력 가능, 취소 가능).  
 승인 시 서버가 `git merge <branchName>`을 실행합니다.
+
+조건부 자동승인을 켠 경우(`MAESTRO_AUTO_APPROVE_ENABLED=true`), 정책에 일치하는 요청은 대시보드 수동 입력 없이 자동 병합 시도가 수행됩니다.
 
 ---
 

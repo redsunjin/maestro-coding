@@ -33,6 +33,63 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:4173',
 ];
 const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
+const AUTO_APPROVE_CONFIG = parseAutoApproveConfig(process.env);
+
+function parseBoolean(value, defaultValue = false) {
+  if (typeof value !== 'string') return defaultValue;
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return defaultValue;
+}
+
+function parsePositiveInt(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) return fallback;
+  return parsed;
+}
+
+function parseCsv(rawValue) {
+  if (!rawValue || !rawValue.trim()) return [];
+  return rawValue
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseAutoApproveConfig(env) {
+  return {
+    enabled: parseBoolean(env.MAESTRO_AUTO_APPROVE_ENABLED, false),
+    trustedAgents: parseCsv(env.MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS),
+    branchPrefix: (env.MAESTRO_AUTO_APPROVE_BRANCH_PREFIX || '').trim(),
+    maxDescriptionLength: parsePositiveInt(env.MAESTRO_AUTO_APPROVE_MAX_DESC_LENGTH, 180),
+  };
+}
+
+function evaluateAutoApproveEligibility(approvalRequest, config) {
+  if (!config.enabled) {
+    return { eligible: false, reason: 'AUTO_APPROVE_DISABLED' };
+  }
+
+  if (!approvalRequest.branchName || !isValidBranchName(approvalRequest.branchName)) {
+    return { eligible: false, reason: 'INVALID_BRANCH' };
+  }
+
+  if (config.trustedAgents.length > 0 && !config.trustedAgents.includes(approvalRequest.agentId)) {
+    return { eligible: false, reason: 'UNTRUSTED_AGENT' };
+  }
+
+  if (config.branchPrefix && !approvalRequest.branchName.startsWith(config.branchPrefix)) {
+    return { eligible: false, reason: 'BRANCH_PREFIX_MISMATCH' };
+  }
+
+  const shortDescription = approvalRequest.diffSummary?.shortDescription || '';
+  if (shortDescription.length > config.maxDescriptionLength) {
+    return { eligible: false, reason: 'DESCRIPTION_TOO_LONG' };
+  }
+
+  return { eligible: true, reason: 'POLICY_MATCHED' };
+}
 
 function extractBearerToken(headerValue) {
   if (typeof headerValue !== 'string') return null;
@@ -147,11 +204,21 @@ const server = http.createServer((req, res) => {
           },
         };
 
+        const autoApprove = evaluateAutoApproveEligibility(approvalRequest, AUTO_APPROVE_CONFIG);
+
         broadcastToClients({ event: 'AGENT_TASK_READY', ...approvalRequest });
         console.log(`📨 승인 요청 수신: [${approvalRequest.agentId}] ${approvalRequest.diffSummary.title}`);
 
+        if (autoApprove.eligible) {
+          void runConditionalAutoApprove(approvalRequest);
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, requestId: approvalRequest.requestId }));
+        res.end(JSON.stringify({
+          success: true,
+          requestId: approvalRequest.requestId,
+          autoApprove,
+        }));
       } catch {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
@@ -191,6 +258,32 @@ const gitOps = {
     return stdout;
   },
 };
+
+const autoApproveInFlight = new Set();
+
+async function runConditionalAutoApprove(approvalRequest) {
+  if (autoApproveInFlight.has(approvalRequest.requestId)) return;
+  autoApproveInFlight.add(approvalRequest.requestId);
+
+  const mainRepoPath = process.env.MAIN_REPO_PATH || process.cwd();
+  console.log(`🤖 조건부 자동승인 시작: requestId=${approvalRequest.requestId}, branch=${approvalRequest.branchName}`);
+
+  const ok = await gitOps
+    .mergeAgentBranch(mainRepoPath, approvalRequest.branchName)
+    .then(() => true)
+    .catch((err) => {
+      console.error('조건부 자동승인 Merge 실패:', err.message);
+      return false;
+    });
+
+  broadcastToClients({
+    event: ok ? 'MERGE_SUCCESS' : 'MERGE_FAILED',
+    requestId: approvalRequest.requestId,
+    autoApproved: true,
+  });
+
+  autoApproveInFlight.delete(approvalRequest.requestId);
+}
 
 // ── 프론트엔드 메시지 처리 ─────────────────────────────────────────────────────
 
@@ -264,6 +357,12 @@ server.listen(PORT, HOST, () => {
   console.log(`   상태 확인   : GET  http://${HOST}:${PORT}/health`);
   console.log(`   허용 Origin : ${ALLOWED_ORIGINS.join(', ')}`);
   console.log(`   인증 모드   : ${SERVER_TOKEN ? 'Bearer token required' : 'disabled'}`);
+  console.log(`   자동승인    : ${AUTO_APPROVE_CONFIG.enabled ? 'enabled' : 'disabled'}`);
+  if (AUTO_APPROVE_CONFIG.enabled) {
+    console.log(`     - trusted agents : ${AUTO_APPROVE_CONFIG.trustedAgents.length > 0 ? AUTO_APPROVE_CONFIG.trustedAgents.join(', ') : '(all)'}`);
+    console.log(`     - branch prefix  : ${AUTO_APPROVE_CONFIG.branchPrefix || '(none)'}`);
+    console.log(`     - max desc len   : ${AUTO_APPROVE_CONFIG.maxDescriptionLength}`);
+  }
   console.log(`\n에이전트에서 승인 요청을 보내는 예시:`);
   console.log(`  curl -X POST http://${HOST}:${PORT}/api/request \\`);
   console.log(`    -H 'Content-Type: application/json' \\`);

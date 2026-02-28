@@ -38,7 +38,7 @@ async function waitForHealth(port, timeoutMs = 5000) {
   throw new Error(`server did not become healthy on port ${port}`);
 }
 
-function startServer({ token = '', host = '127.0.0.1', allowedOrigins = '' } = {}) {
+function startServer({ token = '', host = '127.0.0.1', allowedOrigins = '', extraEnv = {} } = {}) {
   const port = randomPort();
   let logs = '';
 
@@ -50,6 +50,7 @@ function startServer({ token = '', host = '127.0.0.1', allowedOrigins = '' } = {
       HOST: host,
       MAESTRO_SERVER_TOKEN: token,
       ALLOWED_ORIGINS: allowedOrigins,
+      ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -176,6 +177,65 @@ test('server broadcasts AGENT_TASK_READY via websocket on request creation', asy
   assert.equal(event.requestId, requestId);
   assert.equal(event.agentId, 'qa_agent');
   assert.equal(event.laneIndex, 2);
+});
+
+test('server attempts conditional auto-approve when policy matches', async (t) => {
+  const server = startServer({
+    extraEnv: {
+      MAIN_REPO_PATH: ROOT_DIR,
+      MAESTRO_AUTO_APPROVE_ENABLED: 'true',
+      MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS: 'qa_agent',
+      MAESTRO_AUTO_APPROVE_BRANCH_PREFIX: 'feature/',
+      MAESTRO_AUTO_APPROVE_MAX_DESC_LENGTH: '300',
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const eventsPromise = withTimeout(new Promise((resolve) => {
+    const events = [];
+    ws.on('message', (payload) => {
+      events.push(JSON.parse(payload.toString()));
+      if (events.length >= 2) resolve(events);
+    });
+  }), 5000, 'auto approve events');
+
+  const requestId = `req_auto_${Date.now()}`;
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requestId,
+      agentId: 'qa_agent',
+      branchName: 'feature/auto-approve-missing-branch',
+      laneIndex: 1,
+      diffSummary: {
+        title: 'Auto approve policy',
+        shortDescription: 'policy matched',
+      },
+    }),
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.autoApprove?.eligible, true);
+
+  const events = await eventsPromise;
+  assert.equal(events[0].event, 'AGENT_TASK_READY');
+  assert.equal(events[0].requestId, requestId);
+
+  const mergeResult = events.find((event) => event.event === 'MERGE_FAILED');
+  assert.ok(mergeResult, `expected MERGE_FAILED event, got: ${JSON.stringify(events)}`);
+  assert.equal(mergeResult.requestId, requestId);
+  assert.equal(mergeResult.autoApproved, true);
 });
 
 test('server returns AGENT_RESTARTED event when REJECT action is sent', async (t) => {
