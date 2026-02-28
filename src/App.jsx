@@ -215,6 +215,7 @@ const NOTE_STATUS = {
   APPROVING: 'approving',
   REJECTING: 'rejecting',
 };
+const LANE_HIT_FREQS = [261.63, 329.63, 392.00, 523.25]; // 도미솔도
 
 // --- Web Audio API (타격음 생성기) ---
 let sfxAudioContext = null;
@@ -644,6 +645,112 @@ export default function App() {
     return () => clearTimeout(timeoutId);
   }, [isPlaying, wsStatus]);
 
+  const triggerLaneAction = useCallback((laneId, options = {}) => {
+    const { isRejectAction = false, promptFeedback = false } = options;
+    if (!isPlaying || previewNote) return;
+
+    const laneMatch = LANES.find((lane) => lane.id === laneId);
+    if (!laneMatch) return;
+
+    const currentProjectId = activeProjectRef.current;
+    const selectedFreq = LANE_HIT_FREQS[laneMatch.id];
+    playBeep(selectedFreq, 'triangle');
+    showSfxBurst(laneMatch.id, selectedFreq);
+
+    const currentNotes = notesRef.current;
+    const laneNotes = currentNotes.filter(
+      (note) => note.lane === laneMatch.id
+        && note.projectId === currentProjectId
+        && note.status === NOTE_STATUS.READY
+    );
+    const hasPendingLaneNote = currentNotes.some(
+      (note) => note.lane === laneMatch.id
+        && note.projectId === currentProjectId
+        && note.status !== NOTE_STATUS.READY
+    );
+
+    if (laneNotes.length === 0) {
+      if (hasPendingLaneNote) {
+        showFeedback(currentProjectId, laneMatch.id, "PENDING", "text-yellow-400");
+      } else {
+        showFeedback(currentProjectId, laneMatch.id, "EMPTY", "text-gray-500");
+        setCombo(0);
+      }
+      return;
+    }
+
+    const targetNote = laneNotes[0];
+    let rejectFeedback = '';
+
+    if (isRejectAction && promptFeedback && typeof window !== 'undefined' && typeof window.prompt === 'function') {
+      const input = window.prompt('반려 사유를 입력하세요 (선택, 취소 시 반려 취소)', '');
+      if (input === null) {
+        showFeedback(currentProjectId, laneMatch.id, "REJECT CANCELED", "text-gray-400");
+        return;
+      }
+      rejectFeedback = input.trim().slice(0, 300);
+    }
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      setNotes((prev) => prev.map((note) => (
+        note.id === targetNote.id
+          ? { ...note, status: isRejectAction ? NOTE_STATUS.REJECTING : NOTE_STATUS.APPROVING }
+          : note
+      )));
+      showFeedback(
+        currentProjectId,
+        laneMatch.id,
+        isRejectAction ? "REJECTING..." : "APPROVING...",
+        isRejectAction ? "text-orange-300" : "text-yellow-300"
+      );
+
+      wsRef.current.send(JSON.stringify({
+        action: isRejectAction ? 'REJECT' : 'APPROVE',
+        requestId: targetNote.requestId,
+        branchName: targetNote.branchName,
+        laneIndex: laneMatch.id + 1,
+        feedback: isRejectAction ? (rejectFeedback || 'Rejected from dashboard') : '',
+      }));
+      return;
+    }
+
+    // Mock 모드에서는 기존 방식으로 즉시 반영
+    setNotes((prev) => prev.filter((note) => note.id !== targetNote.id));
+    if (isRejectAction) {
+      setCombo(0);
+      showFeedback(
+        currentProjectId,
+        laneMatch.id,
+        rejectFeedback ? "REJECTED (WITH FEEDBACK)" : "REJECTED",
+        "text-orange-300"
+      );
+      return;
+    }
+
+    setScore((prevScore) => prevScore + 100);
+    setCombo((prevCombo) => {
+      const nextCombo = prevCombo + 1;
+      setMaxCombo((currentMax) => Math.max(currentMax, nextCombo));
+      return nextCombo;
+    });
+    showFeedback(currentProjectId, laneMatch.id, "MERGED!", "text-green-400");
+  }, [isPlaying, previewNote]);
+
+  const triggerUndoAction = useCallback(() => {
+    if (!isPlaying || previewNote) return;
+
+    const currentProjectId = activeProjectRef.current;
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      showFeedback(currentProjectId, -1, "ROLLBACK REQUESTED", "text-yellow-400");
+      wsRef.current.send(JSON.stringify({ action: 'UNDO' }));
+      return;
+    }
+
+    showFeedback(currentProjectId, -1, "⏪ ROLLBACK EXECUTED", "text-yellow-400");
+    setScore((prevScore) => Math.max(0, prevScore - 100));
+    setCombo(0);
+  }, [isPlaying, previewNote]);
+
   // --- 키보드 입력 처리 (마에스트로의 지휘) ---
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -654,9 +761,8 @@ export default function App() {
         return;
       }
       if (!isPlaying || previewNote) return;
-      
+
       const key = e.key.toLowerCase();
-      const currentProjectId = activeProjectRef.current;
 
       // 프로젝트 전환 (숫자 키 1, 2, 3)
       const projectIndex = parseInt(key) - 1;
@@ -665,110 +771,25 @@ export default function App() {
         return;
       }
 
-      const laneMatch = LANES.find(l => l.key === key);
-      
-      if (laneMatch) {
-        const freqs = [261.63, 329.63, 392.00, 523.25]; // 도미솔도
-        const selectedFreq = freqs[laneMatch.id];
-        playBeep(selectedFreq, 'triangle');
-        showSfxBurst(laneMatch.id, selectedFreq);
-
-        const currentNotes = notesRef.current;
-        const laneNotes = currentNotes.filter(
-          n => n.lane === laneMatch.id
-            && n.projectId === currentProjectId
-            && n.status === NOTE_STATUS.READY
-        );
-        const hasPendingLaneNote = currentNotes.some(
-          n => n.lane === laneMatch.id
-            && n.projectId === currentProjectId
-            && n.status !== NOTE_STATUS.READY
-        );
-        
-        if (laneNotes.length > 0) {
-          const targetNote = laneNotes[0]; // 가장 아래에 쌓인 노트
-          const isRejectAction = e.shiftKey;
-          let rejectFeedback = '';
-
-          if (isRejectAction && typeof window !== 'undefined' && typeof window.prompt === 'function') {
-            const input = window.prompt('반려 사유를 입력하세요 (선택, 취소 시 반려 취소)', '');
-            if (input === null) {
-              showFeedback(currentProjectId, laneMatch.id, "REJECT CANCELED", "text-gray-400");
-              return;
-            }
-            rejectFeedback = input.trim().slice(0, 300);
-          }
-
-          // 라이브 모드: 서버에 승인 이벤트 전송
-          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            // 서버 확인 응답 전까지 처리중 상태 유지
-            setNotes(prev => prev.map((note) => (
-              note.id === targetNote.id
-                ? { ...note, status: isRejectAction ? NOTE_STATUS.REJECTING : NOTE_STATUS.APPROVING }
-                : note
-            )));
-            showFeedback(
-              currentProjectId,
-              laneMatch.id,
-              isRejectAction ? "REJECTING..." : "APPROVING...",
-              isRejectAction ? "text-orange-300" : "text-yellow-300"
-            );
-
-            wsRef.current.send(JSON.stringify({
-              action: isRejectAction ? 'REJECT' : 'APPROVE',
-              requestId: targetNote.requestId,
-              branchName: targetNote.branchName,
-              laneIndex: laneMatch.id + 1,
-              feedback: isRejectAction ? (rejectFeedback || 'Rejected from dashboard') : '',
-            }));
-          } else {
-            // Mock 모드에서는 기존 방식으로 즉시 반영
-            setNotes(prev => prev.filter(n => n.id !== targetNote.id));
-            if (isRejectAction) {
-              setCombo(0);
-              showFeedback(
-                currentProjectId,
-                laneMatch.id,
-                rejectFeedback ? "REJECTED (WITH FEEDBACK)" : "REJECTED",
-                "text-orange-300"
-              );
-            } else {
-              setScore(s => s + 100);
-              setCombo(c => {
-                const newCombo = c + 1;
-                setMaxCombo(max => Math.max(max, newCombo));
-                return newCombo;
-              });
-              showFeedback(currentProjectId, laneMatch.id, "MERGED!", "text-green-400");
-            }
-          }
-        } else if (hasPendingLaneNote) {
-          showFeedback(currentProjectId, laneMatch.id, "PENDING", "text-yellow-400");
-        } else {
-          showFeedback(currentProjectId, laneMatch.id, "EMPTY", "text-gray-500");
-          setCombo(0);
-        }
-      }
-
-      // 롤백 (Ctrl + Z)
+      // 롤백 (Ctrl/Cmd + Z)
       if ((e.ctrlKey || e.metaKey) && key === 'z') {
         e.preventDefault();
-
-        // 라이브 모드: 서버에 롤백 이벤트 전송
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          showFeedback(currentProjectId, -1, "ROLLBACK REQUESTED", "text-yellow-400");
-          wsRef.current.send(JSON.stringify({ action: 'UNDO' }));
-        } else {
-          showFeedback(currentProjectId, -1, "⏪ ROLLBACK EXECUTED", "text-yellow-400");
-          setScore(s => Math.max(0, s - 100));
-          setCombo(0);
-        }
+        triggerUndoAction();
+        return;
       }
+
+      const laneMatch = LANES.find((lane) => lane.key === key);
+      if (!laneMatch) return;
+
+      triggerLaneAction(laneMatch.id, {
+        isRejectAction: e.shiftKey,
+        promptFeedback: e.shiftKey,
+      });
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying, previewNote]); // previewNote 상태 의존성 추가
+  }, [isPlaying, previewNote, triggerLaneAction, triggerUndoAction]);
 
   const startGame = () => {
     ensureSfxAudioContext();
@@ -983,6 +1004,16 @@ export default function App() {
               <Square className="w-4 h-4 mr-2 fill-current" /> 중지
             </button>
           )}
+          {isPlaying && (
+            <button
+              type="button"
+              onClick={triggerUndoAction}
+              aria-label="롤백 실행"
+              className="flex items-center rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs font-semibold text-yellow-200 transition-colors hover:bg-yellow-500/20 touch-manipulation"
+            >
+              Ctrl+Z / Tap Undo
+            </button>
+          )}
         </div>
       </header>
 
@@ -1111,14 +1142,27 @@ export default function App() {
               <div className="absolute w-full bottom-0 h-48 bg-gradient-to-t from-gray-900 to-transparent border-t border-gray-800 flex flex-col items-center justify-end pb-8">
                 <div className={`absolute w-full h-1 bg-gray-700 shadow-[0_0_10px_rgba(255,255,255,0.1)]`} style={{ bottom: `${BASE_BOTTOM - 15}px` }} />
                 
-                <div className="relative">
-                  <div className={`w-16 h-16 rounded-xl border-2 flex items-center justify-center bg-gray-900 ${lane.border} shadow-[0_0_15px_rgba(0,0,0,0.5)]`}>
+                <div className="relative flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => triggerLaneAction(lane.id)}
+                    aria-label={`${lane.name} 승인`}
+                    className={`h-16 w-16 rounded-xl border-2 bg-gray-900 ${lane.border} shadow-[0_0_15px_rgba(0,0,0,0.5)] touch-manipulation transition-transform active:scale-95`}
+                  >
                     <span className={`text-2xl font-bold uppercase ${lane.color}`}>{lane.key}</span>
-                  </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => triggerLaneAction(lane.id, { isRejectAction: true, promptFeedback: true })}
+                    aria-label={`${lane.name} 반려`}
+                    className="min-h-[32px] rounded-md border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-[11px] font-semibold text-orange-200 transition-colors hover:bg-orange-500/20 touch-manipulation"
+                  >
+                    Reject
+                  </button>
                 </div>
                 
-                <div className="mt-4 text-xs text-gray-500 font-mono">
-                  <GitMerge className="w-3 h-3 inline mr-1" /> Approve
+                <div className="mt-2 text-xs text-gray-500 font-mono">
+                  <GitMerge className="mr-1 inline h-3 w-3" /> Tap: Approve / Reject
                 </div>
               </div>
 
@@ -1137,6 +1181,7 @@ export default function App() {
           <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1 text-gray-300">D F J K</kbd> 승인</span>
           <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1 text-gray-300">Shift + D F J K</kbd> 반려(피드백)</span>
           <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mr-1 text-gray-300">Ctrl+Z</kbd> 취소</span>
+          <span className="flex items-center"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 mx-1 text-gray-300">Tap</kbd> 하단 레인 버튼으로 승인/반려</span>
         </div>
       </footer>
 
