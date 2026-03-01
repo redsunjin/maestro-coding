@@ -1,6 +1,6 @@
 # Maestro Coding 작업계획
 
-기준일: 2026-02-28
+기준일: 2026-03-01
 
 ## 0) 착수 순서 고정 + 비손상/비오염 선언 (2026-02-28)
 
@@ -41,7 +41,7 @@
 - `WP-005` 완료: 서버/UI/E2E + CI 게이트 + 통합 스모크(`npm run smoke:integration`) 반영
 - `WP-006` 완료: `check:env` preflight + `start:app` 원클릭 런처 + 가이드 반영
 - `WP-007` 진행중: 1차(상수/유틸 분리) + 2차(UI 컴포넌트 분해) + 3차(게임/입력/WebSocket 훅 분리) 완료
-- `WP-008` 진행중: 1차(조건부 자동승인 정책 골격 + 기본 OFF + 서버 회귀 테스트) 완료
+- `WP-008` 진행중: 1차(정책 골격) + 2차(가드레일/중복승인 방지/운영스위치) 완료
 - QA 에이전트 설정 완료: `npm run qa` + 회귀 테스트 스위트 + QA 가이드 추가
 - `function bach` 1차 완료: 상단 미니 플레이어, 채널 URL 저장, 재생/일시정지/볼륨, 주파수(Hz) 시각화 반영
 - 터치 입력 대응 완료: 레인 승인/반려 버튼 + 터치 롤백 버튼 + UI 회귀 테스트 반영
@@ -49,9 +49,27 @@
 
 ## 1-2) 다음 작업 포인트 (즉시 실행)
 
-1. `WP-008` 2차: 자동승인 가드레일(조건 조합/중복 승인 방지/운영 스위치) 고도화
-2. `WP-009` 승인 이력(악보 컨셉) 설계/구현/회귀 검증
+1. `WP-009` 승인 이력(악보 컨셉) 설계/구현/회귀 검증
+2. `WP-008` 3차: 운영 가시성(자동승인 사유/상태 로그 API) 강화
 3. 문서/운영 동기화: 실행 표준 경로와 장애 대응 가이드 지속 업데이트
+
+## 1-5) `WP-008` 상세 실행계획 및 진행 상태 (2026-03-01)
+
+고정 순서:
+
+1. 정책 조건 조합
+2. 중복 승인 방지
+3. 운영 스위치
+4. 회귀 테스트/문서 동기화
+
+세부 항목:
+
+| 항목 | 구현 내용 | 완료 기준 | 상태 |
+|---|---|---|---|
+| 정책 조건 조합 | `trustedAgents`/`branchPrefix`/`maxDescriptionLength` + `requireExplicit` + `cooldown` 평가 | `/api/request` 응답의 `autoApprove.reason`으로 차단 사유 확인 가능 | 완료 |
+| 중복 승인 방지 | 요청 상태맵(`ready/approving/merged/rejected`) + 중복 `APPROVE` 차단 | 동일 `requestId` 재승인 시 `MERGE_SKIPPED` 반환 | 완료 |
+| 운영 스위치 | `dryRun` 모드에서 정책 매칭만 수행, merge 미실행 | `AUTO_APPROVE_SKIPPED` 이벤트 확인 가능 | 완료 |
+| 회귀 테스트 | 서버 회귀에 explicit/cooldown/dry-run/duplicate 케이스 추가 | `npm run qa` 통과 | 완료 |
 
 ## 1-3) 즉시 실행 결과 (2026-02-28)
 
@@ -187,7 +205,7 @@
 
 - Stage 0 완료: `useMaestroRealtime` / `useMaestroGameLoop` / `useMaestroKeyboardControls` 도입 + `npm run qa` 통과
 - Stage 1 완료: UI 회귀 테스트 스위트 분해 + `start:app` 오류 메시지/URL 안내 고도화 + `npm run qa` 통과
-- Stage 2 진행중: 조건부 자동승인 1차 골격 반영 + 서버 회귀 테스트(`auto-approve`) 추가
+- Stage 2 진행중: 조건부 자동승인 1차 + 2차 완료(가드레일/중복승인 방지/운영스위치) + 서버 회귀 테스트 확장
 
 ## 6) 추가 기능 계획: `function bach`
 

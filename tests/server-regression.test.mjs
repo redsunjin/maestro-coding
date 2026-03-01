@@ -80,7 +80,7 @@ async function stopServer(proc) {
   }
 }
 
-async function postApprovalRequest(port, headers = {}) {
+async function postApprovalRequest(port, headers = {}, payloadOverrides = {}) {
   const response = await fetch(`http://127.0.0.1:${port}/api/request`, {
     method: 'POST',
     headers: {
@@ -96,6 +96,7 @@ async function postApprovalRequest(port, headers = {}) {
         title: 'QA request',
         shortDescription: 'regression validation',
       },
+      ...payloadOverrides,
     }),
   });
 
@@ -236,6 +237,163 @@ test('server attempts conditional auto-approve when policy matches', async (t) =
   assert.ok(mergeResult, `expected MERGE_FAILED event, got: ${JSON.stringify(events)}`);
   assert.equal(mergeResult.requestId, requestId);
   assert.equal(mergeResult.autoApproved, true);
+});
+
+test('auto-approve requires explicit request flag when configured', async (t) => {
+  const server = startServer({
+    extraEnv: {
+      MAESTRO_AUTO_APPROVE_ENABLED: 'true',
+      MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS: 'qa_agent',
+      MAESTRO_AUTO_APPROVE_BRANCH_PREFIX: 'feature/',
+      MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT: 'true',
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const noFlagResponse = await postApprovalRequest(server.port, {}, {
+    requestId: `req_explicit_missing_${Date.now()}`,
+    branchName: 'feature/needs-flag',
+  });
+  assert.equal(noFlagResponse.status, 200);
+  const noFlagBody = await noFlagResponse.json();
+  assert.equal(noFlagBody.autoApprove?.eligible, false);
+  assert.equal(noFlagBody.autoApprove?.reason, 'EXPLICIT_FLAG_REQUIRED');
+
+  const withFlagResponse = await postApprovalRequest(server.port, {}, {
+    requestId: `req_explicit_ok_${Date.now()}`,
+    branchName: 'feature/has-flag',
+    autoApprove: true,
+  });
+  assert.equal(withFlagResponse.status, 200);
+  const withFlagBody = await withFlagResponse.json();
+  assert.equal(withFlagBody.autoApprove?.eligible, true);
+});
+
+test('auto-approve enforces cooldown between eligible requests', async (t) => {
+  const server = startServer({
+    extraEnv: {
+      MAIN_REPO_PATH: ROOT_DIR,
+      MAESTRO_AUTO_APPROVE_ENABLED: 'true',
+      MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS: 'qa_agent',
+      MAESTRO_AUTO_APPROVE_BRANCH_PREFIX: 'feature/',
+      MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT: 'true',
+      MAESTRO_AUTO_APPROVE_COOLDOWN_MS: '600000',
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const first = await postApprovalRequest(server.port, {}, {
+    requestId: `req_cooldown_1_${Date.now()}`,
+    branchName: 'feature/cooldown-one',
+    autoApprove: true,
+  });
+  assert.equal(first.status, 200);
+  const firstBody = await first.json();
+  assert.equal(firstBody.autoApprove?.eligible, true);
+
+  const second = await postApprovalRequest(server.port, {}, {
+    requestId: `req_cooldown_2_${Date.now()}`,
+    branchName: 'feature/cooldown-two',
+    autoApprove: true,
+  });
+  assert.equal(second.status, 200);
+  const secondBody = await second.json();
+  assert.equal(secondBody.autoApprove?.eligible, false);
+  assert.equal(secondBody.autoApprove?.reason, 'COOLDOWN_ACTIVE');
+});
+
+test('manual APPROVE is skipped when request is already merged', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const requestId = `req_manual_dup_${Date.now()}`;
+
+  const firstMessagePromise = withTimeout(once(ws, 'message'), 3000, 'first approve result');
+  ws.send(JSON.stringify({
+    action: 'APPROVE',
+    requestId,
+  }));
+  const [firstPayload] = await firstMessagePromise;
+  const firstEvent = JSON.parse(firstPayload.toString());
+  assert.equal(firstEvent.event, 'MERGE_SUCCESS');
+  assert.equal(firstEvent.requestId, requestId);
+
+  const secondMessagePromise = withTimeout(once(ws, 'message'), 3000, 'duplicate approve result');
+  ws.send(JSON.stringify({
+    action: 'APPROVE',
+    requestId,
+  }));
+  const [secondPayload] = await secondMessagePromise;
+  const secondEvent = JSON.parse(secondPayload.toString());
+  assert.equal(secondEvent.event, 'MERGE_SKIPPED');
+  assert.equal(secondEvent.requestId, requestId);
+  assert.equal(secondEvent.reason, 'REQUEST_ALREADY_MERGED');
+});
+
+test('auto-approve dry-run emits skip event without merge attempt', async (t) => {
+  const server = startServer({
+    extraEnv: {
+      MAESTRO_AUTO_APPROVE_ENABLED: 'true',
+      MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS: 'qa_agent',
+      MAESTRO_AUTO_APPROVE_BRANCH_PREFIX: 'feature/',
+      MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT: 'true',
+      MAESTRO_AUTO_APPROVE_DRY_RUN: 'true',
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const eventsPromise = withTimeout(new Promise((resolve) => {
+    const events = [];
+    ws.on('message', (payload) => {
+      events.push(JSON.parse(payload.toString()));
+      if (events.length >= 2) resolve(events);
+    });
+  }), 5000, 'dry run events');
+
+  const requestId = `req_dry_${Date.now()}`;
+  const response = await postApprovalRequest(server.port, {}, {
+    requestId,
+    branchName: 'feature/dry-run',
+    autoApprove: true,
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.autoApprove?.eligible, true);
+
+  const events = await eventsPromise;
+  assert.equal(events[0].event, 'AGENT_TASK_READY');
+  assert.equal(events[0].requestId, requestId);
+  assert.equal(events[1].event, 'AUTO_APPROVE_SKIPPED');
+  assert.equal(events[1].requestId, requestId);
+  assert.equal(events[1].reason, 'DRY_RUN');
 });
 
 test('server returns AGENT_RESTARTED event when REJECT action is sent', async (t) => {

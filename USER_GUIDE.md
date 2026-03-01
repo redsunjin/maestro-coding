@@ -108,6 +108,9 @@ cp .env.example .env
 | `MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS` | (빈 값) | 자동승인 허용 `agentId` 목록 (쉼표 구분) |
 | `MAESTRO_AUTO_APPROVE_BRANCH_PREFIX` | (빈 값) | 자동승인 허용 브랜치 접두사 |
 | `MAESTRO_AUTO_APPROVE_MAX_DESC_LENGTH` | `180` | 자동승인 허용 `shortDescription` 최대 길이 |
+| `MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT` | `false` | `autoApprove=true` 명시 요청만 자동승인할지 여부 |
+| `MAESTRO_AUTO_APPROVE_COOLDOWN_MS` | `0` | 자동승인 시도 간 최소 간격(ms) |
+| `MAESTRO_AUTO_APPROVE_DRY_RUN` | `false` | 정책 매칭만 수행하고 실제 merge는 건너뜀 |
 
 예시 `.env`:
 
@@ -122,6 +125,9 @@ MAESTRO_AUTO_APPROVE_ENABLED=false
 MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS=
 MAESTRO_AUTO_APPROVE_BRANCH_PREFIX=
 MAESTRO_AUTO_APPROVE_MAX_DESC_LENGTH=180
+MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT=false
+MAESTRO_AUTO_APPROVE_COOLDOWN_MS=0
+MAESTRO_AUTO_APPROVE_DRY_RUN=false
 ```
 
 > ⚠️ `.env` 파일에는 실제 토큰이나 경로 등 민감 정보가 포함될 수 있습니다.  
@@ -142,6 +148,7 @@ curl -X POST http://localhost:8080/api/request \
   -d '{
     "agentId": "local_agent",
     "branchName": "feature/my-feature",
+    "autoApprove": true,
     "laneIndex": 1,
     "diffSummary": {
       "title": "작업 완료",
@@ -210,6 +217,7 @@ sh hooks/notify-maestro.sh feature/test-branch "테스트 커밋" "실제 통신
 승인 시 서버가 `git merge <branchName>`을 실행합니다.
 
 조건부 자동승인을 켠 경우(`MAESTRO_AUTO_APPROVE_ENABLED=true`), 정책에 일치하는 요청은 대시보드 수동 입력 없이 자동 병합 시도가 수행됩니다.
+`MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT=true`를 함께 사용하면 요청 본문에 `"autoApprove": true`를 넣은 요청만 자동승인 대상으로 처리됩니다.
 
 ---
 
