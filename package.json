@@ -14,8 +14,8 @@
     "test:server": "node --test tests/*.test.mjs",
     "test:ui": "vitest run --passWithNoTests",
     "test:e2e": "playwright test",
-    "smoke:integration": "sh scripts/smoke-agent-integration.sh",
-    "qa": "sh scripts/qa-agent.sh",
+    "smoke:integration": "bash scripts/smoke-agent-integration.sh",
+    "qa": "bash scripts/qa-agent.sh",
     "setup": "sh scripts/setup_env.sh",
     "configure": "node scripts/configure.js"
   },
