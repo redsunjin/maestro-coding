@@ -103,6 +103,23 @@ async function postApprovalRequest(port, headers = {}, payloadOverrides = {}) {
   return response;
 }
 
+async function waitForWebSocketEvent(ws, predicate, timeoutMs = 5000, label = 'websocket event') {
+  return withTimeout(new Promise((resolve) => {
+    const onMessage = (payload) => {
+      let event;
+      try {
+        event = JSON.parse(payload.toString());
+      } catch {
+        return;
+      }
+      if (!predicate(event)) return;
+      ws.off('message', onMessage);
+      resolve(event);
+    };
+    ws.on('message', onMessage);
+  }), timeoutMs, label);
+}
+
 test('POST /api/request accepts unauthenticated request when token is disabled', async (t) => {
   const server = startServer();
   t.after(async () => {
@@ -152,9 +169,14 @@ test('server broadcasts AGENT_TASK_READY via websocket on request creation', asy
     ws.close();
   });
   await withTimeout(once(ws, 'open'), 3000, 'websocket open');
-  const messagePromise = withTimeout(once(ws, 'message'), 3000, 'websocket message');
 
   const requestId = `req_ws_${Date.now()}`;
+  const messagePromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'AGENT_TASK_READY' && event.requestId === requestId,
+    3000,
+    'agent task ready event',
+  );
   const response = await fetch(`http://127.0.0.1:${server.port}/api/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -171,8 +193,7 @@ test('server broadcasts AGENT_TASK_READY via websocket on request creation', asy
   });
   assert.equal(response.status, 200);
 
-  const [payload] = await messagePromise;
-  const event = JSON.parse(payload.toString());
+  const event = await messagePromise;
 
   assert.equal(event.event, 'AGENT_TASK_READY');
   assert.equal(event.requestId, requestId);
@@ -202,15 +223,19 @@ test('server attempts conditional auto-approve when policy matches', async (t) =
   });
   await withTimeout(once(ws, 'open'), 3000, 'websocket open');
 
-  const eventsPromise = withTimeout(new Promise((resolve) => {
-    const events = [];
-    ws.on('message', (payload) => {
-      events.push(JSON.parse(payload.toString()));
-      if (events.length >= 2) resolve(events);
-    });
-  }), 5000, 'auto approve events');
-
   const requestId = `req_auto_${Date.now()}`;
+  const taskReadyPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'AGENT_TASK_READY' && event.requestId === requestId,
+    5000,
+    'auto approve task ready',
+  );
+  const mergeResultPromise = waitForWebSocketEvent(
+    ws,
+    (event) => (event.event === 'MERGE_SUCCESS' || event.event === 'MERGE_FAILED') && event.requestId === requestId,
+    5000,
+    'auto approve merge result',
+  );
   const response = await fetch(`http://127.0.0.1:${server.port}/api/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -229,12 +254,12 @@ test('server attempts conditional auto-approve when policy matches', async (t) =
   const body = await response.json();
   assert.equal(body.autoApprove?.eligible, true);
 
-  const events = await eventsPromise;
-  assert.equal(events[0].event, 'AGENT_TASK_READY');
-  assert.equal(events[0].requestId, requestId);
+  const taskReadyEvent = await taskReadyPromise;
+  assert.equal(taskReadyEvent.event, 'AGENT_TASK_READY');
+  assert.equal(taskReadyEvent.requestId, requestId);
 
-  const mergeResult = events.find((event) => event.event === 'MERGE_FAILED');
-  assert.ok(mergeResult, `expected MERGE_FAILED event, got: ${JSON.stringify(events)}`);
+  const mergeResult = await mergeResultPromise;
+  assert.equal(mergeResult.event, 'MERGE_FAILED');
   assert.equal(mergeResult.requestId, requestId);
   assert.equal(mergeResult.autoApproved, true);
 });
@@ -326,23 +351,31 @@ test('manual APPROVE is skipped when request is already merged', async (t) => {
 
   const requestId = `req_manual_dup_${Date.now()}`;
 
-  const firstMessagePromise = withTimeout(once(ws, 'message'), 3000, 'first approve result');
+  const firstMessagePromise = waitForWebSocketEvent(
+    ws,
+    (event) => (event.event === 'MERGE_SUCCESS' || event.event === 'MERGE_FAILED') && event.requestId === requestId,
+    3000,
+    'first approve result',
+  );
   ws.send(JSON.stringify({
     action: 'APPROVE',
     requestId,
   }));
-  const [firstPayload] = await firstMessagePromise;
-  const firstEvent = JSON.parse(firstPayload.toString());
+  const firstEvent = await firstMessagePromise;
   assert.equal(firstEvent.event, 'MERGE_SUCCESS');
   assert.equal(firstEvent.requestId, requestId);
 
-  const secondMessagePromise = withTimeout(once(ws, 'message'), 3000, 'duplicate approve result');
+  const secondMessagePromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'MERGE_SKIPPED' && event.requestId === requestId,
+    3000,
+    'duplicate approve result',
+  );
   ws.send(JSON.stringify({
     action: 'APPROVE',
     requestId,
   }));
-  const [secondPayload] = await secondMessagePromise;
-  const secondEvent = JSON.parse(secondPayload.toString());
+  const secondEvent = await secondMessagePromise;
   assert.equal(secondEvent.event, 'MERGE_SKIPPED');
   assert.equal(secondEvent.requestId, requestId);
   assert.equal(secondEvent.reason, 'REQUEST_ALREADY_MERGED');
@@ -370,15 +403,19 @@ test('auto-approve dry-run emits skip event without merge attempt', async (t) =>
   });
   await withTimeout(once(ws, 'open'), 3000, 'websocket open');
 
-  const eventsPromise = withTimeout(new Promise((resolve) => {
-    const events = [];
-    ws.on('message', (payload) => {
-      events.push(JSON.parse(payload.toString()));
-      if (events.length >= 2) resolve(events);
-    });
-  }), 5000, 'dry run events');
-
   const requestId = `req_dry_${Date.now()}`;
+  const taskReadyPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'AGENT_TASK_READY' && event.requestId === requestId,
+    5000,
+    'dry run task ready',
+  );
+  const skippedPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'AUTO_APPROVE_SKIPPED' && event.requestId === requestId,
+    5000,
+    'dry run skip',
+  );
   const response = await postApprovalRequest(server.port, {}, {
     requestId,
     branchName: 'feature/dry-run',
@@ -388,12 +425,14 @@ test('auto-approve dry-run emits skip event without merge attempt', async (t) =>
   const body = await response.json();
   assert.equal(body.autoApprove?.eligible, true);
 
-  const events = await eventsPromise;
-  assert.equal(events[0].event, 'AGENT_TASK_READY');
-  assert.equal(events[0].requestId, requestId);
-  assert.equal(events[1].event, 'AUTO_APPROVE_SKIPPED');
-  assert.equal(events[1].requestId, requestId);
-  assert.equal(events[1].reason, 'DRY_RUN');
+  const taskReadyEvent = await taskReadyPromise;
+  assert.equal(taskReadyEvent.event, 'AGENT_TASK_READY');
+  assert.equal(taskReadyEvent.requestId, requestId);
+
+  const skippedEvent = await skippedPromise;
+  assert.equal(skippedEvent.event, 'AUTO_APPROVE_SKIPPED');
+  assert.equal(skippedEvent.requestId, requestId);
+  assert.equal(skippedEvent.reason, 'DRY_RUN');
 });
 
 test('server returns AGENT_RESTARTED event when REJECT action is sent', async (t) => {
@@ -410,18 +449,121 @@ test('server returns AGENT_RESTARTED event when REJECT action is sent', async (t
   });
   await withTimeout(once(ws, 'open'), 3000, 'websocket open');
 
-  const messagePromise = withTimeout(once(ws, 'message'), 3000, 'websocket message');
+  const messagePromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'AGENT_RESTARTED' && event.requestId === 'req_reject_1',
+    3000,
+    'agent restarted event',
+  );
   ws.send(JSON.stringify({
     action: 'REJECT',
     requestId: 'req_reject_1',
     feedback: 'qa rejection',
   }));
 
-  const [payload] = await messagePromise;
-  const event = JSON.parse(payload.toString());
+  const event = await messagePromise;
 
   assert.equal(event.event, 'AGENT_RESTARTED');
   assert.equal(event.requestId, 'req_reject_1');
+});
+
+test('server emits HISTORY_APPEND for manual REJECT action', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const historyEventPromise = waitForWebSocketEvent(
+    ws,
+    (event) => (
+      event.event === 'HISTORY_APPEND'
+      && event.item?.requestId === 'req_hist_reject_1'
+      && event.item?.result === 'REJECTED'
+    ),
+    3000,
+    'history append reject',
+  );
+
+  ws.send(JSON.stringify({
+    action: 'REJECT',
+    requestId: 'req_hist_reject_1',
+    feedback: 'history regression check',
+  }));
+
+  const historyEvent = await historyEventPromise;
+  assert.equal(historyEvent.event, 'HISTORY_APPEND');
+  assert.equal(historyEvent.item.requestId, 'req_hist_reject_1');
+  assert.equal(historyEvent.item.result, 'REJECTED');
+  assert.equal(historyEvent.item.reason, 'AGENT_RESTARTED');
+});
+
+test('GET /api/history returns filtered entries', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const requestId = `req_history_api_${Date.now()}`;
+  const response = await postApprovalRequest(server.port, {}, {
+    requestId,
+    projectId: 'proj_b2c',
+    laneIndex: 1,
+    diffSummary: {
+      title: 'History API Item',
+      shortDescription: 'history endpoint regression',
+    },
+  });
+  assert.equal(response.status, 200);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const approveResultPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'MERGE_SUCCESS' && event.requestId === requestId,
+    3000,
+    'history merge success',
+  );
+  ws.send(JSON.stringify({
+    action: 'APPROVE',
+    requestId,
+    laneIndex: 1,
+    projectId: 'proj_b2c',
+  }));
+  await approveResultPromise;
+
+  const allHistoryRes = await fetch(`http://127.0.0.1:${server.port}/api/history?limit=20`);
+  assert.equal(allHistoryRes.status, 200);
+  const allHistory = await allHistoryRes.json();
+  assert.ok(Array.isArray(allHistory.items));
+  assert.ok(allHistory.items.some((item) => item.requestId === requestId && item.result === 'REQUESTED'));
+  assert.ok(allHistory.items.some((item) => item.requestId === requestId && item.result === 'APPROVED'));
+
+  const approvedHistoryRes = await fetch(`http://127.0.0.1:${server.port}/api/history?limit=20&result=APPROVED`);
+  assert.equal(approvedHistoryRes.status, 200);
+  const approvedHistory = await approvedHistoryRes.json();
+  assert.ok(approvedHistory.items.length >= 1);
+  assert.ok(approvedHistory.items.every((item) => item.result === 'APPROVED'));
+  assert.ok(approvedHistory.items.some((item) => item.requestId === requestId));
+
+  const projectHistoryRes = await fetch(`http://127.0.0.1:${server.port}/api/history?limit=20&projectId=proj_b2c`);
+  assert.equal(projectHistoryRes.status, 200);
+  const projectHistory = await projectHistoryRes.json();
+  assert.ok(projectHistory.items.length >= 1);
+  assert.ok(projectHistory.items.every((item) => item.projectId === 'proj_b2c'));
 });
 
 test('OPTIONS preflight allows configured origin and returns CORS headers', async (t) => {

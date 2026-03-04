@@ -10,6 +10,7 @@ export default function useMaestroRealtime({
   setCombo,
   setMaxCombo,
   showFeedback,
+  onSocketEvent,
 }) {
   const wsRef = useRef(null);
   const [wsStatus, setWsStatus] = useState('disconnected');
@@ -42,6 +43,9 @@ export default function useMaestroRealtime({
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        if (typeof onSocketEvent === 'function') {
+          onSocketEvent(data);
+        }
 
         if (data.event === 'AGENT_TASK_READY') {
           const laneIndex = Math.max(0, Math.min(3, (data.laneIndex || 1) - 1));
@@ -129,6 +133,7 @@ export default function useMaestroRealtime({
     setCombo,
     setMaxCombo,
     showFeedback,
+    onSocketEvent,
   ]);
 
   const disconnectWebSocket = useCallback(() => {

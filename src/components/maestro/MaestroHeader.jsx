@@ -25,6 +25,9 @@ export default function MaestroHeader({
   onStartGame,
   onStopGame,
   onUndo,
+  historyCount,
+  isHistoryPanelOpen,
+  onToggleHistoryPanel,
 }) {
   return (
     <header className="flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur-md z-50 shadow-lg relative">
@@ -131,6 +134,18 @@ export default function MaestroHeader({
             {bachError}
           </div>
         )}
+        <button
+          type="button"
+          onClick={onToggleHistoryPanel}
+          aria-label="히스토리 패널 토글"
+          className={`ml-2 rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${
+            isHistoryPanelOpen
+              ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-100'
+              : 'border-gray-700 bg-gray-900/70 text-gray-300 hover:border-cyan-400/50 hover:text-cyan-100'
+          }`}
+        >
+          History ({historyCount})
+        </button>
       </div>
 
       <div className="flex items-center space-x-6">

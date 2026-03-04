@@ -10,6 +10,7 @@
 - [에이전트 연동 예제](#에이전트-연동-예제)
 - [승인(Approve) 시나리오 테스트](#승인approve-시나리오-테스트)
 - [롤백(UNDO) 사용법](#롤백undo-사용법)
+- [승인 이력(History) 사용법](#승인-이력history-사용법)
 - [배경음악(function bach) 사용법](#배경음악function-bach-사용법)
 - [QA / 회귀 테스트](#qa--회귀-테스트)
 - [보안 권장사항](#보안-권장사항)
@@ -111,6 +112,7 @@ cp .env.example .env
 | `MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT` | `false` | `autoApprove=true` 명시 요청만 자동승인할지 여부 |
 | `MAESTRO_AUTO_APPROVE_COOLDOWN_MS` | `0` | 자동승인 시도 간 최소 간격(ms) |
 | `MAESTRO_AUTO_APPROVE_DRY_RUN` | `false` | 정책 매칭만 수행하고 실제 merge는 건너뜀 |
+| `MAESTRO_HISTORY_MAX_ITEMS` | `300` | 승인 이력 링버퍼 최대 저장 개수 (40~2000) |
 
 예시 `.env`:
 
@@ -128,6 +130,7 @@ MAESTRO_AUTO_APPROVE_MAX_DESC_LENGTH=180
 MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT=false
 MAESTRO_AUTO_APPROVE_COOLDOWN_MS=0
 MAESTRO_AUTO_APPROVE_DRY_RUN=false
+MAESTRO_HISTORY_MAX_ITEMS=300
 ```
 
 > ⚠️ `.env` 파일에는 실제 토큰이나 경로 등 민감 정보가 포함될 수 있습니다.  
@@ -232,6 +235,23 @@ sh hooks/notify-maestro.sh feature/test-branch "테스트 커밋" "실제 통신
 
 ---
 
+## 승인 이력(History) 사용법
+
+- 위치: 상단 헤더 `History` 버튼 또는 `H` 단축키
+- 기본 동작:
+  - 서버 `GET /api/history`로 최근 이력 로드
+  - 실시간 `HISTORY_APPEND` 이벤트를 패널에 즉시 추가
+- 제공 필터:
+  - 프로젝트(`projectId`)
+  - 결과(`REQUESTED/APPROVED/REJECTED/...`)
+  - 소스(`manual/auto/system`)
+- 참고 API:
+  - `GET /api/history?limit=40`
+  - `GET /api/history?limit=40&projectId=proj_b2c`
+  - `GET /api/history?limit=40&result=APPROVED`
+
+---
+
 ## 배경음악(function bach) 사용법
 
 - 위치: 대시보드 상단 헤더의 작은 `function bach` 미니 플레이어
@@ -267,9 +287,14 @@ npm run qa
 
 실행 항목:
 
-- 서버 회귀 테스트(`npm test`)
+- 서버/프론트 회귀 테스트(`npm test`)
 - 프론트 빌드 검증(`npm run build`)
-- E2E 최소 시나리오(`npm run test:e2e`, Playwright 브라우저 필요)
+
+E2E 최소 시나리오는 별도로 실행합니다.
+
+```bash
+npm run test:e2e
+```
 
 상세 QA 체크리스트는 [`docs/QA_AGENT.md`](docs/QA_AGENT.md)를 참고하세요.
 

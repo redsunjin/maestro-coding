@@ -34,6 +34,11 @@ const DEFAULT_ALLOWED_ORIGINS = [
 ];
 const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
 const AUTO_APPROVE_CONFIG = parseAutoApproveConfig(process.env);
+const HISTORY_BUFFER_MAX_ITEMS = Math.min(
+  2000,
+  Math.max(40, parsePositiveInt(process.env.MAESTRO_HISTORY_MAX_ITEMS, 300)),
+);
+const HISTORY_DEFAULT_LIMIT = 40;
 
 function parseBoolean(value, defaultValue = false) {
   if (typeof value !== 'string') return defaultValue;
@@ -128,6 +133,41 @@ function isRequestAuthorized(req) {
   return token === SERVER_TOKEN;
 }
 
+function sanitizeHistoryText(value, maxLength = 120) {
+  if (typeof value !== 'string') return '';
+  const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  return normalized.slice(0, maxLength);
+}
+
+function normalizeHistoryResult(value) {
+  const allowedResults = new Set([
+    'REQUESTED',
+    'APPROVED',
+    'APPROVE_FAILED',
+    'APPROVE_SKIPPED',
+    'REJECTED',
+    'ROLLBACK',
+    'ROLLBACK_FAILED',
+    'AUTO_APPROVE_SKIPPED',
+  ]);
+  if (allowedResults.has(value)) return value;
+  return 'REQUESTED';
+}
+
+function normalizeHistorySource(value) {
+  const allowedSources = new Set(['manual', 'auto', 'system']);
+  if (allowedSources.has(value)) return value;
+  return 'system';
+}
+
+function normalizeLaneIndex(value) {
+  const laneIndex = Number(value);
+  if (!Number.isInteger(laneIndex)) return null;
+  if (laneIndex < 1 || laneIndex > 4) return null;
+  return laneIndex;
+}
+
 function parseAllowedOrigins(rawValue) {
   if (!rawValue || !rawValue.trim()) return DEFAULT_ALLOWED_ORIGINS;
   if (rawValue.trim() === '*') return ['*'];
@@ -158,6 +198,8 @@ function applyCorsHeaders(req, res) {
 
 const server = http.createServer((req, res) => {
   applyCorsHeaders(req, res);
+  const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  const pathname = requestUrl.pathname;
 
   if (req.method === 'OPTIONS') {
     if (req.headers.origin && !getCorsAllowedOrigin(req)) {
@@ -177,9 +219,28 @@ const server = http.createServer((req, res) => {
   }
 
   // 서버 상태 확인
-  if (req.method === 'GET' && req.url === '/health') {
+  if (req.method === 'GET' && pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', clients: wss.clients.size }));
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/history') {
+    const limit = parseHistoryLimit(requestUrl.searchParams.get('limit'));
+    const projectId = requestUrl.searchParams.get('projectId');
+    const result = requestUrl.searchParams.get('result');
+    const items = listHistory({
+      limit,
+      projectId,
+      result,
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      items,
+      count: items.length,
+      maxItems: HISTORY_BUFFER_MAX_ITEMS,
+    }));
     return;
   }
 
@@ -199,7 +260,7 @@ const server = http.createServer((req, res) => {
   //     "shortDescription": "auth.js 45-60 라인 수정"
   //   }
   // }
-  if (req.method === 'POST' && req.url === '/api/request') {
+  if (req.method === 'POST' && pathname === '/api/request') {
     if (!isRequestAuthorized(req)) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -228,6 +289,15 @@ const server = http.createServer((req, res) => {
           },
         };
 
+        setRequestMeta(approvalRequest.requestId, {
+          requestId: approvalRequest.requestId,
+          projectId: approvalRequest.projectId,
+          laneIndex: approvalRequest.laneIndex,
+          agentId: approvalRequest.agentId,
+          branchName: approvalRequest.branchName,
+          title: approvalRequest.diffSummary?.title,
+        });
+
         setRequestState(approvalRequest.requestId, REQUEST_STATUS.READY, 'request');
         const autoApprove = evaluateAutoApproveEligibility(approvalRequest, AUTO_APPROVE_CONFIG, {
           now: Date.now(),
@@ -235,6 +305,17 @@ const server = http.createServer((req, res) => {
         });
 
         broadcastToClients({ event: 'AGENT_TASK_READY', ...approvalRequest });
+        appendHistory({
+          requestId: approvalRequest.requestId,
+          projectId: approvalRequest.projectId,
+          laneIndex: approvalRequest.laneIndex,
+          agentId: approvalRequest.agentId,
+          branchName: approvalRequest.branchName,
+          title: approvalRequest.diffSummary?.title,
+          source: 'system',
+          result: 'REQUESTED',
+          reason: 'AGENT_TASK_READY',
+        });
         console.log(`📨 승인 요청 수신: [${approvalRequest.agentId}] ${approvalRequest.diffSummary.title}`);
 
         if (autoApprove.eligible) {
@@ -295,8 +376,106 @@ const REQUEST_STATUS = {
 };
 
 const requestStateById = new Map();
+const requestMetaById = new Map();
 const autoApproveInFlight = new Set();
+const approvalHistory = [];
+const historyDedupByKey = new Map();
 let lastAutoApproveAt = 0;
+
+function setRequestMeta(requestId, meta = {}) {
+  if (!requestId) return;
+  const existing = requestMetaById.get(requestId) || {};
+  requestMetaById.set(requestId, {
+    ...existing,
+    requestId,
+    projectId: meta.projectId ?? existing.projectId ?? null,
+    laneIndex: normalizeLaneIndex(meta.laneIndex ?? existing.laneIndex),
+    agentId: sanitizeHistoryText(meta.agentId ?? existing.agentId ?? '', 64),
+    branchName: sanitizeHistoryText(meta.branchName ?? existing.branchName ?? '', 120),
+    title: sanitizeHistoryText(meta.title ?? existing.title ?? '', 120),
+  });
+}
+
+function getRequestMeta(requestId) {
+  if (!requestId) return null;
+  return requestMetaById.get(requestId) || null;
+}
+
+function shouldSkipHistoryByDedup({ requestId, result, reason, source }) {
+  const now = Date.now();
+  const dedupKey = `${requestId || 'none'}|${result}|${reason || 'none'}|${source}`;
+  const prevTs = historyDedupByKey.get(dedupKey) || 0;
+  historyDedupByKey.set(dedupKey, now);
+
+  // 동일 이벤트가 매우 짧은 시간에 반복되는 경우만 중복으로 간주.
+  return now - prevTs < 300;
+}
+
+function appendHistory(input = {}) {
+  const meta = getRequestMeta(input.requestId);
+  const result = normalizeHistoryResult(input.result);
+  const source = normalizeHistorySource(input.source);
+  const reason = sanitizeHistoryText(input.reason || '', 64);
+
+  if (shouldSkipHistoryByDedup({
+    requestId: input.requestId,
+    result,
+    reason,
+    source,
+  })) {
+    return null;
+  }
+
+  const entry = {
+    id: `hist_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: new Date().toISOString(),
+    requestId: sanitizeHistoryText(input.requestId || meta?.requestId || '', 80) || null,
+    projectId: sanitizeHistoryText(input.projectId || meta?.projectId || '', 64) || null,
+    laneIndex: normalizeLaneIndex(input.laneIndex ?? meta?.laneIndex),
+    agentId: sanitizeHistoryText(input.agentId || meta?.agentId || '', 64) || null,
+    branchName: sanitizeHistoryText(input.branchName || meta?.branchName || '', 120) || null,
+    title: sanitizeHistoryText(input.title || meta?.title || '', 120) || null,
+    result,
+    source,
+    reason: reason || null,
+    autoApproved: input.autoApproved === true,
+  };
+
+  approvalHistory.push(entry);
+  while (approvalHistory.length > HISTORY_BUFFER_MAX_ITEMS) {
+    approvalHistory.shift();
+  }
+
+  broadcastToClients({
+    event: 'HISTORY_APPEND',
+    item: entry,
+  });
+
+  return entry;
+}
+
+function parseHistoryLimit(value) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) return HISTORY_DEFAULT_LIMIT;
+  return Math.min(parsed, Math.min(300, HISTORY_BUFFER_MAX_ITEMS));
+}
+
+function listHistory({ limit = HISTORY_DEFAULT_LIMIT, projectId = null, result = null } = {}) {
+  const normalizedLimit = parseHistoryLimit(limit);
+  const normalizedProjectId = sanitizeHistoryText(projectId || '', 64) || null;
+  const normalizedResult = result ? normalizeHistoryResult(result) : null;
+
+  const filtered = approvalHistory
+    .slice()
+    .reverse()
+    .filter((item) => {
+      if (normalizedProjectId && item.projectId !== normalizedProjectId) return false;
+      if (normalizedResult && item.result !== normalizedResult) return false;
+      return true;
+    });
+
+  return filtered.slice(0, normalizedLimit);
+}
 
 function setRequestState(requestId, status, source = 'system') {
   if (!requestId) return;
@@ -343,6 +522,18 @@ async function runConditionalAutoApprove(approvalRequest) {
       requestId: approvalRequest.requestId,
       reason: 'DRY_RUN',
     });
+    appendHistory({
+      requestId: approvalRequest.requestId,
+      projectId: approvalRequest.projectId,
+      laneIndex: approvalRequest.laneIndex,
+      agentId: approvalRequest.agentId,
+      branchName: approvalRequest.branchName,
+      title: approvalRequest.diffSummary?.title,
+      source: 'auto',
+      result: 'AUTO_APPROVE_SKIPPED',
+      reason: 'DRY_RUN',
+      autoApproved: false,
+    });
     setRequestState(approvalRequest.requestId, REQUEST_STATUS.READY, 'auto');
     autoApproveInFlight.delete(approvalRequest.requestId);
     return;
@@ -370,6 +561,18 @@ async function runConditionalAutoApprove(approvalRequest) {
     requestId: approvalRequest.requestId,
     autoApproved: true,
   });
+  appendHistory({
+    requestId: approvalRequest.requestId,
+    projectId: approvalRequest.projectId,
+    laneIndex: approvalRequest.laneIndex,
+    agentId: approvalRequest.agentId,
+    branchName: approvalRequest.branchName,
+    title: approvalRequest.diffSummary?.title,
+    source: 'auto',
+    result: ok ? 'APPROVED' : 'APPROVE_FAILED',
+    reason: ok ? 'MERGE_SUCCESS' : 'MERGE_FAILED',
+    autoApproved: true,
+  });
 
   autoApproveInFlight.delete(approvalRequest.requestId);
 }
@@ -394,6 +597,14 @@ wss.on('connection', (ws) => {
     switch (payload.action) {
       case 'APPROVE': {
         console.log(`✅ 승인 타격! requestId=${payload.requestId}, branch=${payload.branchName}`);
+        setRequestMeta(payload.requestId, {
+          requestId: payload.requestId,
+          projectId: payload.projectId,
+          laneIndex: payload.laneIndex,
+          agentId: payload.agentId,
+          branchName: payload.branchName,
+          title: payload.title,
+        });
         const skipReason = getApproveSkipReason(payload.requestId);
         if (skipReason) {
           ws.send(JSON.stringify({
@@ -401,6 +612,13 @@ wss.on('connection', (ws) => {
             requestId: payload.requestId,
             reason: skipReason,
           }));
+          appendHistory({
+            requestId: payload.requestId,
+            source: 'manual',
+            result: 'APPROVE_SKIPPED',
+            reason: skipReason,
+            autoApproved: false,
+          });
           break;
         }
 
@@ -421,6 +639,13 @@ wss.on('connection', (ws) => {
             event: ok ? 'MERGE_SUCCESS' : 'MERGE_FAILED',
             requestId: payload.requestId,
           }));
+          appendHistory({
+            requestId: payload.requestId,
+            source: 'manual',
+            result: ok ? 'APPROVED' : 'APPROVE_FAILED',
+            reason: ok ? 'MERGE_SUCCESS' : 'MERGE_FAILED',
+            autoApproved: false,
+          });
         } else {
           // 브랜치 정보 없이도 UI 응답은 반환
           markApproveFinished({
@@ -429,14 +654,36 @@ wss.on('connection', (ws) => {
             source: 'manual',
           });
           ws.send(JSON.stringify({ event: 'MERGE_SUCCESS', requestId: payload.requestId }));
+          appendHistory({
+            requestId: payload.requestId,
+            source: 'manual',
+            result: 'APPROVED',
+            reason: 'MERGE_SUCCESS',
+            autoApproved: false,
+          });
         }
         break;
       }
 
       case 'REJECT': {
         console.log(`❌ 반려: requestId=${payload.requestId}, feedback="${payload.feedback}"`);
+        setRequestMeta(payload.requestId, {
+          requestId: payload.requestId,
+          projectId: payload.projectId,
+          laneIndex: payload.laneIndex,
+          agentId: payload.agentId,
+          branchName: payload.branchName,
+          title: payload.title,
+        });
         setRequestState(payload.requestId, REQUEST_STATUS.REJECTED, 'manual');
         ws.send(JSON.stringify({ event: 'AGENT_RESTARTED', requestId: payload.requestId }));
+        appendHistory({
+          requestId: payload.requestId,
+          source: 'manual',
+          result: 'REJECTED',
+          reason: 'AGENT_RESTARTED',
+          autoApproved: false,
+        });
         break;
       }
 
@@ -448,6 +695,13 @@ wss.on('connection', (ws) => {
           .catch((err) => { console.error('Undo 실패:', err.message); return false; });
 
         ws.send(JSON.stringify({ event: ok ? 'UNDO_SUCCESS' : 'UNDO_FAILED' }));
+        appendHistory({
+          requestId: payload.requestId,
+          source: 'manual',
+          result: ok ? 'ROLLBACK' : 'ROLLBACK_FAILED',
+          reason: ok ? 'UNDO_SUCCESS' : 'UNDO_FAILED',
+          autoApproved: false,
+        });
         break;
       }
 
@@ -467,9 +721,11 @@ server.listen(PORT, HOST, () => {
   console.log(`   WebSocket   : ws://${HOST}:${PORT}`);
   console.log(`   에이전트 API : POST http://${HOST}:${PORT}/api/request`);
   console.log(`   상태 확인   : GET  http://${HOST}:${PORT}/health`);
+  console.log(`   이력 조회   : GET  http://${HOST}:${PORT}/api/history?limit=40`);
   console.log(`   허용 Origin : ${ALLOWED_ORIGINS.join(', ')}`);
   console.log(`   인증 모드   : ${SERVER_TOKEN ? 'Bearer token required' : 'disabled'}`);
   console.log(`   자동승인    : ${AUTO_APPROVE_CONFIG.enabled ? 'enabled' : 'disabled'}`);
+  console.log(`   이력 버퍼   : max ${HISTORY_BUFFER_MAX_ITEMS} items`);
   if (AUTO_APPROVE_CONFIG.enabled) {
     console.log(`     - trusted agents : ${AUTO_APPROVE_CONFIG.trustedAgents.length > 0 ? AUTO_APPROVE_CONFIG.trustedAgents.join(', ') : '(all)'}`);
     console.log(`     - branch prefix  : ${AUTO_APPROVE_CONFIG.branchPrefix || '(none)'}`);

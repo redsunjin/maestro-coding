@@ -116,6 +116,46 @@ test('approval/reject flow and function bach overlay work end-to-end', async ({ 
 
   broadcast({ event: 'MERGE_SUCCESS', requestId: approveRequestId });
   await expect(page.getByText('E2E Approval Note')).toHaveCount(0);
+  broadcast({
+    event: 'HISTORY_APPEND',
+    item: {
+      id: `hist_e2e_approve_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      requestId: approveRequestId,
+      projectId: 'proj_b2c',
+      laneIndex: 1,
+      title: 'E2E Approval Note',
+      branchName: 'feature/e2e-approve',
+      agentId: 'frontend_agent',
+      result: 'APPROVED',
+      source: 'manual',
+      reason: 'MERGE_SUCCESS',
+      autoApproved: false,
+    },
+  });
+
+  await page.getByRole('button', { name: '롤백 실행' }).click();
+  await expect.poll(() => (
+    receivedActions.some((action) => action.action === 'UNDO')
+  )).toBeTruthy();
+  broadcast({ event: 'UNDO_SUCCESS' });
+  broadcast({
+    event: 'HISTORY_APPEND',
+    item: {
+      id: `hist_e2e_undo_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      requestId: `req_e2e_undo_${Date.now()}`,
+      projectId: 'proj_b2c',
+      laneIndex: 1,
+      title: 'E2E Rollback',
+      branchName: 'feature/e2e-undo',
+      agentId: 'ops_agent',
+      result: 'ROLLBACK',
+      source: 'manual',
+      reason: 'UNDO_SUCCESS',
+      autoApproved: false,
+    },
+  });
 
   const rejectRequestId = `req_e2e_reject_${Date.now()}`;
   broadcast({
@@ -144,9 +184,31 @@ test('approval/reject flow and function bach overlay work end-to-end', async ({ 
 
   broadcast({ event: 'AGENT_RESTARTED', requestId: rejectRequestId });
   await expect(page.getByText('E2E Reject Note')).toHaveCount(0);
+  broadcast({
+    event: 'HISTORY_APPEND',
+    item: {
+      id: `hist_e2e_reject_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      requestId: rejectRequestId,
+      projectId: 'proj_b2c',
+      laneIndex: 1,
+      title: 'E2E Reject Note',
+      branchName: 'feature/e2e-reject',
+      agentId: 'frontend_agent',
+      result: 'REJECTED',
+      source: 'manual',
+      reason: 'AGENT_RESTARTED',
+      autoApproved: false,
+    },
+  });
 
   await page.getByRole('button', { name: '배경음악 재생' }).click();
   await expect(page.getByTestId('function-bach-hz')).toContainText('Hz');
+
+  await page.getByRole('button', { name: '히스토리 패널 토글' }).click();
+  await expect(page.getByRole('listitem').filter({ hasText: 'E2E Approval Note' })).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'E2E Rollback' })).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'E2E Reject Note' })).toBeVisible();
 
   await page.getByRole('button', { name: '배경음악 채널 설정' }).click();
   await expect(page.getByLabel('유튜브 채널 경로')).toBeVisible();

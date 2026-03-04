@@ -6,20 +6,38 @@ export default function useMaestroKeyboardControls({
   previewNote,
   setPreviewNote,
   setIsBachPanelOpen,
+  setIsHistoryPanelOpen,
   setActiveProjectId,
   triggerUndoAction,
   triggerLaneAction,
 }) {
   useEffect(() => {
     const handleKeyDown = (event) => {
+      const eventTarget = event.target;
+      const isInputLike = eventTarget instanceof HTMLElement
+        && (
+          eventTarget.tagName === 'INPUT'
+          || eventTarget.tagName === 'TEXTAREA'
+          || eventTarget.tagName === 'SELECT'
+          || eventTarget.isContentEditable
+        );
+
       if (event.key === 'Escape') {
         setPreviewNote(null);
         setIsBachPanelOpen(false);
+        setIsHistoryPanelOpen(false);
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key === 'h' && !isInputLike) {
+        event.preventDefault();
+        setIsHistoryPanelOpen((open) => !open);
         return;
       }
       if (!isPlaying || previewNote) return;
+      if (isInputLike) return;
 
-      const key = event.key.toLowerCase();
       const projectIndex = parseInt(key, 10) - 1;
       if (projectIndex >= 0 && projectIndex < PROJECTS.length) {
         setActiveProjectId(PROJECTS[projectIndex].id);
@@ -48,6 +66,7 @@ export default function useMaestroKeyboardControls({
     previewNote,
     setPreviewNote,
     setIsBachPanelOpen,
+    setIsHistoryPanelOpen,
     setActiveProjectId,
     triggerUndoAction,
     triggerLaneAction,

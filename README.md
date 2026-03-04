@@ -28,10 +28,11 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 - 승인 시 서버에서 로컬 `git merge`를 수행
 - `MAESTRO_SERVER_TOKEN` 설정 시 `Authorization: Bearer` 인증 적용
 - 기본 `HOST=127.0.0.1` + `ALLOWED_ORIGINS` 화이트리스트 기반 CORS 적용
+- 승인 이력 악보뷰(`WP-009`): `GET /api/history` + `HISTORY_APPEND` 실시간 히스토리 패널
 - `function bach`: 상단 미니 플레이어에서 YouTube 기반 BGM 재생/일시정지/볼륨/채널 URL 등록
 - 조건부 자동승인(`WP-008`) 2차: explicit/cooldown/dry-run/중복승인 차단 가드레일 반영 (기본 `OFF`)
 
-## 현재 개발 현황 (2026-02-28 기준)
+## 현재 개발 현황 (2026-03-04 기준)
 
 - 단계: 실행 가능한 MVP
 - 확인된 동작: `npm run build` 성공, 서버 `/health` 응답 확인
@@ -42,11 +43,15 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
   - 에이전트 연동용 훅 스크립트(`hooks/notify-maestro.sh`) 제공
   - CI 품질 게이트(`npm run qa`, E2E), 통합 스모크(`npm run smoke:integration`) 구축
   - 터치스크린 조작(레인 승인/반려, 롤백 버튼) 지원
+  - 승인 이력 악보뷰(`WP-009`) 1~2차 구현 완료
+    - 서버 링버퍼 + 조회 API: `GET /api/history`
+    - WebSocket 실시간 이벤트: `HISTORY_APPEND`
+    - 헤더 `History` 버튼/`H` 단축키 + 우측 패널 필터(프로젝트/결과/소스)
   - 원클릭 실행 경로(`npm run start:app`, `npm run check:env`) 제공
   - `start:app` 오류 조치 메시지/대시보드 URL 자동 감지 고도화
 - 확인된 개선 필요 항목
-  - 조건부 자동승인(`WP-008`) 운영 가시성(API/로그) 고도화 필요
-  - 승인 이력 악보뷰(`WP-009`) 데이터 모델/UX 설계 필요
+  - 조건부 자동승인(`WP-008`) 3차 운영 가시성(API/로그) 고도화 필요
+  - `KI-001` `function bach` Hz 미노출 환경 원인 분석/재현 확보 필요
 
 ## 변경 필요 항목 및 작업계획
 
@@ -54,8 +59,8 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 
 즉시 진행할 핵심 3가지:
 
-1. P1 조건부 자동승인: 정책/가드레일/롤백 안전장치 설계(`WP-008`)
-2. P2 승인 이력 시각화: 악보 컨셉 이력 모델 + UI 설계/구현(`WP-009`)
+1. P1 조건부 자동승인(`WP-008`) 3차: 운영 가시성 API/로그 확장
+2. P2 승인 이력(`WP-009`) 3차: 악보 시각화 고도화 + 접근성 마감
 3. P2 문서/운영 동기화: 실행 표준 경로와 장애 대응 가이드 지속 업데이트
 
 설치 단순화 1차 상세 계획은 [`docs/INSTALL_SIMPLIFICATION_PHASE1.md`](docs/INSTALL_SIMPLIFICATION_PHASE1.md)를 참고하세요.

@@ -22,11 +22,13 @@ import {
 import useMaestroRealtime from './hooks/useMaestroRealtime.js';
 import useMaestroGameLoop from './hooks/useMaestroGameLoop.js';
 import useMaestroKeyboardControls from './hooks/useMaestroKeyboardControls.js';
+import useApprovalHistory from './hooks/useApprovalHistory.js';
 import MaestroHeader from './components/maestro/MaestroHeader.jsx';
 import ProjectTabs from './components/maestro/ProjectTabs.jsx';
 import LaneBoard from './components/maestro/LaneBoard.jsx';
 import FooterHelp from './components/maestro/FooterHelp.jsx';
 import PreviewModal from './components/maestro/PreviewModal.jsx';
+import HistoryScorePanel from './components/maestro/HistoryScorePanel.jsx';
 
 export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -85,6 +87,27 @@ export default function App() {
   }, []);
 
   const {
+    visibleHistoryItems,
+    historyItems,
+    historyError,
+    isHistoryLoading,
+    isHistoryPanelOpen,
+    setIsHistoryPanelOpen,
+    historyProjectFilter,
+    setHistoryProjectFilter,
+    historyResultFilter,
+    setHistoryResultFilter,
+    historySourceFilter,
+    setHistorySourceFilter,
+    hasMoreHistoryItems,
+    loadMoreHistory,
+    filteredHistoryCount,
+    handleSocketEvent,
+  } = useApprovalHistory({
+    wsUrl: WS_URL,
+  });
+
+  const {
     wsStatus,
     connectWebSocket,
     disconnectWebSocket,
@@ -98,6 +121,7 @@ export default function App() {
     setCombo,
     setMaxCombo,
     showFeedback,
+    onSocketEvent: handleSocketEvent,
   });
 
   useMaestroGameLoop({
@@ -339,6 +363,7 @@ export default function App() {
     previewNote,
     setPreviewNote,
     setIsBachPanelOpen,
+    setIsHistoryPanelOpen,
     setActiveProjectId,
     triggerUndoAction,
     triggerLaneAction,
@@ -428,6 +453,14 @@ export default function App() {
     setIsBachPanelOpen(false);
   }, [bachChannelUrl]);
 
+  const handleHistoryPanelToggle = useCallback(() => {
+    setIsHistoryPanelOpen((open) => !open);
+  }, [setIsHistoryPanelOpen]);
+
+  const handleHistoryPanelClose = useCallback(() => {
+    setIsHistoryPanelOpen(false);
+  }, [setIsHistoryPanelOpen]);
+
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white font-sans overflow-hidden selection:bg-purple-500/30">
       <div
@@ -460,6 +493,9 @@ export default function App() {
         onStartGame={startGame}
         onStopGame={stopGame}
         onUndo={triggerUndoAction}
+        historyCount={historyItems.length}
+        isHistoryPanelOpen={isHistoryPanelOpen}
+        onToggleHistoryPanel={handleHistoryPanelToggle}
       />
 
       <ProjectTabs
@@ -483,6 +519,23 @@ export default function App() {
       />
 
       <FooterHelp />
+      <HistoryScorePanel
+        isOpen={isHistoryPanelOpen}
+        onClose={handleHistoryPanelClose}
+        items={visibleHistoryItems}
+        isLoading={isHistoryLoading}
+        historyError={historyError}
+        filteredHistoryCount={filteredHistoryCount}
+        hasMore={hasMoreHistoryItems}
+        onLoadMore={loadMoreHistory}
+        projects={PROJECTS}
+        projectFilter={historyProjectFilter}
+        onProjectFilterChange={setHistoryProjectFilter}
+        resultFilter={historyResultFilter}
+        onResultFilterChange={setHistoryResultFilter}
+        sourceFilter={historySourceFilter}
+        onSourceFilterChange={setHistorySourceFilter}
+      />
 
       <PreviewModal previewNote={previewNote} onClose={() => setPreviewNote(null)} />
     </div>
