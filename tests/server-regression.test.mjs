@@ -120,6 +120,22 @@ async function waitForWebSocketEvent(ws, predicate, timeoutMs = 5000, label = 'w
   }), timeoutMs, label);
 }
 
+async function waitForAutoApproveEvents(port, predicate, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const response = await fetch(`http://127.0.0.1:${port}/api/auto-approve/events?limit=100`);
+    if (response.ok) {
+      const body = await response.json();
+      const items = Array.isArray(body.items) ? body.items : [];
+      if (predicate(items)) {
+        return items;
+      }
+    }
+    await delay(100);
+  }
+  throw new Error(`auto approve events condition not met within ${timeoutMs}ms`);
+}
+
 test('POST /api/request accepts unauthenticated request when token is disabled', async (t) => {
   const server = startServer();
   t.after(async () => {
@@ -433,6 +449,132 @@ test('auto-approve dry-run emits skip event without merge attempt', async (t) =>
   assert.equal(skippedEvent.event, 'AUTO_APPROVE_SKIPPED');
   assert.equal(skippedEvent.requestId, requestId);
   assert.equal(skippedEvent.reason, 'DRY_RUN');
+});
+
+test('GET /api/auto-approve/status enforces bearer token when MAESTRO_SERVER_TOKEN is set', async (t) => {
+  const server = startServer({
+    token: 'secret-token',
+    extraEnv: {
+      MAESTRO_AUTO_APPROVE_ENABLED: 'true',
+      MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS: 'qa_agent',
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const unauthorized = await fetch(`http://127.0.0.1:${server.port}/api/auto-approve/status`);
+  assert.equal(unauthorized.status, 401);
+
+  const authorized = await fetch(`http://127.0.0.1:${server.port}/api/auto-approve/status`, {
+    headers: {
+      Authorization: 'Bearer secret-token',
+    },
+  });
+  assert.equal(authorized.status, 200);
+
+  const body = await authorized.json();
+  assert.equal(body.config?.enabled, true);
+  assert.equal(typeof body.runtime?.inFlightCount, 'number');
+  assert.ok(Array.isArray(body.recentEvents));
+});
+
+test('auto-approve status/events expose policy and execution decisions', async (t) => {
+  const server = startServer({
+    extraEnv: {
+      MAESTRO_AUTO_APPROVE_ENABLED: 'true',
+      MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS: 'qa_agent',
+      MAESTRO_AUTO_APPROVE_BRANCH_PREFIX: 'feature/',
+      MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT: 'true',
+      MAESTRO_AUTO_APPROVE_DRY_RUN: 'true',
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const requestId = `req_visibility_${Date.now()}`;
+  const response = await postApprovalRequest(server.port, {}, {
+    requestId,
+    branchName: 'feature/visibility',
+    autoApprove: true,
+  });
+  assert.equal(response.status, 200);
+
+  const items = await waitForAutoApproveEvents(
+    server.port,
+    (events) => (
+      events.some((event) => event.requestId === requestId && event.decision === 'ELIGIBLE' && event.phase === 'policy')
+      && events.some((event) => event.requestId === requestId && event.decision === 'SKIPPED' && event.reason === 'DRY_RUN')
+    ),
+    5000,
+  );
+
+  const statusRes = await fetch(`http://127.0.0.1:${server.port}/api/auto-approve/status?eventsLimit=20`);
+  assert.equal(statusRes.status, 200);
+  const statusBody = await statusRes.json();
+
+  assert.equal(statusBody.config?.enabled, true);
+  assert.equal(statusBody.config?.requireExplicit, true);
+  assert.equal(statusBody.config?.dryRun, true);
+  assert.equal(statusBody.config?.trustedAgentsCount, 1);
+  assert.ok(statusBody.runtime?.autoApproveEventCount >= 2);
+  assert.ok(statusBody.recentEvents.some((event) => event.requestId === requestId));
+
+  const requestFilteredRes = await fetch(`http://127.0.0.1:${server.port}/api/auto-approve/events?requestId=${requestId}&limit=20`);
+  assert.equal(requestFilteredRes.status, 200);
+  const requestFilteredBody = await requestFilteredRes.json();
+  assert.ok(requestFilteredBody.items.length >= 2);
+  assert.ok(requestFilteredBody.items.every((event) => event.requestId === requestId));
+  assert.ok(requestFilteredBody.items.some((event) => event.decision === 'ELIGIBLE'));
+  assert.ok(requestFilteredBody.items.some((event) => event.reason === 'DRY_RUN'));
+
+  const decisionFilteredRes = await fetch(`http://127.0.0.1:${server.port}/api/auto-approve/events?decision=BLOCKED&limit=20`);
+  assert.equal(decisionFilteredRes.status, 200);
+  const decisionFilteredBody = await decisionFilteredRes.json();
+  assert.ok(decisionFilteredBody.items.every((event) => event.decision === 'BLOCKED'));
+
+  assert.ok(items.length >= 2);
+});
+
+test('GET /api/auto-approve/events supports limit and reason filter', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const firstRequest = await postApprovalRequest(server.port, {}, {
+    requestId: `req_auto_events_a_${Date.now()}`,
+  });
+  assert.equal(firstRequest.status, 200);
+  const secondRequest = await postApprovalRequest(server.port, {}, {
+    requestId: `req_auto_events_b_${Date.now()}`,
+  });
+  assert.equal(secondRequest.status, 200);
+
+  const events = await waitForAutoApproveEvents(
+    server.port,
+    (items) => items.filter((event) => event.reason === 'AUTO_APPROVE_DISABLED').length >= 2,
+    5000,
+  );
+  assert.ok(events.length >= 2);
+
+  const limitedRes = await fetch(`http://127.0.0.1:${server.port}/api/auto-approve/events?limit=1`);
+  assert.equal(limitedRes.status, 200);
+  const limitedBody = await limitedRes.json();
+  assert.equal(limitedBody.items.length, 1);
+
+  const reasonRes = await fetch(`http://127.0.0.1:${server.port}/api/auto-approve/events?reason=AUTO_APPROVE_DISABLED&limit=20`);
+  assert.equal(reasonRes.status, 200);
+  const reasonBody = await reasonRes.json();
+  assert.ok(reasonBody.items.length >= 2);
+  assert.ok(reasonBody.items.every((event) => event.reason === 'AUTO_APPROVE_DISABLED'));
 });
 
 test('server returns AGENT_RESTARTED event when REJECT action is sent', async (t) => {

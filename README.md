@@ -30,7 +30,7 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 - 기본 `HOST=127.0.0.1` + `ALLOWED_ORIGINS` 화이트리스트 기반 CORS 적용
 - 승인 이력 악보뷰(`WP-009`): `GET /api/history` + `HISTORY_APPEND` 실시간 히스토리 패널
 - `function bach`: 상단 미니 플레이어에서 YouTube 기반 BGM 재생/일시정지/볼륨/채널 URL 등록
-- 조건부 자동승인(`WP-008`) 2차: explicit/cooldown/dry-run/중복승인 차단 가드레일 반영 (기본 `OFF`)
+- 조건부 자동승인(`WP-008`) 2~3차: explicit/cooldown/dry-run/중복승인 차단 + 운영 가시성 API(`GET /api/auto-approve/status`, `GET /api/auto-approve/events`) 반영
 
 ## 현재 개발 현황 (2026-03-04 기준)
 
@@ -50,7 +50,7 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
   - 원클릭 실행 경로(`npm run start:app`, `npm run check:env`) 제공
   - `start:app` 오류 조치 메시지/대시보드 URL 자동 감지 고도화
 - 확인된 개선 필요 항목
-  - 조건부 자동승인(`WP-008`) 3차 운영 가시성(API/로그) 고도화 필요
+  - 조건부 자동승인(`WP-008`) 운영 API 기반 대시보드 UI 가시화(후속)
   - `KI-001` `function bach` Hz 미노출 환경 원인 분석/재현 확보 필요
 
 ## 변경 필요 항목 및 작업계획
@@ -59,7 +59,7 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 
 즉시 진행할 핵심 3가지:
 
-1. P1 조건부 자동승인(`WP-008`) 3차: 운영 가시성 API/로그 확장
+1. P1 조건부 자동승인 운영 UI(운영 API 시각화) 고도화
 2. P2 승인 이력(`WP-009`) 3차: 악보 시각화 고도화 + 접근성 마감
 3. P2 문서/운영 동기화: 실행 표준 경로와 장애 대응 가이드 지속 업데이트
 
@@ -109,6 +109,13 @@ curl -X POST http://localhost:8080/api/request \
 ```
 
 조건부 자동승인에서 명시 플래그를 요구하도록 설정했다면(`MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT=true`), 요청 본문에 `"autoApprove": true`를 포함해야 자동승인 대상이 됩니다.
+
+운영 상태 확인 API 예시:
+
+```bash
+curl -s http://localhost:8080/api/auto-approve/status | jq
+curl -s "http://localhost:8080/api/auto-approve/events?limit=20" | jq
+```
 
 ## 설치 가이드 (Installation)
 

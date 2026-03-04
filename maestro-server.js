@@ -8,6 +8,8 @@
 //   WebSocket  ws://localhost:8080      — 프론트엔드 대시보드 연결
 //   POST       /api/request             — 에이전트가 승인 요청을 보내는 엔드포인트
 //   GET        /health                  — 서버 상태 확인
+//   GET        /api/auto-approve/status — 자동승인 운영 상태 조회
+//   GET        /api/auto-approve/events — 자동승인 이벤트 로그 조회
 
 import http from 'http';
 import { WebSocketServer, WebSocket as WSWebSocket } from 'ws';
@@ -34,11 +36,16 @@ const DEFAULT_ALLOWED_ORIGINS = [
 ];
 const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
 const AUTO_APPROVE_CONFIG = parseAutoApproveConfig(process.env);
+const AUTO_APPROVE_LOG_MAX_ITEMS = Math.min(
+  5000,
+  Math.max(50, parsePositiveInt(process.env.MAESTRO_AUTO_APPROVE_LOG_MAX_ITEMS, 500)),
+);
 const HISTORY_BUFFER_MAX_ITEMS = Math.min(
   2000,
   Math.max(40, parsePositiveInt(process.env.MAESTRO_HISTORY_MAX_ITEMS, 300)),
 );
 const HISTORY_DEFAULT_LIMIT = 40;
+const AUTO_APPROVE_EVENTS_DEFAULT_LIMIT = 40;
 
 function parseBoolean(value, defaultValue = false) {
   if (typeof value !== 'string') return defaultValue;
@@ -168,6 +175,19 @@ function normalizeLaneIndex(value) {
   return laneIndex;
 }
 
+function normalizeAutoApproveDecision(value) {
+  const allowedDecisions = new Set([
+    'ELIGIBLE',
+    'BLOCKED',
+    'EXECUTING',
+    'SKIPPED',
+    'MERGED',
+    'FAILED',
+  ]);
+  if (allowedDecisions.has(value)) return value;
+  return 'BLOCKED';
+}
+
 function parseAllowedOrigins(rawValue) {
   if (!rawValue || !rawValue.trim()) return DEFAULT_ALLOWED_ORIGINS;
   if (rawValue.trim() === '*') return ['*'];
@@ -244,6 +264,70 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && pathname === '/api/auto-approve/status') {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const eventsLimit = parseAutoApproveEventsLimit(requestUrl.searchParams.get('eventsLimit'));
+    const recentEvents = listAutoApproveEvents({ limit: eventsLimit });
+    const requestStateSummary = summarizeRequestStates();
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      config: {
+        enabled: AUTO_APPROVE_CONFIG.enabled,
+        dryRun: AUTO_APPROVE_CONFIG.dryRun,
+        requireExplicit: AUTO_APPROVE_CONFIG.requireExplicit,
+        cooldownMs: AUTO_APPROVE_CONFIG.cooldownMs,
+        maxDescriptionLength: AUTO_APPROVE_CONFIG.maxDescriptionLength,
+        branchPrefix: AUTO_APPROVE_CONFIG.branchPrefix || '',
+        trustedAgents: AUTO_APPROVE_CONFIG.trustedAgents,
+        trustedAgentsCount: AUTO_APPROVE_CONFIG.trustedAgents.length,
+      },
+      runtime: {
+        inFlightCount: autoApproveInFlight.size,
+        trackedRequestCount: requestStateById.size,
+        requestStateSummary,
+        lastAutoApproveAt: lastAutoApproveAt ? new Date(lastAutoApproveAt).toISOString() : null,
+        autoApproveEventCount: autoApproveEvents.length,
+      },
+      recentEvents,
+      count: recentEvents.length,
+    }));
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/auto-approve/events') {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const limit = parseAutoApproveEventsLimit(requestUrl.searchParams.get('limit'));
+    const requestId = requestUrl.searchParams.get('requestId');
+    const decision = requestUrl.searchParams.get('decision');
+    const reason = requestUrl.searchParams.get('reason');
+
+    const items = listAutoApproveEvents({
+      limit,
+      requestId,
+      decision,
+      reason,
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      items,
+      count: items.length,
+      maxItems: AUTO_APPROVE_LOG_MAX_ITEMS,
+    }));
+    return;
+  }
+
   // 에이전트 승인 요청 수신 엔드포인트
   // 에이전트는 작업 완료 후 이 엔드포인트로 POST 요청을 보냅니다.
   //
@@ -302,6 +386,17 @@ const server = http.createServer((req, res) => {
         const autoApprove = evaluateAutoApproveEligibility(approvalRequest, AUTO_APPROVE_CONFIG, {
           now: Date.now(),
           lastAutoApproveAt,
+        });
+        appendAutoApproveEvent({
+          phase: 'policy',
+          requestId: approvalRequest.requestId,
+          agentId: approvalRequest.agentId,
+          projectId: approvalRequest.projectId,
+          branchName: approvalRequest.branchName,
+          decision: autoApprove.eligible ? 'ELIGIBLE' : 'BLOCKED',
+          reason: autoApprove.reason,
+          retryAfterMs: autoApprove.retryAfterMs,
+          dryRun: AUTO_APPROVE_CONFIG.dryRun,
         });
 
         broadcastToClients({ event: 'AGENT_TASK_READY', ...approvalRequest });
@@ -378,6 +473,7 @@ const REQUEST_STATUS = {
 const requestStateById = new Map();
 const requestMetaById = new Map();
 const autoApproveInFlight = new Set();
+const autoApproveEvents = [];
 const approvalHistory = [];
 const historyDedupByKey = new Map();
 let lastAutoApproveAt = 0;
@@ -399,6 +495,72 @@ function setRequestMeta(requestId, meta = {}) {
 function getRequestMeta(requestId) {
   if (!requestId) return null;
   return requestMetaById.get(requestId) || null;
+}
+
+function appendAutoApproveEvent(input = {}) {
+  const entry = {
+    id: `auto_evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: new Date().toISOString(),
+    phase: sanitizeHistoryText(input.phase || 'policy', 16) || 'policy',
+    requestId: sanitizeHistoryText(input.requestId || '', 80) || null,
+    agentId: sanitizeHistoryText(input.agentId || '', 64) || null,
+    projectId: sanitizeHistoryText(input.projectId || '', 64) || null,
+    branchName: sanitizeHistoryText(input.branchName || '', 120) || null,
+    decision: normalizeAutoApproveDecision(input.decision),
+    reason: sanitizeHistoryText(input.reason || 'UNKNOWN_REASON', 80) || 'UNKNOWN_REASON',
+    retryAfterMs: Number.isFinite(Number(input.retryAfterMs)) ? Math.max(0, Number(input.retryAfterMs)) : null,
+    dryRun: input.dryRun === true,
+  };
+
+  autoApproveEvents.push(entry);
+  while (autoApproveEvents.length > AUTO_APPROVE_LOG_MAX_ITEMS) {
+    autoApproveEvents.shift();
+  }
+
+  return entry;
+}
+
+function parseAutoApproveEventsLimit(value) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) return AUTO_APPROVE_EVENTS_DEFAULT_LIMIT;
+  return Math.min(parsed, Math.min(300, AUTO_APPROVE_LOG_MAX_ITEMS));
+}
+
+function listAutoApproveEvents({ limit = AUTO_APPROVE_EVENTS_DEFAULT_LIMIT, requestId = null, decision = null, reason = null } = {}) {
+  const normalizedLimit = parseAutoApproveEventsLimit(limit);
+  const normalizedRequestId = sanitizeHistoryText(requestId || '', 80) || null;
+  const normalizedDecision = decision ? normalizeAutoApproveDecision(String(decision).trim().toUpperCase()) : null;
+  const normalizedReason = sanitizeHistoryText(reason || '', 80) || null;
+
+  const filtered = autoApproveEvents
+    .slice()
+    .reverse()
+    .filter((event) => {
+      if (normalizedRequestId && event.requestId !== normalizedRequestId) return false;
+      if (normalizedDecision && event.decision !== normalizedDecision) return false;
+      if (normalizedReason && event.reason !== normalizedReason) return false;
+      return true;
+    });
+
+  return filtered.slice(0, normalizedLimit);
+}
+
+function summarizeRequestStates() {
+  const summary = {
+    ready: 0,
+    approving: 0,
+    merged: 0,
+    rejected: 0,
+  };
+
+  for (const state of requestStateById.values()) {
+    if (state?.status === REQUEST_STATUS.READY) summary.ready += 1;
+    if (state?.status === REQUEST_STATUS.APPROVING) summary.approving += 1;
+    if (state?.status === REQUEST_STATUS.MERGED) summary.merged += 1;
+    if (state?.status === REQUEST_STATUS.REJECTED) summary.rejected += 1;
+  }
+
+  return summary;
 }
 
 function shouldSkipHistoryByDedup({ requestId, result, reason, source }) {
@@ -510,17 +672,63 @@ function markApproveFinished({ requestId, ok, source }) {
 }
 
 async function runConditionalAutoApprove(approvalRequest) {
-  if (autoApproveInFlight.has(approvalRequest.requestId)) return;
-  if (getApproveSkipReason(approvalRequest.requestId)) return;
+  if (autoApproveInFlight.has(approvalRequest.requestId)) {
+    appendAutoApproveEvent({
+      phase: 'execution',
+      requestId: approvalRequest.requestId,
+      agentId: approvalRequest.agentId,
+      projectId: approvalRequest.projectId,
+      branchName: approvalRequest.branchName,
+      decision: 'SKIPPED',
+      reason: 'IN_FLIGHT_DUPLICATE',
+      dryRun: AUTO_APPROVE_CONFIG.dryRun,
+    });
+    return;
+  }
+
+  const precheckSkipReason = getApproveSkipReason(approvalRequest.requestId);
+  if (precheckSkipReason) {
+    appendAutoApproveEvent({
+      phase: 'execution',
+      requestId: approvalRequest.requestId,
+      agentId: approvalRequest.agentId,
+      projectId: approvalRequest.projectId,
+      branchName: approvalRequest.branchName,
+      decision: 'SKIPPED',
+      reason: precheckSkipReason,
+      dryRun: AUTO_APPROVE_CONFIG.dryRun,
+    });
+    return;
+  }
 
   autoApproveInFlight.add(approvalRequest.requestId);
   setRequestState(approvalRequest.requestId, REQUEST_STATUS.APPROVING, 'auto');
+  appendAutoApproveEvent({
+    phase: 'execution',
+    requestId: approvalRequest.requestId,
+    agentId: approvalRequest.agentId,
+    projectId: approvalRequest.projectId,
+    branchName: approvalRequest.branchName,
+    decision: 'EXECUTING',
+    reason: 'AUTO_APPROVE_START',
+    dryRun: AUTO_APPROVE_CONFIG.dryRun,
+  });
 
   if (AUTO_APPROVE_CONFIG.dryRun) {
     broadcastToClients({
       event: 'AUTO_APPROVE_SKIPPED',
       requestId: approvalRequest.requestId,
       reason: 'DRY_RUN',
+    });
+    appendAutoApproveEvent({
+      phase: 'execution',
+      requestId: approvalRequest.requestId,
+      agentId: approvalRequest.agentId,
+      projectId: approvalRequest.projectId,
+      branchName: approvalRequest.branchName,
+      decision: 'SKIPPED',
+      reason: 'DRY_RUN',
+      dryRun: true,
     });
     appendHistory({
       requestId: approvalRequest.requestId,
@@ -555,6 +763,16 @@ async function runConditionalAutoApprove(approvalRequest) {
     requestId: approvalRequest.requestId,
     ok,
     source: 'auto',
+  });
+  appendAutoApproveEvent({
+    phase: 'execution',
+    requestId: approvalRequest.requestId,
+    agentId: approvalRequest.agentId,
+    projectId: approvalRequest.projectId,
+    branchName: approvalRequest.branchName,
+    decision: ok ? 'MERGED' : 'FAILED',
+    reason: ok ? 'MERGE_SUCCESS' : 'MERGE_FAILED',
+    dryRun: AUTO_APPROVE_CONFIG.dryRun,
   });
   broadcastToClients({
     event: ok ? 'MERGE_SUCCESS' : 'MERGE_FAILED',
@@ -722,10 +940,13 @@ server.listen(PORT, HOST, () => {
   console.log(`   에이전트 API : POST http://${HOST}:${PORT}/api/request`);
   console.log(`   상태 확인   : GET  http://${HOST}:${PORT}/health`);
   console.log(`   이력 조회   : GET  http://${HOST}:${PORT}/api/history?limit=40`);
+  console.log(`   자동승인 상태: GET  http://${HOST}:${PORT}/api/auto-approve/status`);
+  console.log(`   자동승인 로그: GET  http://${HOST}:${PORT}/api/auto-approve/events?limit=40`);
   console.log(`   허용 Origin : ${ALLOWED_ORIGINS.join(', ')}`);
   console.log(`   인증 모드   : ${SERVER_TOKEN ? 'Bearer token required' : 'disabled'}`);
   console.log(`   자동승인    : ${AUTO_APPROVE_CONFIG.enabled ? 'enabled' : 'disabled'}`);
   console.log(`   이력 버퍼   : max ${HISTORY_BUFFER_MAX_ITEMS} items`);
+  console.log(`   자동승인 로그: max ${AUTO_APPROVE_LOG_MAX_ITEMS} items`);
   if (AUTO_APPROVE_CONFIG.enabled) {
     console.log(`     - trusted agents : ${AUTO_APPROVE_CONFIG.trustedAgents.length > 0 ? AUTO_APPROVE_CONFIG.trustedAgents.join(', ') : '(all)'}`);
     console.log(`     - branch prefix  : ${AUTO_APPROVE_CONFIG.branchPrefix || '(none)'}`);

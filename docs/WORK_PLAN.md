@@ -41,7 +41,7 @@
 - `WP-005` 완료: 서버/UI/E2E + CI 게이트 + 통합 스모크(`npm run smoke:integration`) 반영
 - `WP-006` 완료: `check:env` preflight + `start:app` 원클릭 런처 + 가이드 반영
 - `WP-007` 진행중: 1차(상수/유틸 분리) + 2차(UI 컴포넌트 분해) + 3차(게임/입력/WebSocket 훅 분리) 완료
-- `WP-008` 진행중: 1차(정책 골격) + 2차(가드레일/중복승인 방지/운영스위치) 완료
+- `WP-008` 완료: 1차(정책 골격) + 2차(가드레일/중복승인 방지/운영스위치) + 3차(운영 가시성 API/로그) 완료
 - `WP-009` 진행중: 1차(서버 이력 버퍼/API) + 2차(히스토리 패널/필터/토글) 완료
 - QA 에이전트 설정 완료: `npm run qa` + 회귀 테스트 스위트 + QA 가이드 추가
 - `function bach` 1차 완료: 상단 미니 플레이어, 채널 URL 저장, 재생/일시정지/볼륨, 주파수(Hz) 시각화 반영
@@ -50,8 +50,8 @@
 
 ## 1-2) 다음 작업 포인트 (즉시 실행)
 
-1. `WP-008` 3차 구현: 운영 가시성(자동승인 사유/상태 로그 API) 강화
-2. `WP-009` 3차 구현: 악보 시각화(레인/밀도 표현) 고도화 + 접근성 마무리
+1. `WP-009` 3차 구현: 악보 시각화(레인/밀도 표현) 고도화 + 접근성 마무리
+2. `WP-008` 운영 API UI화: 운영 지표를 대시보드에서 시각 확인 가능하도록 확장
 3. `KI-001` 분리 추적: `function bach` Hz 미노출 환경 재현/원인 수집
 
 ## 1-6) `WP-009` 상세설계/전문가 검증 상태 (2026-03-04)
@@ -72,7 +72,9 @@
   - 1, 2, 4 완료 (`npm run qa`, `npm run test:e2e`, `npm run smoke:integration` 통과)
   - 3은 다음 스프린트에서 시각화 고도화로 진행
 
-## 1-5) `WP-008` 상세 실행계획 및 진행 상태 (2026-03-01)
+## 1-5) `WP-008` 상세 실행계획 및 진행 상태 (2026-03-04)
+
+- 3차 상세계획 문서: [`docs/WP-008_PHASE3_OPERABILITY_PLAN.md`](./WP-008_PHASE3_OPERABILITY_PLAN.md)
 
 고정 순서:
 
@@ -88,6 +90,7 @@
 | 정책 조건 조합 | `trustedAgents`/`branchPrefix`/`maxDescriptionLength` + `requireExplicit` + `cooldown` 평가 | `/api/request` 응답의 `autoApprove.reason`으로 차단 사유 확인 가능 | 완료 |
 | 중복 승인 방지 | 요청 상태맵(`ready/approving/merged/rejected`) + 중복 `APPROVE` 차단 | 동일 `requestId` 재승인 시 `MERGE_SKIPPED` 반환 | 완료 |
 | 운영 스위치 | `dryRun` 모드에서 정책 매칭만 수행, merge 미실행 | `AUTO_APPROVE_SKIPPED` 이벤트 확인 가능 | 완료 |
+| 운영 가시성 API/로그 | `/api/auto-approve/status`, `/api/auto-approve/events` + 링버퍼 로그(`MAESTRO_AUTO_APPROVE_LOG_MAX_ITEMS`) | 정책 판정/실행 결과를 API로 추적 가능 | 완료 |
 | 회귀 테스트 | 서버 회귀에 explicit/cooldown/dry-run/duplicate 케이스 추가 | `npm run qa` 통과 | 완료 |
 
 ## 1-3) 즉시 실행 결과 (2026-02-28)

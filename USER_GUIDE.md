@@ -112,6 +112,7 @@ cp .env.example .env
 | `MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT` | `false` | `autoApprove=true` 명시 요청만 자동승인할지 여부 |
 | `MAESTRO_AUTO_APPROVE_COOLDOWN_MS` | `0` | 자동승인 시도 간 최소 간격(ms) |
 | `MAESTRO_AUTO_APPROVE_DRY_RUN` | `false` | 정책 매칭만 수행하고 실제 merge는 건너뜀 |
+| `MAESTRO_AUTO_APPROVE_LOG_MAX_ITEMS` | `500` | 자동승인 정책/실행 이벤트 로그 최대 저장 개수 (50~5000) |
 | `MAESTRO_HISTORY_MAX_ITEMS` | `300` | 승인 이력 링버퍼 최대 저장 개수 (40~2000) |
 
 예시 `.env`:
@@ -130,6 +131,7 @@ MAESTRO_AUTO_APPROVE_MAX_DESC_LENGTH=180
 MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT=false
 MAESTRO_AUTO_APPROVE_COOLDOWN_MS=0
 MAESTRO_AUTO_APPROVE_DRY_RUN=false
+MAESTRO_AUTO_APPROVE_LOG_MAX_ITEMS=500
 MAESTRO_HISTORY_MAX_ITEMS=300
 ```
 
@@ -221,6 +223,18 @@ sh hooks/notify-maestro.sh feature/test-branch "테스트 커밋" "실제 통신
 
 조건부 자동승인을 켠 경우(`MAESTRO_AUTO_APPROVE_ENABLED=true`), 정책에 일치하는 요청은 대시보드 수동 입력 없이 자동 병합 시도가 수행됩니다.
 `MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT=true`를 함께 사용하면 요청 본문에 `"autoApprove": true`를 넣은 요청만 자동승인 대상으로 처리됩니다.
+
+운영 가시성 API:
+
+```bash
+# 자동승인 설정/런타임 상태 + 최근 이벤트
+curl -s http://localhost:8080/api/auto-approve/status | jq
+
+# 자동승인 이벤트 로그 조회 (필터 가능)
+curl -s "http://localhost:8080/api/auto-approve/events?limit=20&decision=BLOCKED" | jq
+```
+
+`MAESTRO_SERVER_TOKEN`을 설정한 경우 위 API도 `Authorization: Bearer <token>` 헤더가 필요합니다.
 
 ---
 

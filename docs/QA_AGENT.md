@@ -43,6 +43,10 @@ npm run smoke:integration
   - 토큰 비활성: `200`
   - 토큰 활성 + 미인증/오인증: `401`
   - 토큰 활성 + 정인증: `200`
+- 자동승인 운영 API 분기
+  - `GET /api/auto-approve/status` 응답 구조/요약 값 검증
+  - `GET /api/auto-approve/events` limit/filter(`requestId`, `decision`, `reason`) 검증
+  - 토큰 활성 시 운영 API 미인증 요청 `401` 검증
 - CORS 정책 분기
   - 허용 Origin preflight: `204` + `Access-Control-Allow-Origin`
   - 비허용 Origin preflight/request: `403`
