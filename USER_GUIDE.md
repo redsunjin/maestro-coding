@@ -2,6 +2,8 @@
 
 이 문서는 로컬에서 Maestro를 설치하고, 에이전트(예: VS Code, 훅 스크립트)와 연동해 승인 플로우를 테스트하는 방법을 단계별로 안내합니다.
 
+실제 프로젝트 적용 절차는 [docs/OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md)를 함께 참고하세요.
+
 **목차**
 - [요구사항 (Prerequisites)](#요구사항-prerequisites)
 - [빠른 설치 & 실행](#빠른-설치--실행)

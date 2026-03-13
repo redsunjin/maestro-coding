@@ -54,6 +54,7 @@
 1. `KI-001` 분리 추적: 브라우저/줌/OS/YouTube player state 기준 재현 데이터 수집
 2. 승인 이력 후속 검토: 영속 저장/export는 별도 범위로 검토
 3. 운영 가이드 보강: 토큰 모드/로컬 runbook/장애 대응 문서 지속 갱신
+   - 현재 기준 runbook 초안 추가: [`docs/OPERATIONS_RUNBOOK.md`](./OPERATIONS_RUNBOOK.md)
 
 ## 1-6) `WP-009` 상세설계/전문가 검증 상태 (2026-03-04)
 

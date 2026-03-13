@@ -90,6 +90,7 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 
 설치 단순화 1차 상세 계획은 [`docs/INSTALL_SIMPLIFICATION_PHASE1.md`](docs/INSTALL_SIMPLIFICATION_PHASE1.md)를 참고하세요.
 동적 레인 스케일링 계획/회귀 가드는 [`docs/WP-010_DYNAMIC_LANES_PLAN.md`](docs/WP-010_DYNAMIC_LANES_PLAN.md)를 참고하세요.
+실제 적용용 운영 절차는 [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md)를 참고하세요.
 
 ## 빠른 시작 (Quick Start)
 
