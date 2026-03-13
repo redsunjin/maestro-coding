@@ -13,7 +13,7 @@
 # 환경변수:
 #   MAESTRO_URL   서버 주소 (기본값: http://localhost:8080)
 #   AGENT_ID      에이전트 식별자 (기본값: terminal_agent)
-#   LANE_INDEX    UI 레인 번호 1~4 (기본값: 서버가 랜덤 배정)
+#   LANE_INDEX    UI 레인 번호 1~현재 프로젝트 레인 수 (기본값: 서버가 자동 배정)
 #   MAESTRO_SERVER_TOKEN  서버 인증 토큰 (설정 시 Authorization 헤더 자동 추가)
 
 MAESTRO_URL="${MAESTRO_URL:-http://localhost:8080}"

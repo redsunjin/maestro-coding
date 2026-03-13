@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { MAX_LANE_COUNT, normalizeLaneIndex as normalizeConfiguredLaneIndex } from '../constants/maestro.js';
 
 const LOCAL_HISTORY_LIMIT = 300;
 const RENDER_BATCH_SIZE = 40;
@@ -21,9 +22,7 @@ function sanitizeText(value, maxLength = 120) {
 }
 
 function normalizeLaneIndex(value) {
-  const laneIndex = Number(value);
-  if (!Number.isInteger(laneIndex) || laneIndex < 1 || laneIndex > 4) return null;
-  return laneIndex;
+  return normalizeConfiguredLaneIndex(value, MAX_LANE_COUNT);
 }
 
 function normalizeHistoryItem(item = {}) {

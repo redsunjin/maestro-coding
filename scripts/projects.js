@@ -21,6 +21,7 @@ import {
   sortProjects,
   upsertProjectEntry,
 } from './project-registry.mjs';
+import { DEFAULT_LANE_COUNT, MAX_LANE_COUNT, MIN_LANE_COUNT, sanitizeLaneCount } from '../shared/lane-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '..');
@@ -53,6 +54,7 @@ function applyProjectToEnv(project) {
     ...currentEnv,
     MAIN_REPO_PATH: project.path,
     MAESTRO_PROJECT_NAME: project.name,
+    MAESTRO_PROJECT_LANE_COUNT: String(sanitizeLaneCount(project.laneCount, DEFAULT_LANE_COUNT)),
     PORT: currentEnv.PORT || '8080',
     HOST: currentEnv.HOST || '127.0.0.1',
     ALLOWED_ORIGINS: currentEnv.ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS,
@@ -78,6 +80,7 @@ async function handleList() {
     if (project.repoUrl) {
       console.log(`  link: ${project.repoUrl}`);
     }
+    console.log(`  lanes: ${project.laneCount || DEFAULT_LANE_COUNT}`);
     console.log(`  last used: ${formatTimestamp(project.lastUsedAt)}`);
   }
 }
@@ -112,6 +115,19 @@ async function handleAdd() {
       initial: (_, values) => inferProjectRemoteUrl(resolveProjectPath(values.projectPath)),
     },
     {
+      type: 'number',
+      name: 'laneCount',
+      message: `연결 레인 수 (${MIN_LANE_COUNT}-${MAX_LANE_COUNT})`,
+      initial: DEFAULT_LANE_COUNT,
+      min: MIN_LANE_COUNT,
+      max: MAX_LANE_COUNT,
+      validate: (value) => (
+        Number.isInteger(value)
+        && value >= MIN_LANE_COUNT
+        && value <= MAX_LANE_COUNT
+      ) || `${MIN_LANE_COUNT}-${MAX_LANE_COUNT} 사이 숫자를 입력하세요.`,
+    },
+    {
       type: 'confirm',
       name: 'applyNow',
       message: '지금 이 프로젝트를 .env에 바로 연결할까요?',
@@ -128,6 +144,7 @@ async function handleAdd() {
     name: responses.projectName,
     path: responses.projectPath,
     repoUrl: responses.repoUrl,
+    laneCount: responses.laneCount,
   });
 
   console.log(`\n등록 완료: ${savedProject.name}`);
@@ -135,6 +152,7 @@ async function handleAdd() {
   if (savedProject.repoUrl) {
     console.log(`  link: ${savedProject.repoUrl}`);
   }
+  console.log(`  lanes: ${savedProject.laneCount}`);
 
   if (responses.applyNow) {
     applyProjectToEnv(savedProject);

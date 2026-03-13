@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useRef } from 'react';
 import {
   BASE_BOTTOM,
+  DEFAULT_LANE_COUNT,
   NOTE_HEIGHT_OFFSET,
   NOTE_SPEED,
   SPAWN_BOTTOM,
   NOTE_STATUS,
   MOCK_COMMITS,
   PROJECTS,
+  sanitizeLaneCount,
 } from '../constants/maestro.js';
 
-export default function useMaestroGameLoop({ isPlaying, wsStatus, setNotes }) {
+export default function useMaestroGameLoop({ isPlaying, wsStatus, setNotes, laneCount = DEFAULT_LANE_COUNT }) {
   const requestRef = useRef();
+  const activeLaneCount = sanitizeLaneCount(laneCount, DEFAULT_LANE_COUNT);
 
   const updateGame = useCallback(() => {
     if (!isPlaying) return;
@@ -56,7 +59,7 @@ export default function useMaestroGameLoop({ isPlaying, wsStatus, setNotes }) {
 
     let timeoutId;
     const spawnNote = () => {
-      const laneIndex = Math.floor(Math.random() * 4);
+      const laneIndex = Math.floor(Math.random() * activeLaneCount);
       const commitData = MOCK_COMMITS[Math.floor(Math.random() * MOCK_COMMITS.length)];
       const randomProjectId = PROJECTS[Math.floor(Math.random() * PROJECTS.length)].id;
 
@@ -82,5 +85,5 @@ export default function useMaestroGameLoop({ isPlaying, wsStatus, setNotes }) {
 
     timeoutId = setTimeout(spawnNote, 1000);
     return () => clearTimeout(timeoutId);
-  }, [isPlaying, wsStatus, setNotes]);
+  }, [activeLaneCount, isPlaying, wsStatus, setNotes]);
 }

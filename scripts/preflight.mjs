@@ -78,6 +78,7 @@ const portRaw = envValues.PORT || '8080';
 const port = toPortNumber(portRaw);
 const mainRepoPath = (envValues.MAIN_REPO_PATH || ROOT_DIR).trim();
 const projectName = (envValues.MAESTRO_PROJECT_NAME || '').trim();
+const projectLaneCount = (envValues.MAESTRO_PROJECT_LANE_COUNT || '4').trim();
 const wsUrlRaw = (envValues.VITE_WS_URL || `ws://${host}:${portRaw}`).trim();
 
 const nodeModulesPath = path.join(ROOT_DIR, 'node_modules');
@@ -157,6 +158,7 @@ console.log('[preflight] OK');
 if (projectName) {
   console.log(`  - project        : ${projectName}`);
 }
+console.log(`  - lanes          : ${projectLaneCount}`);
 console.log(`  - MAIN_REPO_PATH: ${mainRepoPath}`);
 console.log(`  - HOST/PORT      : ${host}:${port}`);
 console.log(`  - VITE_WS_URL    : ${wsUrlRaw}`);

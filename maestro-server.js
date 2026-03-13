@@ -28,6 +28,13 @@ import {
   sortProjects,
   upsertProjectEntry,
 } from './scripts/project-registry.mjs';
+import {
+  DEFAULT_LANE_COUNT,
+  MAX_LANE_COUNT,
+  normalizeLaneIndex as normalizeConfiguredLaneIndex,
+  pickRandomLaneIndex,
+  sanitizeLaneCount,
+} from './shared/lane-config.mjs';
 
 const execFilePromise = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -66,6 +73,7 @@ const persistedEnvValues = readEnvFile(ENV_PATH).values;
 let runtimeProjectState = createRuntimeProjectState({
   path: process.env.MAIN_REPO_PATH || persistedEnvValues.MAIN_REPO_PATH || process.cwd(),
   name: process.env.MAESTRO_PROJECT_NAME || persistedEnvValues.MAESTRO_PROJECT_NAME || '',
+  laneCount: process.env.MAESTRO_PROJECT_LANE_COUNT || persistedEnvValues.MAESTRO_PROJECT_LANE_COUNT || DEFAULT_LANE_COUNT,
 });
 
 function parseBoolean(value, defaultValue = false) {
@@ -190,10 +198,7 @@ function normalizeHistorySource(value) {
 }
 
 function normalizeLaneIndex(value) {
-  const laneIndex = Number(value);
-  if (!Number.isInteger(laneIndex)) return null;
-  if (laneIndex < 1 || laneIndex > 4) return null;
-  return laneIndex;
+  return normalizeConfiguredLaneIndex(value, MAX_LANE_COUNT);
 }
 
 function normalizeAutoApproveDecision(value) {
@@ -245,6 +250,7 @@ function createRuntimeProjectState(input = {}) {
     name: String(input.name || matchedProject?.name || inferProjectName(projectPath)).trim() || inferProjectName(projectPath),
     path: projectPath,
     repoUrl: String(matchedProject?.repoUrl || input.repoUrl || '').trim(),
+    laneCount: sanitizeLaneCount(input.laneCount || matchedProject?.laneCount || DEFAULT_LANE_COUNT, DEFAULT_LANE_COUNT),
   };
 }
 
@@ -292,6 +298,7 @@ function persistRuntimeProject(project) {
     ...existingEnvValues,
     MAIN_REPO_PATH: project.path,
     MAESTRO_PROJECT_NAME: project.name,
+    MAESTRO_PROJECT_LANE_COUNT: String(sanitizeLaneCount(project.laneCount, DEFAULT_LANE_COUNT)),
     PORT: existingEnvValues.PORT || String(PORT),
     HOST: existingEnvValues.HOST || String(HOST),
     ALLOWED_ORIGINS: existingEnvValues.ALLOWED_ORIGINS || process.env.ALLOWED_ORIGINS || undefined,
@@ -311,6 +318,7 @@ function persistRuntimeProject(project) {
   writeEnvFile(ENV_PATH, nextEnvValues);
   process.env.MAIN_REPO_PATH = project.path;
   process.env.MAESTRO_PROJECT_NAME = project.name;
+  process.env.MAESTRO_PROJECT_LANE_COUNT = String(sanitizeLaneCount(project.laneCount, DEFAULT_LANE_COUNT));
   runtimeProjectState = createRuntimeProjectState(project);
 }
 
@@ -351,6 +359,7 @@ const server = http.createServer((req, res) => {
       project: {
         name: runtimeProjectState.name,
         path: runtimeProjectState.path,
+        laneCount: runtimeProjectState.laneCount,
       },
     }));
     return;
@@ -460,6 +469,7 @@ const server = http.createServer((req, res) => {
           name: sanitizeHistoryText(data.projectName || '', 80) || inferProjectName(projectPath),
           path: projectPath,
           repoUrl: sanitizeHistoryText(data.repoUrl || '', 240) || inferProjectRemoteUrl(projectPath),
+          laneCount: sanitizeLaneCount(data.laneCount, DEFAULT_LANE_COUNT),
         });
 
         let didActivate = false;
@@ -584,7 +594,7 @@ const server = http.createServer((req, res) => {
   //   "agentId": "agent_backend_01",   // 에이전트 식별자
   //   "branchName": "feature/auth",    // 병합할 브랜치 이름
   //   "projectId": "proj_b2c",         // 대상 프로젝트 ID (선택)
-  //   "laneIndex": 2,                  // UI 레인 번호 1~4 (없으면 자동 배정)
+  //   "laneIndex": 2,                  // UI 레인 번호 1~활성 프로젝트 레인 수 (없으면 자동 배정)
   //   "diffSummary": {                 // LLM이 생성한 변경 요약
   //     "title": "JWT 검증 로직 최적화",
   //     "impact": "Medium",
@@ -603,6 +613,8 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const data = JSON.parse(body);
+        const activeLaneCount = sanitizeLaneCount(runtimeProjectState.laneCount, DEFAULT_LANE_COUNT);
+        const normalizedLaneIndex = normalizeConfiguredLaneIndex(data.laneIndex, activeLaneCount);
 
         // 필수 필드 기본값 채우기
         const approvalRequest = {
@@ -610,7 +622,7 @@ const server = http.createServer((req, res) => {
           agentId: data.agentId || 'unknown_agent',
           branchName: data.branchName || null,
           projectId: data.projectId || null,
-          laneIndex: data.laneIndex || (Math.floor(Math.random() * 4) + 1),
+          laneIndex: normalizedLaneIndex || pickRandomLaneIndex(activeLaneCount),
           autoApprove: data.autoApprove === true,
           timestamp: new Date().toISOString(),
           diffSummary: data.diffSummary || {

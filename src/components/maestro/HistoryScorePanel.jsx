@@ -162,18 +162,21 @@ function describeOverviewCell(laneName, density, item, projectLabel) {
   return `${laneName} lane, ${countLabel}, latest ${getResultLabel(item.result)}, ${projectLabel}, ${formatTimestamp(item.timestamp)}`;
 }
 
-function ScoreLaneMini({ laneIndex, result }) {
-  const lane = Number.isInteger(laneIndex) ? Math.max(1, Math.min(4, laneIndex)) : 2;
-  const topOffset = (4 - lane) * 7 + 2;
+function ScoreLaneMini({ laneIndex, laneCount, result }) {
+  const staffLineCount = Math.max(4, laneCount || 4);
+  const lane = Number.isInteger(laneIndex) ? Math.max(1, Math.min(staffLineCount, laneIndex)) : Math.min(2, staffLineCount);
+  const lineSpacing = staffLineCount > 4 ? 4 : 7;
+  const miniHeight = staffLineCount > 4 ? 34 : 28;
+  const topOffset = (staffLineCount - lane) * lineSpacing + 2;
   const noteStyle = result === 'APPROVED' ? 'bg-green-300' : result === 'REJECTED' ? 'bg-orange-300' : 'bg-blue-300';
 
   return (
-    <div className="relative h-7 w-14 rounded-md border border-gray-700/80 bg-gray-950/80">
-      {[0, 1, 2, 3].map((line) => (
+    <div className="relative w-14 rounded-md border border-gray-700/80 bg-gray-950/80" style={{ height: `${miniHeight}px` }}>
+      {Array.from({ length: staffLineCount }, (_, line) => (
         <span
           key={line}
           className="absolute left-1 right-1 h-px bg-gray-700"
-          style={{ top: `${line * 7 + 3}px` }}
+          style={{ top: `${line * lineSpacing + 3}px` }}
         />
       ))}
       <span
@@ -415,7 +418,7 @@ export default function HistoryScorePanel({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2">
-                    <ScoreLaneMini laneIndex={item.laneIndex} result={item.result} />
+                    <ScoreLaneMini laneIndex={item.laneIndex} laneCount={lanes.length} result={item.result} />
                     <div className="min-w-0">
                       <div className="truncate text-[12px] font-semibold text-gray-100">{item.title || '(untitled)'}</div>
                       <div className="mt-0.5 flex items-center gap-1 text-[10px] text-gray-400">

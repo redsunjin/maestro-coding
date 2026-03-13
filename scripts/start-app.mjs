@@ -19,6 +19,7 @@ const host = loadedEnv.HOST || process.env.HOST || '127.0.0.1';
 const port = loadedEnv.PORT || process.env.PORT || '8080';
 const wsUrl = loadedEnv.VITE_WS_URL || process.env.VITE_WS_URL || `ws://${host}:${port}`;
 const projectName = loadedEnv.MAESTRO_PROJECT_NAME || process.env.MAESTRO_PROJECT_NAME || '';
+const projectLaneCount = loadedEnv.MAESTRO_PROJECT_LANE_COUNT || process.env.MAESTRO_PROJECT_LANE_COUNT || '4';
 const mainRepoPath = loadedEnv.MAIN_REPO_PATH || process.env.MAIN_REPO_PATH || ROOT_DIR;
 
 const runtimeEnv = {
@@ -198,6 +199,7 @@ try {
   if (projectName) {
     console.log(`  - project  : ${projectName}`);
   }
+  console.log(`  - lanes    : ${projectLaneCount}`);
   console.log(`  - repo     : ${mainRepoPath}`);
   console.log(`  - health   : ${healthUrl}`);
   console.log(`  - ws       : ${wsUrl}`);

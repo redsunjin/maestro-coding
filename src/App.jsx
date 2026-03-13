@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   WS_URL,
-  LANES,
   PROJECTS,
   BASE_BOTTOM,
   NOTE_STATUS,
+  DEFAULT_LANE_COUNT,
   LANE_HIT_FREQS,
+  getLaneDefinitions,
 } from './constants/maestro.js';
 import { ensureSfxAudioContext, playBeep } from './utils/audio.js';
 import useMaestroRealtime from './hooks/useMaestroRealtime.js';
@@ -130,6 +131,8 @@ export default function App() {
     setNewProjectName,
     newProjectRepoUrl,
     setNewProjectRepoUrl,
+    newProjectLaneCount,
+    setNewProjectLaneCount,
     refreshProjects,
     applySelectedProject,
     registerProject,
@@ -167,6 +170,9 @@ export default function App() {
     handleAutoApproveSocketEvent(payload);
   }, [handleAutoApproveSocketEvent, handleHistorySocketEvent, handleProjectSocketEvent]);
 
+  const activeLaneCount = currentProject?.laneCount || DEFAULT_LANE_COUNT;
+  const activeLanes = useMemo(() => getLaneDefinitions(activeLaneCount), [activeLaneCount]);
+
   const {
     wsStatus,
     connectWebSocket,
@@ -182,23 +188,25 @@ export default function App() {
     setMaxCombo,
     showFeedback,
     onSocketEvent: handleRealtimeEvent,
+    laneCount: activeLaneCount,
   });
 
   useMaestroGameLoop({
     isPlaying,
     wsStatus,
     setNotes,
+    laneCount: activeLaneCount,
   });
 
   const triggerLaneAction = useCallback((laneId, options = {}) => {
     const { isRejectAction = false, promptFeedback = false } = options;
     if (!isPlaying || previewNote) return;
 
-    const laneMatch = LANES.find((lane) => lane.id === laneId);
+    const laneMatch = activeLanes.find((lane) => lane.id === laneId);
     if (!laneMatch) return;
 
     const currentProjectId = activeProjectRef.current;
-    const selectedFreq = LANE_HIT_FREQS[laneMatch.id];
+    const selectedFreq = LANE_HIT_FREQS[laneMatch.id] || LANE_HIT_FREQS[LANE_HIT_FREQS.length - 1];
     playBeep(selectedFreq, 'triangle');
     showSfxBurst(laneMatch.id, selectedFreq);
 
@@ -278,7 +286,7 @@ export default function App() {
       return nextCombo;
     });
     showFeedback(currentProjectId, laneMatch.id, 'MERGED!', 'text-green-400');
-  }, [isPlaying, previewNote, sendSocketAction, showFeedback, showSfxBurst]);
+  }, [activeLanes, isPlaying, previewNote, sendSocketAction, showFeedback, showSfxBurst]);
 
   const triggerUndoAction = useCallback(() => {
     if (!isPlaying || previewNote) return;
@@ -306,6 +314,7 @@ export default function App() {
     setActiveProjectId,
     triggerUndoAction,
     triggerLaneAction,
+    lanes: activeLanes,
   });
 
   const startGame = () => {
@@ -414,7 +423,7 @@ export default function App() {
       />
 
       <LaneBoard
-        lanes={LANES}
+        lanes={activeLanes}
         notes={notes}
         activeProjectId={activeProjectId}
         combo={combo}
@@ -426,7 +435,7 @@ export default function App() {
         onLaneAction={triggerLaneAction}
       />
 
-      <FooterHelp />
+      <FooterHelp lanes={activeLanes} />
       <ProjectRegistryPanel
         isOpen={isProjectPanelOpen}
         onClose={handleProjectPanelClose}
@@ -452,6 +461,8 @@ export default function App() {
         onNewProjectNameChange={setNewProjectName}
         newProjectRepoUrl={newProjectRepoUrl}
         onNewProjectRepoUrlChange={setNewProjectRepoUrl}
+        newProjectLaneCount={newProjectLaneCount}
+        onNewProjectLaneCountChange={setNewProjectLaneCount}
         onRegisterProject={registerProject}
         isRegistering={isProjectRegistering}
       />
@@ -483,7 +494,7 @@ export default function App() {
         hasMore={hasMoreHistoryItems}
         onLoadMore={loadMoreHistory}
         projects={PROJECTS}
-        lanes={LANES}
+        lanes={activeLanes}
         projectFilter={historyProjectFilter}
         onProjectFilterChange={setHistoryProjectFilter}
         resultFilter={historyResultFilter}

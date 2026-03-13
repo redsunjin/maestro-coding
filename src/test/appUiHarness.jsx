@@ -70,6 +70,7 @@ export function setupAppUiEnvironment() {
             name: 'runtime',
             path: '/workspace/runtime',
             repoUrl: '',
+            laneCount: 4,
             isActive: true,
           },
           items: [
@@ -78,6 +79,7 @@ export function setupAppUiEnvironment() {
               name: 'runtime',
               path: '/workspace/runtime',
               repoUrl: '',
+              laneCount: 4,
               isActive: true,
             },
           ],

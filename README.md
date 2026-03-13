@@ -29,11 +29,12 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 - `MAESTRO_SERVER_TOKEN` 설정 시 `Authorization: Bearer` 인증 적용
 - 기본 `HOST=127.0.0.1` + `ALLOWED_ORIGINS` 화이트리스트 기반 CORS 적용
 - 프로젝트 연결 간소화: 등록된 로컬 Git 레포를 대시보드 `Repo` 패널이나 `project:use` 명령으로 즉시 전환
+- 프로젝트별 승인 레인 수(1~8) 저장/적용 지원
 - 승인 이력 악보뷰(`WP-009`): `GET /api/history` + `HISTORY_APPEND` + 레인 overview/밀도 표현/접근성 보강 완료
 - `function bach`: 상단 미니 플레이어에서 YouTube 기반 BGM 재생/일시정지/볼륨/채널 URL 등록 + 상태 칩/고정 `Hz` 슬롯 제공
 - 조건부 자동승인(`WP-008`): explicit/cooldown/dry-run/중복승인 차단 + 운영 가시성 API + `AutoOps` 대시보드 패널 반영
 
-## 현재 개발 현황 (2026-03-12 기준)
+## 현재 개발 현황 (2026-03-13 기준)
 
 - 단계: 운영 가능한 MVP+
 - 확인된 동작: `npm run qa` 통과, 서버 `/health` 응답 확인
@@ -48,16 +49,21 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
     - 서버 링버퍼 + 조회 API: `GET /api/history`
     - WebSocket 실시간 이벤트: `HISTORY_APPEND`
     - 헤더 `History` 버튼/`H` 단축키 + 우측 패널 필터(프로젝트/결과/소스)
-    - 4개 레인 overview, 이벤트 밀도 표현, 범례, `dialog` 접근성, 라이브 상태 요약
+    - 레인 overview, 이벤트 밀도 표현, 범례, `dialog` 접근성, 라이브 상태 요약
   - 조건부 자동승인(`WP-008`) 운영 UI 완료
     - 헤더 `AutoOps` 버튼으로 정책 상태/런타임/최근 이벤트 로그 조회
     - `401 Unauthorized` 응답 시 토큰 입력/저장 후 재조회 지원
     - 결정 필터(`Eligible/Blocked/Executing/Skipped/Merged/Failed`) 제공
   - 프로젝트 전환 UX 완료
     - 헤더 `Repo` 버튼에서 등록된 프로젝트 드롭다운 선택/적용
-    - `Repo` 패널 안에서 새 Git 레포 폴더를 바로 등록 후 즉시 적용
+    - `Repo` 패널 안에서 새 Git 레포 폴더를 레인 수와 함께 바로 등록 후 즉시 적용
     - 선택 즉시 런타임 merge/undo 대상 변경 + `.env` 영속화
     - 토큰 모드에서도 같은 서버 토큰으로 목록 조회/전환 가능
+  - `WP-010` 동적 레인 스케일링 1~4차 완료
+    - 프로젝트 메타데이터(`laneCount`) 도입
+    - 서버 요청/헬스/API 응답을 활성 프로젝트 레인 수 기준으로 정규화
+    - 대시보드 보드/키입력/히스토리 요약을 가변 레인 수로 렌더링
+    - UI/서버 회귀 테스트에 6레인 시나리오 추가
   - `function bach` 운용성 보강
     - `booting/ready/queued/playing/paused/error` 상태 칩 노출
     - `standby` 또는 `~xxxHz` 고정 슬롯으로 재생 상태 가시성 유지
@@ -68,7 +74,7 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
   - `start:app` 오류 조치 메시지/대시보드 URL 자동 감지 고도화
 - 확인된 개선 필요 항목
   - `KI-001` `function bach` Hz 미노출 환경 재현 데이터 확보 필요
-  - 승인 이력 영속 저장/export는 아직 범위 밖이며 `WP-010` 이후 검토 예정
+  - 승인 이력 영속 저장/export는 아직 범위 밖이며 후속 범위로 별도 검토 예정
   - 로컬 데모 중심이라 다중 사용자 운영/원격 배포용 runbook은 추가 정리가 필요
 
 ## 변경 필요 항목 및 작업계획
@@ -78,10 +84,11 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 즉시 진행할 핵심 3가지:
 
 1. P1 `KI-001` 재현 환경 수집: 브라우저/줌/OS/플레이어 상태 로그 확보
-2. P2 승인 이력 후속(`WP-010`) 범위 정의: 영속 저장/export 필요성 검토
+2. P2 승인 이력 후속 범위 정의: 영속 저장/export 필요성 검토
 3. P2 운영 가이드 보강: 토큰 모드/실행 표준 경로/장애 대응 runbook 지속 업데이트
 
 설치 단순화 1차 상세 계획은 [`docs/INSTALL_SIMPLIFICATION_PHASE1.md`](docs/INSTALL_SIMPLIFICATION_PHASE1.md)를 참고하세요.
+동적 레인 스케일링 계획/회귀 가드는 [`docs/WP-010_DYNAMIC_LANES_PLAN.md`](docs/WP-010_DYNAMIC_LANES_PLAN.md)를 참고하세요.
 
 ## 빠른 시작 (Quick Start)
 
@@ -159,9 +166,10 @@ npm run project:use
 
 - 폴더 경로는 실제 merge/undo 대상입니다.
 - 링크는 식별용 메모입니다. GitHub URL이나 origin URL을 저장해 둘 수 있습니다.
+- 프로젝트별 승인 레인 수(1~8)도 함께 저장할 수 있습니다.
 - `npm run configure` 안에서도 등록된 프로젝트를 선택할 수 있습니다.
 - 대시보드에서는 헤더 `Repo` 버튼으로 현재 활성 레포를 바로 바꿀 수 있습니다.
-- 대시보드 `Repo` 패널 안에서 새 프로젝트 경로/별칭/링크를 직접 입력해 등록 후 바로 적용할 수도 있습니다.
+- 대시보드 `Repo` 패널 안에서 새 프로젝트 경로/별칭/링크/레인 수를 직접 입력해 등록 후 바로 적용할 수도 있습니다.
 
 ## 설치 가이드 (Installation)
 

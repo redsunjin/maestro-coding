@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getStoredString, setStoredValue } from '../utils/storage.js';
 import { SERVER_API_TOKEN_STORAGE_KEY } from '../constants/ops.js';
+import { DEFAULT_LANE_COUNT, sanitizeLaneCount } from '../constants/maestro.js';
 
 const PROJECT_REFRESH_DEBOUNCE_MS = 300;
 
@@ -33,6 +34,7 @@ function normalizeProject(item = {}) {
     name: normalizeText(item.name, 'unknown project'),
     path: normalizeText(item.path),
     repoUrl: normalizeText(item.repoUrl),
+    laneCount: sanitizeLaneCount(item.laneCount, DEFAULT_LANE_COUNT),
     isActive: item.isActive === true,
   };
 }
@@ -68,6 +70,7 @@ export default function useProjectRegistryOps({ wsUrl }) {
     name: 'runtime',
     path: '',
     repoUrl: '',
+    laneCount: DEFAULT_LANE_COUNT,
     isActive: true,
   }));
   const [selectedProjectId, setSelectedProjectId] = useState('');
@@ -83,6 +86,7 @@ export default function useProjectRegistryOps({ wsUrl }) {
   const [newProjectPath, setNewProjectPath] = useState('');
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectRepoUrl, setNewProjectRepoUrl] = useState('');
+  const [newProjectLaneCount, setNewProjectLaneCount] = useState(String(DEFAULT_LANE_COUNT));
 
   const refreshTimerRef = useRef(null);
   const mountedRef = useRef(true);
@@ -213,6 +217,7 @@ export default function useProjectRegistryOps({ wsUrl }) {
           projectPath: newProjectPath,
           projectName: newProjectName,
           repoUrl: newProjectRepoUrl,
+          laneCount: sanitizeLaneCount(newProjectLaneCount, DEFAULT_LANE_COUNT),
           activate: true,
         }),
       });
@@ -234,6 +239,7 @@ export default function useProjectRegistryOps({ wsUrl }) {
       setNewProjectPath('');
       setNewProjectName('');
       setNewProjectRepoUrl('');
+      setNewProjectLaneCount(String(DEFAULT_LANE_COUNT));
     } catch (error) {
       if (!mountedRef.current) return;
       const message = error instanceof Error ? error.message : '프로젝트 등록에 실패했습니다.';
@@ -243,7 +249,7 @@ export default function useProjectRegistryOps({ wsUrl }) {
         setIsProjectRegistering(false);
       }
     }
-  }, [applyProjectPayload, newProjectName, newProjectPath, newProjectRepoUrl, projectApiToken, wsUrl]);
+  }, [applyProjectPayload, newProjectLaneCount, newProjectName, newProjectPath, newProjectRepoUrl, projectApiToken, wsUrl]);
 
   const saveProjectToken = useCallback(() => {
     const normalizedToken = projectTokenInput.trim();
@@ -298,6 +304,8 @@ export default function useProjectRegistryOps({ wsUrl }) {
     setNewProjectName,
     newProjectRepoUrl,
     setNewProjectRepoUrl,
+    newProjectLaneCount,
+    setNewProjectLaneCount,
     refreshProjects,
     applySelectedProject,
     registerProject,

@@ -1,3 +1,12 @@
+import {
+  DEFAULT_LANE_COUNT,
+  MAX_LANE_COUNT,
+  formatLaneKeyLabel,
+  getLaneDefinitions,
+  normalizeLaneIndex,
+  sanitizeLaneCount,
+} from '../../shared/lane-config.mjs';
+
 // WebSocket 서버 주소 (maestro-server.js 가 실행되는 호스트)
 // 환경변수 VITE_WS_URL 로 재정의할 수 있습니다.
 export const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
@@ -7,12 +16,9 @@ export const BACH_VOLUME_STORAGE_KEY = 'maestro.function-bach.volume';
 export const DEFAULT_BACH_CHANNEL_URL = 'https://www.youtube.com/channel/UC2kF6qdHRTM_hDYfEmzkS9w';
 export const YOUTUBE_URL_HELP_TEXT = '채널 URL은 /channel/UC... 형식 또는 재생목록/영상 URL을 사용하세요.';
 
-export const LANES = [
-  { id: 0, name: 'Frontend Agent', color: 'text-blue-400', border: 'border-blue-500', bg: 'bg-blue-900/30', key: 'd' },
-  { id: 1, name: 'Backend Agent', color: 'text-green-400', border: 'border-green-500', bg: 'bg-green-900/30', key: 'f' },
-  { id: 2, name: 'Database Agent', color: 'text-yellow-400', border: 'border-yellow-500', bg: 'bg-yellow-900/30', key: 'j' },
-  { id: 3, name: 'AI Model Agent', color: 'text-purple-400', border: 'border-purple-500', bg: 'bg-purple-900/30', key: 'k' },
-];
+export { DEFAULT_LANE_COUNT, MAX_LANE_COUNT, formatLaneKeyLabel, getLaneDefinitions, normalizeLaneIndex, sanitizeLaneCount };
+
+export const LANES = getLaneDefinitions(DEFAULT_LANE_COUNT);
 
 export const PROJECTS = [
   { id: 'proj_b2c', name: '🚀 B2C Service App' },
@@ -40,4 +46,4 @@ export const NOTE_STATUS = {
   REJECTING: 'rejecting',
 };
 
-export const LANE_HIT_FREQS = [261.63, 329.63, 392.00, 523.25]; // 도미솔도
+export const LANE_HIT_FREQS = [261.63, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99, 880.00];

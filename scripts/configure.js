@@ -28,6 +28,7 @@ import {
   sortProjects,
   upsertProjectEntry,
 } from './project-registry.mjs';
+import { DEFAULT_LANE_COUNT, MAX_LANE_COUNT, MIN_LANE_COUNT, sanitizeLaneCount } from '../shared/lane-config.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = resolve(__dirname, '..');
@@ -125,6 +126,19 @@ const response = await prompts([
     initial: (_, values) => inferProjectRemoteUrl(resolveProjectPath(values.MAIN_REPO_PATH)),
   },
   {
+    type: 'number',
+    name: 'MAESTRO_PROJECT_LANE_COUNT',
+    message: `MAESTRO_PROJECT_LANE_COUNT — 승인 레인 수 (${MIN_LANE_COUNT}-${MAX_LANE_COUNT})`,
+    initial: selectedProject?.laneCount || Number(existingEnv.MAESTRO_PROJECT_LANE_COUNT || DEFAULT_LANE_COUNT),
+    min: MIN_LANE_COUNT,
+    max: MAX_LANE_COUNT,
+    validate: (value) => (
+      Number.isInteger(value)
+      && value >= MIN_LANE_COUNT
+      && value <= MAX_LANE_COUNT
+    ) || `${MIN_LANE_COUNT}-${MAX_LANE_COUNT} 사이 숫자를 입력하세요.`,
+  },
+  {
     type: 'text',
     name: 'PORT',
     message: 'PORT — 서버 리스닝 포트',
@@ -169,17 +183,21 @@ if (response.SAVE_PROJECT) {
     name: response.MAESTRO_PROJECT_NAME || inferProjectName(response.MAIN_REPO_PATH),
     path: response.MAIN_REPO_PATH,
     repoUrl: response.PROJECT_REPO_URL || '',
+    laneCount: response.MAESTRO_PROJECT_LANE_COUNT,
   });
   response.MAESTRO_PROJECT_NAME = savedProject.name;
+  response.MAESTRO_PROJECT_LANE_COUNT = savedProject.laneCount;
   projectIdToMark = savedProject.id;
 } else if (selectedProject?.name) {
   response.MAESTRO_PROJECT_NAME = selectedProject.name;
+  response.MAESTRO_PROJECT_LANE_COUNT = selectedProject.laneCount || response.MAESTRO_PROJECT_LANE_COUNT;
 }
 
 const envValues = buildEnvValues({
   ...existingEnv,
   MAIN_REPO_PATH: response.MAIN_REPO_PATH,
   MAESTRO_PROJECT_NAME: response.MAESTRO_PROJECT_NAME || existingEnv.MAESTRO_PROJECT_NAME || '',
+  MAESTRO_PROJECT_LANE_COUNT: String(sanitizeLaneCount(response.MAESTRO_PROJECT_LANE_COUNT, DEFAULT_LANE_COUNT)),
   PORT: response.PORT,
   HOST: response.HOST || '127.0.0.1',
   ALLOWED_ORIGINS: response.ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS,

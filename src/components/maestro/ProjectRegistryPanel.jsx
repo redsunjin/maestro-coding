@@ -44,6 +44,8 @@ export default function ProjectRegistryPanel({
   onNewProjectNameChange,
   newProjectRepoUrl,
   onNewProjectRepoUrlChange,
+  newProjectLaneCount,
+  onNewProjectLaneCountChange,
   onRegisterProject,
   isRegistering,
 }) {
@@ -131,6 +133,9 @@ export default function ProjectRegistryPanel({
             {currentProject.repoUrl && (
               <div className="mt-1 break-all text-[11px] text-cyan-200">{currentProject.repoUrl}</div>
             )}
+            <div className="mt-2 text-[10px] text-gray-500">
+              lanes {currentProject.laneCount || 4}
+            </div>
             {lastUpdatedAt && (
               <div className="mt-2 text-[10px] text-gray-500">
                 updated {formatTimestamp(lastUpdatedAt)}
@@ -176,6 +181,9 @@ export default function ProjectRegistryPanel({
                 {selectedProject.repoUrl && (
                   <div className="mt-1 break-all text-cyan-200">{selectedProject.repoUrl}</div>
                 )}
+                <div className="mt-2 text-[10px] text-gray-500">
+                  lanes {selectedProject.laneCount || 4}
+                </div>
               </div>
             )}
 
@@ -243,6 +251,25 @@ export default function ProjectRegistryPanel({
                   className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-950 px-2 py-2 text-sm text-gray-100 outline-none focus:border-cyan-300"
                 />
               </div>
+            </div>
+
+            <div className="mt-3">
+              <label htmlFor="new-project-lane-count" className="block text-[11px] text-gray-300">
+                연결 레인 수
+              </label>
+              <select
+                id="new-project-lane-count"
+                aria-label="새 프로젝트 레인 수"
+                value={newProjectLaneCount}
+                onChange={(event) => onNewProjectLaneCountChange(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-950 px-2 py-2 text-sm text-gray-100 outline-none focus:border-cyan-300"
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => (
+                  <option key={count} value={String(count)}>
+                    {count} lanes
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="mt-3 flex items-center justify-between gap-2">

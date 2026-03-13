@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_LANE_COUNT, sanitizeLaneCount } from '../shared/lane-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '..');
@@ -68,6 +69,7 @@ function normalizeRegistryProject(project, existingProjects = []) {
 
   const name = String(project.name || inferProjectName(projectPath)).trim() || inferProjectName(projectPath);
   const repoUrl = String(project.repoUrl || '').trim();
+  const laneCount = sanitizeLaneCount(project.laneCount, DEFAULT_LANE_COUNT);
   const createdAt = normalizeIsoDate(project.createdAt, new Date().toISOString());
   const updatedAt = normalizeIsoDate(project.updatedAt, createdAt);
   const lastUsedAt = normalizeIsoDate(project.lastUsedAt, null);
@@ -77,6 +79,7 @@ function normalizeRegistryProject(project, existingProjects = []) {
     name,
     path: projectPath,
     repoUrl,
+    laneCount,
     createdAt,
     updatedAt,
     lastUsedAt,
@@ -139,6 +142,7 @@ export function upsertProjectEntry(projectInput, registryPath = PROJECT_REGISTRY
       name: String(projectInput.name || current.name || inferProjectName(projectPath)).trim() || current.name,
       path: projectPath,
       repoUrl: String(projectInput.repoUrl ?? current.repoUrl ?? '').trim(),
+      laneCount: sanitizeLaneCount(projectInput.laneCount, current.laneCount || DEFAULT_LANE_COUNT),
       updatedAt: now,
     };
     projects[existingIndex] = updated;
@@ -151,6 +155,7 @@ export function upsertProjectEntry(projectInput, registryPath = PROJECT_REGISTRY
     name: projectInput.name,
     path: projectPath,
     repoUrl: projectInput.repoUrl,
+    laneCount: projectInput.laneCount,
     createdAt: now,
     updatedAt: now,
     lastUsedAt: null,
@@ -180,5 +185,5 @@ export function markProjectUsed(projectId, registryPath = PROJECT_REGISTRY_PATH)
 
 export function formatProjectChoiceTitle(project) {
   const remoteSuffix = project.repoUrl ? ` · ${project.repoUrl}` : '';
-  return `${project.name} — ${project.path}${remoteSuffix}`;
+  return `${project.name} (${project.laneCount || DEFAULT_LANE_COUNT} lanes) — ${project.path}${remoteSuffix}`;
 }

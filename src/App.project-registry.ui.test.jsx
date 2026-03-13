@@ -39,6 +39,7 @@ describe('App UI regression - project registry panel', () => {
             name: 'beta',
             path: '/workspace/beta',
             repoUrl: 'https://example.com/beta.git',
+            laneCount: 6,
             isActive: true,
           },
           items: [
@@ -47,6 +48,7 @@ describe('App UI regression - project registry panel', () => {
               name: 'alpha',
               path: '/workspace/alpha',
               repoUrl: 'https://example.com/alpha.git',
+              laneCount: 4,
               isActive: false,
             },
             {
@@ -54,6 +56,7 @@ describe('App UI regression - project registry panel', () => {
               name: 'beta',
               path: '/workspace/beta',
               repoUrl: 'https://example.com/beta.git',
+              laneCount: 6,
               isActive: true,
             },
           ],
@@ -68,6 +71,7 @@ describe('App UI regression - project registry panel', () => {
             name: 'alpha',
             path: '/workspace/alpha',
             repoUrl: 'https://example.com/alpha.git',
+            laneCount: 4,
             isActive: true,
           },
           items: [
@@ -76,6 +80,7 @@ describe('App UI regression - project registry panel', () => {
               name: 'alpha',
               path: '/workspace/alpha',
               repoUrl: 'https://example.com/alpha.git',
+              laneCount: 4,
               isActive: true,
             },
             {
@@ -83,6 +88,7 @@ describe('App UI regression - project registry panel', () => {
               name: 'beta',
               path: '/workspace/beta',
               repoUrl: 'https://example.com/beta.git',
+              laneCount: 6,
               isActive: false,
             },
           ],
@@ -139,6 +145,7 @@ describe('App UI regression - project registry panel', () => {
             name: 'alpha',
             path: '/workspace/alpha',
             repoUrl: '',
+            laneCount: 4,
             isActive: true,
           },
           items: [
@@ -147,6 +154,7 @@ describe('App UI regression - project registry panel', () => {
               name: 'alpha',
               path: '/workspace/alpha',
               repoUrl: '',
+              laneCount: 4,
               isActive: true,
             },
           ],
@@ -198,6 +206,7 @@ describe('App UI regression - project registry panel', () => {
             name: 'gamma',
             path: '/workspace/gamma',
             repoUrl: 'https://example.com/gamma.git',
+            laneCount: 6,
             isActive: true,
           },
           currentProject: {
@@ -205,6 +214,7 @@ describe('App UI regression - project registry panel', () => {
             name: 'gamma',
             path: '/workspace/gamma',
             repoUrl: 'https://example.com/gamma.git',
+            laneCount: 6,
             isActive: true,
           },
           items: [
@@ -213,6 +223,7 @@ describe('App UI regression - project registry panel', () => {
               name: 'alpha',
               path: '/workspace/alpha',
               repoUrl: 'https://example.com/alpha.git',
+              laneCount: 4,
               isActive: false,
             },
             {
@@ -220,6 +231,7 @@ describe('App UI regression - project registry panel', () => {
               name: 'gamma',
               path: '/workspace/gamma',
               repoUrl: 'https://example.com/gamma.git',
+              laneCount: 6,
               isActive: true,
             },
           ],
@@ -234,6 +246,7 @@ describe('App UI regression - project registry panel', () => {
             name: 'alpha',
             path: '/workspace/alpha',
             repoUrl: 'https://example.com/alpha.git',
+            laneCount: 4,
             isActive: true,
           },
           items: [
@@ -242,6 +255,7 @@ describe('App UI regression - project registry panel', () => {
               name: 'alpha',
               path: '/workspace/alpha',
               repoUrl: 'https://example.com/alpha.git',
+              laneCount: 4,
               isActive: true,
             },
           ],
@@ -262,12 +276,14 @@ describe('App UI regression - project registry panel', () => {
       fireEvent.change(screen.getByLabelText('새 프로젝트 폴더 경로'), { target: { value: '/workspace/gamma' } });
       fireEvent.change(screen.getByLabelText('새 프로젝트 별칭'), { target: { value: 'gamma' } });
       fireEvent.change(screen.getByLabelText('새 프로젝트 링크'), { target: { value: 'https://example.com/gamma.git' } });
+      fireEvent.change(screen.getByLabelText('새 프로젝트 레인 수'), { target: { value: '6' } });
       fireEvent.click(screen.getByRole('button', { name: '등록 후 적용' }));
     });
 
     await waitFor(() => {
       expect(screen.getByText(/Repo gamma/)).toBeInTheDocument();
       expect(screen.getAllByText('/workspace/gamma').length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/lanes 6/i).length).toBeGreaterThan(0);
     });
   });
 });

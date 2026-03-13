@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NOTE_STATUS, SPAWN_BOTTOM } from '../constants/maestro.js';
+import { DEFAULT_LANE_COUNT, NOTE_STATUS, SPAWN_BOTTOM, normalizeLaneIndex } from '../constants/maestro.js';
 
 export default function useMaestroRealtime({
   wsUrl,
@@ -11,6 +11,7 @@ export default function useMaestroRealtime({
   setMaxCombo,
   showFeedback,
   onSocketEvent,
+  laneCount = DEFAULT_LANE_COUNT,
 }) {
   const wsRef = useRef(null);
   const [wsStatus, setWsStatus] = useState('disconnected');
@@ -48,7 +49,7 @@ export default function useMaestroRealtime({
         }
 
         if (data.event === 'AGENT_TASK_READY') {
-          const laneIndex = Math.max(0, Math.min(3, (data.laneIndex || 1) - 1));
+          const laneIndex = (normalizeLaneIndex(data.laneIndex, laneCount) || 1) - 1;
           const projectId = data.projectId || activeProjectRef.current;
 
           const newNote = {
@@ -134,6 +135,7 @@ export default function useMaestroRealtime({
     setMaxCombo,
     showFeedback,
     onSocketEvent,
+    laneCount,
   ]);
 
   const disconnectWebSocket = useCallback(() => {

@@ -184,12 +184,14 @@ test('GET /api/projects returns active runtime project and registered candidates
       name: 'alpha',
       path: alphaRepo,
       repoUrl: 'https://example.com/alpha.git',
+      laneCount: 4,
     },
     {
       id: 'beta',
       name: 'beta',
       path: betaRepo,
       repoUrl: 'https://example.com/beta.git',
+      laneCount: 6,
     },
   ], null, 2));
 
@@ -213,8 +215,9 @@ test('GET /api/projects returns active runtime project and registered candidates
   const body = await response.json();
   assert.equal(body.currentProject.name, 'alpha');
   assert.equal(body.currentProject.path, alphaRepo);
+  assert.equal(body.currentProject.laneCount, 4);
   assert.equal(body.items.length, 2);
-  assert.equal(body.items.some((item) => item.name === 'beta' && item.path === betaRepo), true);
+  assert.equal(body.items.some((item) => item.name === 'beta' && item.path === betaRepo && item.laneCount === 6), true);
 });
 
 test('POST /api/projects/select switches active repo, persists env, and broadcasts websocket event', async (t) => {
@@ -231,12 +234,14 @@ test('POST /api/projects/select switches active repo, persists env, and broadcas
       name: 'alpha',
       path: alphaRepo,
       repoUrl: 'https://example.com/alpha.git',
+      laneCount: 4,
     },
     {
       id: 'beta',
       name: 'beta',
       path: betaRepo,
       repoUrl: 'https://example.com/beta.git',
+      laneCount: 6,
     },
   ], null, 2));
 
@@ -244,6 +249,7 @@ test('POST /api/projects/select switches active repo, persists env, and broadcas
     extraEnv: {
       MAIN_REPO_PATH: alphaRepo,
       MAESTRO_PROJECT_NAME: 'alpha',
+      MAESTRO_PROJECT_LANE_COUNT: '4',
       MAESTRO_PROJECT_REGISTRY_PATH: fixture.registryPath,
       MAESTRO_ENV_FILE_PATH: fixture.envPath,
     },
@@ -282,6 +288,7 @@ test('POST /api/projects/select switches active repo, persists env, and broadcas
   assert.equal(body.success, true);
   assert.equal(body.currentProject.name, 'beta');
   assert.equal(body.currentProject.path, betaRepo);
+  assert.equal(body.currentProject.laneCount, 6);
 
   const switchEvent = await switchEventPromise;
   assert.equal(switchEvent.currentProject.path, betaRepo);
@@ -290,10 +297,12 @@ test('POST /api/projects/select switches active repo, persists env, and broadcas
   const healthBody = await healthRes.json();
   assert.equal(healthBody.project.name, 'beta');
   assert.equal(healthBody.project.path, betaRepo);
+  assert.equal(healthBody.project.laneCount, 6);
 
   const persistedEnv = readFileSync(fixture.envPath, 'utf8');
   assert.match(persistedEnv, new RegExp(`MAIN_REPO_PATH=${betaRepo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
   assert.match(persistedEnv, /MAESTRO_PROJECT_NAME=beta/);
+  assert.match(persistedEnv, /MAESTRO_PROJECT_LANE_COUNT=6/);
 });
 
 test('POST /api/projects/register saves a new repo and activates it immediately', async (t) => {
@@ -310,6 +319,7 @@ test('POST /api/projects/register saves a new repo and activates it immediately'
       name: 'alpha',
       path: alphaRepo,
       repoUrl: 'https://example.com/alpha.git',
+      laneCount: 4,
     },
   ], null, 2));
 
@@ -317,6 +327,7 @@ test('POST /api/projects/register saves a new repo and activates it immediately'
     extraEnv: {
       MAIN_REPO_PATH: alphaRepo,
       MAESTRO_PROJECT_NAME: 'alpha',
+      MAESTRO_PROJECT_LANE_COUNT: '4',
       MAESTRO_PROJECT_REGISTRY_PATH: fixture.registryPath,
       MAESTRO_ENV_FILE_PATH: fixture.envPath,
     },
@@ -336,6 +347,7 @@ test('POST /api/projects/register saves a new repo and activates it immediately'
       projectPath: gammaRepo,
       projectName: 'gamma',
       repoUrl: 'https://example.com/gamma.git',
+      laneCount: 6,
       activate: true,
     }),
   });
@@ -346,14 +358,76 @@ test('POST /api/projects/register saves a new repo and activates it immediately'
   assert.equal(body.didActivate, true);
   assert.equal(body.currentProject.name, 'gamma');
   assert.equal(body.currentProject.path, gammaRepo);
+  assert.equal(body.currentProject.laneCount, 6);
 
   const registryProjects = JSON.parse(readFileSync(fixture.registryPath, 'utf8'));
-  assert.equal(registryProjects.some((project) => project.name === 'gamma' && project.path === gammaRepo), true);
+  assert.equal(registryProjects.some((project) => project.name === 'gamma' && project.path === gammaRepo && project.laneCount === 6), true);
 
   const healthRes = await fetch(`http://127.0.0.1:${server.port}/health`);
   const healthBody = await healthRes.json();
   assert.equal(healthBody.project.name, 'gamma');
   assert.equal(healthBody.project.path, gammaRepo);
+  assert.equal(healthBody.project.laneCount, 6);
+});
+
+test('POST /api/projects/register clamps lane count above 8 to the supported max', async (t) => {
+  const fixture = createProjectRegistryFixture([]);
+  t.after(() => {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  });
+
+  const alphaRepo = createTempGitRepo(fixture.tempDir, 'alpha');
+  const wideRepo = createTempGitRepo(fixture.tempDir, 'wide');
+  writeFileSync(fixture.registryPath, JSON.stringify([
+    {
+      id: 'alpha',
+      name: 'alpha',
+      path: alphaRepo,
+      repoUrl: 'https://example.com/alpha.git',
+      laneCount: 4,
+    },
+  ], null, 2));
+
+  const server = startServer({
+    extraEnv: {
+      MAIN_REPO_PATH: alphaRepo,
+      MAESTRO_PROJECT_NAME: 'alpha',
+      MAESTRO_PROJECT_LANE_COUNT: '4',
+      MAESTRO_PROJECT_REGISTRY_PATH: fixture.registryPath,
+      MAESTRO_ENV_FILE_PATH: fixture.envPath,
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/projects/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      projectPath: wideRepo,
+      projectName: 'wide',
+      repoUrl: 'https://example.com/wide.git',
+      laneCount: 99,
+      activate: true,
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.currentProject.laneCount, 8);
+  assert.equal(body.savedProject.laneCount, 8);
+
+  const persistedEnv = readFileSync(fixture.envPath, 'utf8');
+  assert.match(persistedEnv, /MAESTRO_PROJECT_LANE_COUNT=8/);
+
+  const healthRes = await fetch(`http://127.0.0.1:${server.port}/health`);
+  const healthBody = await healthRes.json();
+  assert.equal(healthBody.project.laneCount, 8);
 });
 
 test('POST /api/request enforces bearer token when MAESTRO_SERVER_TOKEN is set', async (t) => {
@@ -421,6 +495,51 @@ test('server broadcasts AGENT_TASK_READY via websocket on request creation', asy
   assert.equal(event.requestId, requestId);
   assert.equal(event.agentId, 'qa_agent');
   assert.equal(event.laneIndex, 2);
+});
+
+test('server accepts lane indices up to the active project lane count', async (t) => {
+  const server = startServer({
+    extraEnv: {
+      MAESTRO_PROJECT_LANE_COUNT: '6',
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const requestId = `req_ws_lane_6_${Date.now()}`;
+  const messagePromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'AGENT_TASK_READY' && event.requestId === requestId,
+    3000,
+    'agent task ready dynamic lane event',
+  );
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requestId,
+      agentId: 'qa_agent',
+      branchName: 'feature/ws-lane-6',
+      laneIndex: 6,
+      diffSummary: {
+        title: 'WebSocket broadcast lane six',
+        shortDescription: 'dynamic lane propagation',
+      },
+    }),
+  });
+  assert.equal(response.status, 200);
+
+  const event = await messagePromise;
+  assert.equal(event.laneIndex, 6);
 });
 
 test('server attempts conditional auto-approve when policy matches', async (t) => {

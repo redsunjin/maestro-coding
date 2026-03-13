@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
-import { LANES, PROJECTS } from '../constants/maestro.js';
+import { PROJECTS } from '../constants/maestro.js';
 
 export default function useMaestroKeyboardControls({
   isPlaying,
   previewNote,
+  lanes,
   setPreviewNote,
   setIsBachPanelOpen,
   setIsProjectPanelOpen,
@@ -54,7 +55,7 @@ export default function useMaestroKeyboardControls({
         return;
       }
 
-      const laneMatch = LANES.find((lane) => lane.key === key);
+      const laneMatch = lanes.find((lane) => lane.key === key);
       if (!laneMatch) return;
 
       triggerLaneAction(laneMatch.id, {
@@ -67,6 +68,7 @@ export default function useMaestroKeyboardControls({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     isPlaying,
+    lanes,
     previewNote,
     setPreviewNote,
     setIsBachPanelOpen,

@@ -97,9 +97,11 @@ npm run project:use
 - `project:add`
   - 실제 Git 레포 폴더 경로를 저장합니다.
   - 원하면 GitHub 링크나 `origin` URL도 같이 메모로 저장할 수 있습니다.
+  - 프로젝트별 승인 레인 수(1~8)도 같이 저장할 수 있습니다.
   - 저장 직후 현재 `.env`에 바로 적용할 수도 있습니다.
 - `project:use`
   - 등록된 프로젝트 중 하나를 골라 `MAIN_REPO_PATH`를 즉시 바꿉니다.
+  - 저장된 레인 수(`MAESTRO_PROJECT_LANE_COUNT`)도 함께 바뀝니다.
   - 기존 `HOST`, `PORT`, 토큰 등 다른 설정은 유지합니다.
 - `npm run configure`
   - 등록된 프로젝트가 있으면 시작할 때 목록에서 바로 고를 수 있습니다.
@@ -107,7 +109,7 @@ npm run project:use
   - 실행 중에는 헤더 `Repo` 버튼으로 터미널 없이 프로젝트를 바꿀 수 있습니다.
   - 선택 즉시 다음 승인/롤백부터 새 레포 경로가 적용됩니다.
   - 변경 내용은 `.env`에도 저장되어 재시작 후 유지됩니다.
-  - 같은 패널 안에서 새 Git 레포 경로를 입력해 등록 후 바로 활성화할 수도 있습니다.
+  - 같은 패널 안에서 새 Git 레포 경로와 레인 수를 입력해 등록 후 바로 활성화할 수도 있습니다.
 
 > 참고: 링크만으로는 merge를 수행할 수 없습니다. 실제 승인/롤백은 로컬 폴더 기준으로 실행되므로, 등록 시에는 반드시 실제 Git 레포 경로가 필요합니다.
 
@@ -136,6 +138,7 @@ cp .env.example .env
 | 변수 | 기본값 | 설명 |
 |------|--------|------|
 | `MAESTRO_PROJECT_NAME` | (없음) | 현재 연결된 프로젝트 표시용 이름 (선택) |
+| `MAESTRO_PROJECT_LANE_COUNT` | `4` | 현재 프로젝트 승인 레인 수 (1~8) |
 | `MAIN_REPO_PATH` | `process.cwd()` | `git merge`/`git reset`을 실행할 메인 레포지토리 경로 (필수 권장) |
 | `PORT` | `8080` | 서버 리스닝 포트 |
 | `HOST` | `127.0.0.1` | 서버 바인딩 호스트 (기본값 유지 권장) |
@@ -156,6 +159,7 @@ cp .env.example .env
 
 ```
 MAIN_REPO_PATH=/home/user/projects/my-main-repo
+MAESTRO_PROJECT_LANE_COUNT=4
 PORT=8080
 HOST=127.0.0.1
 ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173
@@ -255,7 +259,7 @@ sh hooks/notify-maestro.sh feature/test-branch "테스트 커밋" "실제 통신
 ```
 
 브라우저 대시보드에 노트가 나타나면 `D` `F` `J` `K` 키로 승인할 수 있고,  
-`Shift + D/F/J/K`로 반려할 수 있습니다(피드백 입력 가능, 취소 가능).  
+`Shift + 레인 키`로 반려할 수 있습니다(기본 4레인 프로젝트는 `D/F/J/K`, 피드백 입력 가능, 취소 가능).  
 승인 시 서버가 `git merge <branchName>`을 실행합니다.
 
 조건부 자동승인을 켠 경우(`MAESTRO_AUTO_APPROVE_ENABLED=true`), 정책에 일치하는 요청은 대시보드 수동 입력 없이 자동 병합 시도가 수행됩니다.
@@ -315,7 +319,7 @@ curl -s "http://localhost:8080/api/auto-approve/events?limit=20&decision=BLOCKED
   - 서버 `GET /api/history`로 최근 이력 로드
   - 실시간 `HISTORY_APPEND` 이벤트를 패널에 즉시 추가
 - 시각화:
-  - 최근 이력을 4개 레인 악보 overview로 축약해 보여줍니다.
+  - 최근 이력을 현재 프로젝트 레인 수 기준 악보 overview로 축약해 보여줍니다.
   - 같은 시각대 이벤트는 밀도 점으로 묶여 표시됩니다.
   - 범례와 `aria-live` 요약이 있어 필터 결과와 최신 이벤트를 함께 읽을 수 있습니다.
 - 제공 필터:
