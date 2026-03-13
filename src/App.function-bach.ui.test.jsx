@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App.jsx';
 import { setupAppUiEnvironment, teardownAppUiEnvironment } from './test/appUiHarness.jsx';
@@ -47,20 +47,31 @@ describe('App UI regression - function bach', () => {
       },
     };
 
-    render(<App />);
+    await act(async () => {
+      render(<App />);
+    });
 
     const miniPlayer = screen.getByTestId('function-bach-mini');
     expect(miniPlayer).toBeInTheDocument();
     expect(miniPlayer.className).toContain('rounded-full');
+    await waitFor(() => {
+      expect(screen.getByTestId('function-bach-state')).toHaveTextContent('ready');
+      expect(screen.getByTestId('function-bach-hz')).toHaveTextContent('standby');
+    });
 
     await userEvent.click(screen.getByRole('button', { name: '배경음악 재생' }));
     expect(playerInstances[0].loadPlaylist).toHaveBeenCalled();
     await waitFor(() => {
+      expect(screen.getByTestId('function-bach-state')).toHaveTextContent('playing');
       expect(screen.getByTestId('function-bach-hz')).toHaveTextContent(/Hz/);
     });
 
     await userEvent.click(screen.getByRole('button', { name: '배경음악 일시정지' }));
     expect(playerInstances[0].pauseVideo).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByTestId('function-bach-state')).toHaveTextContent('paused');
+      expect(screen.getByTestId('function-bach-hz')).toHaveTextContent('standby');
+    });
 
     fireEvent.change(screen.getByLabelText('배경음악 볼륨'), { target: { value: '20' } });
     expect(playerInstances[0].setVolume).toHaveBeenCalledWith(20);

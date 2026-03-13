@@ -12,11 +12,27 @@
 //   GET        /api/auto-approve/events — 자동승인 이벤트 로그 조회
 
 import http from 'http';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { WebSocketServer, WebSocket as WSWebSocket } from 'ws';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { fileURLToPath } from 'node:url';
+import { buildEnvValues, readEnvFile, writeEnvFile } from './scripts/env-utils.mjs';
+import {
+  inferProjectRemoteUrl,
+  inferProjectName,
+  isGitRepository,
+  markProjectUsed,
+  readProjectRegistry,
+  sortProjects,
+  upsertProjectEntry,
+} from './scripts/project-registry.mjs';
 
 const execFilePromise = promisify(execFile);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT_DIR = path.resolve(__dirname);
+const ENV_PATH = path.resolve(ROOT_DIR, process.env.MAESTRO_ENV_FILE_PATH || '.env');
 
 // 유효한 git 브랜치명만 허용 (보안: 쉘 인젝션 방지)
 const VALID_BRANCH_RE = /^[a-zA-Z0-9._\-/]+$/;
@@ -46,6 +62,11 @@ const HISTORY_BUFFER_MAX_ITEMS = Math.min(
 );
 const HISTORY_DEFAULT_LIMIT = 40;
 const AUTO_APPROVE_EVENTS_DEFAULT_LIMIT = 40;
+const persistedEnvValues = readEnvFile(ENV_PATH).values;
+let runtimeProjectState = createRuntimeProjectState({
+  path: process.env.MAIN_REPO_PATH || persistedEnvValues.MAIN_REPO_PATH || process.cwd(),
+  name: process.env.MAESTRO_PROJECT_NAME || persistedEnvValues.MAESTRO_PROJECT_NAME || '',
+});
 
 function parseBoolean(value, defaultValue = false) {
   if (typeof value !== 'string') return defaultValue;
@@ -214,6 +235,89 @@ function applyCorsHeaders(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
+function createRuntimeProjectState(input = {}) {
+  const projectPath = path.resolve(String(input.path || '').trim() || process.cwd());
+  const registeredProjects = readProjectRegistry();
+  const matchedProject = registeredProjects.find((project) => project.path === projectPath) || null;
+
+  return {
+    id: matchedProject?.id || `runtime_${Buffer.from(projectPath).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)}`,
+    name: String(input.name || matchedProject?.name || inferProjectName(projectPath)).trim() || inferProjectName(projectPath),
+    path: projectPath,
+    repoUrl: String(matchedProject?.repoUrl || input.repoUrl || '').trim(),
+  };
+}
+
+function listAvailableProjects() {
+  const registeredProjects = sortProjects(readProjectRegistry());
+  const items = registeredProjects.map((project) => ({
+    ...project,
+    isActive: project.path === runtimeProjectState.path,
+  }));
+
+  if (items.some((project) => project.path === runtimeProjectState.path)) {
+    return items;
+  }
+
+  return [
+    {
+      ...runtimeProjectState,
+      isActive: true,
+    },
+    ...items,
+  ];
+}
+
+function getActiveProjectResponse() {
+  const items = listAvailableProjects();
+  return {
+    currentProject: {
+      ...runtimeProjectState,
+      isActive: true,
+    },
+    items,
+    count: items.length,
+  };
+}
+
+function validateRuntimeProjectPath(projectPath) {
+  if (!existsSync(projectPath)) return 'PROJECT_PATH_NOT_FOUND';
+  if (!isGitRepository(projectPath)) return 'PROJECT_PATH_NOT_GIT';
+  return '';
+}
+
+function persistRuntimeProject(project) {
+  const existingEnvValues = readEnvFile(ENV_PATH).values;
+  const nextEnvValues = buildEnvValues({
+    ...existingEnvValues,
+    MAIN_REPO_PATH: project.path,
+    MAESTRO_PROJECT_NAME: project.name,
+    PORT: existingEnvValues.PORT || String(PORT),
+    HOST: existingEnvValues.HOST || String(HOST),
+    ALLOWED_ORIGINS: existingEnvValues.ALLOWED_ORIGINS || process.env.ALLOWED_ORIGINS || undefined,
+    MAESTRO_SERVER_TOKEN: existingEnvValues.MAESTRO_SERVER_TOKEN || SERVER_TOKEN,
+    VITE_WS_URL: existingEnvValues.VITE_WS_URL || process.env.VITE_WS_URL || `ws://${HOST}:${PORT}`,
+    MAESTRO_AUTO_APPROVE_ENABLED: existingEnvValues.MAESTRO_AUTO_APPROVE_ENABLED || String(AUTO_APPROVE_CONFIG.enabled),
+    MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS: existingEnvValues.MAESTRO_AUTO_APPROVE_TRUSTED_AGENTS || AUTO_APPROVE_CONFIG.trustedAgents.join(','),
+    MAESTRO_AUTO_APPROVE_BRANCH_PREFIX: existingEnvValues.MAESTRO_AUTO_APPROVE_BRANCH_PREFIX || AUTO_APPROVE_CONFIG.branchPrefix || '',
+    MAESTRO_AUTO_APPROVE_MAX_DESC_LENGTH: existingEnvValues.MAESTRO_AUTO_APPROVE_MAX_DESC_LENGTH || String(AUTO_APPROVE_CONFIG.maxDescriptionLength),
+    MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT: existingEnvValues.MAESTRO_AUTO_APPROVE_REQUIRE_EXPLICIT || String(AUTO_APPROVE_CONFIG.requireExplicit),
+    MAESTRO_AUTO_APPROVE_COOLDOWN_MS: existingEnvValues.MAESTRO_AUTO_APPROVE_COOLDOWN_MS || String(AUTO_APPROVE_CONFIG.cooldownMs),
+    MAESTRO_AUTO_APPROVE_DRY_RUN: existingEnvValues.MAESTRO_AUTO_APPROVE_DRY_RUN || String(AUTO_APPROVE_CONFIG.dryRun),
+    MAESTRO_AUTO_APPROVE_LOG_MAX_ITEMS: existingEnvValues.MAESTRO_AUTO_APPROVE_LOG_MAX_ITEMS || String(AUTO_APPROVE_LOG_MAX_ITEMS),
+    MAESTRO_HISTORY_MAX_ITEMS: existingEnvValues.MAESTRO_HISTORY_MAX_ITEMS || String(HISTORY_BUFFER_MAX_ITEMS),
+  });
+
+  writeEnvFile(ENV_PATH, nextEnvValues);
+  process.env.MAIN_REPO_PATH = project.path;
+  process.env.MAESTRO_PROJECT_NAME = project.name;
+  runtimeProjectState = createRuntimeProjectState(project);
+}
+
+function getActiveMainRepoPath() {
+  return runtimeProjectState.path;
+}
+
 // ── HTTP 서버 ────────────────────────────────────────────────────────────────
 
 const server = http.createServer((req, res) => {
@@ -241,7 +345,150 @@ const server = http.createServer((req, res) => {
   // 서버 상태 확인
   if (req.method === 'GET' && pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', clients: wss.clients.size }));
+    res.end(JSON.stringify({
+      status: 'ok',
+      clients: wss.clients.size,
+      project: {
+        name: runtimeProjectState.name,
+        path: runtimeProjectState.path,
+      },
+    }));
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/projects') {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(getActiveProjectResponse()));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/projects/select') {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const projectId = sanitizeHistoryText(data.projectId || '', 80) || null;
+        const projectPath = data.projectPath ? path.resolve(String(data.projectPath).trim()) : '';
+        const projects = listAvailableProjects();
+        const targetProject = projects.find((project) => (
+          (projectId && project.id === projectId)
+          || (projectPath && project.path === projectPath)
+        )) || null;
+
+        if (!targetProject) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Project not found' }));
+          return;
+        }
+
+        const pathValidationError = validateRuntimeProjectPath(targetProject.path);
+        if (pathValidationError) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            error: pathValidationError,
+            path: targetProject.path,
+          }));
+          return;
+        }
+
+        persistRuntimeProject(targetProject);
+        markProjectUsed(targetProject.id);
+        const payload = getActiveProjectResponse();
+        broadcastToClients({
+          event: 'PROJECT_SWITCHED',
+          currentProject: payload.currentProject,
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          ...payload,
+        }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/projects/register') {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const projectPath = data.projectPath ? path.resolve(String(data.projectPath).trim()) : '';
+        const activate = data.activate !== false;
+
+        if (!projectPath) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'PROJECT_PATH_REQUIRED' }));
+          return;
+        }
+
+        const pathValidationError = validateRuntimeProjectPath(projectPath);
+        if (pathValidationError) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            error: pathValidationError,
+            path: projectPath,
+          }));
+          return;
+        }
+
+        const savedProject = upsertProjectEntry({
+          name: sanitizeHistoryText(data.projectName || '', 80) || inferProjectName(projectPath),
+          path: projectPath,
+          repoUrl: sanitizeHistoryText(data.repoUrl || '', 240) || inferProjectRemoteUrl(projectPath),
+        });
+
+        let didActivate = false;
+        if (activate) {
+          persistRuntimeProject(savedProject);
+          markProjectUsed(savedProject.id);
+          didActivate = true;
+        }
+
+        const payload = getActiveProjectResponse();
+        if (didActivate) {
+          broadcastToClients({
+            event: 'PROJECT_SWITCHED',
+            currentProject: payload.currentProject,
+          });
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          didActivate,
+          savedProject,
+          ...payload,
+        }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
     return;
   }
 
@@ -748,7 +995,7 @@ async function runConditionalAutoApprove(approvalRequest) {
   }
 
   lastAutoApproveAt = Date.now();
-  const mainRepoPath = process.env.MAIN_REPO_PATH || process.cwd();
+  const mainRepoPath = getActiveMainRepoPath();
   console.log(`🤖 조건부 자동승인 시작: requestId=${approvalRequest.requestId}, branch=${approvalRequest.branchName}`);
 
   const ok = await gitOps
@@ -810,7 +1057,7 @@ wss.on('connection', (ws) => {
 
     // 메인 레포지토리 경로는 환경변수로 설정합니다.
     // 예) MAIN_REPO_PATH=/home/user/myproject node maestro-server.js
-    const mainRepoPath = process.env.MAIN_REPO_PATH || process.cwd();
+    const mainRepoPath = getActiveMainRepoPath();
 
     switch (payload.action) {
       case 'APPROVE': {
@@ -942,8 +1189,10 @@ server.listen(PORT, HOST, () => {
   console.log(`   이력 조회   : GET  http://${HOST}:${PORT}/api/history?limit=40`);
   console.log(`   자동승인 상태: GET  http://${HOST}:${PORT}/api/auto-approve/status`);
   console.log(`   자동승인 로그: GET  http://${HOST}:${PORT}/api/auto-approve/events?limit=40`);
+  console.log(`   프로젝트 목록: GET  http://${HOST}:${PORT}/api/projects`);
   console.log(`   허용 Origin : ${ALLOWED_ORIGINS.join(', ')}`);
   console.log(`   인증 모드   : ${SERVER_TOKEN ? 'Bearer token required' : 'disabled'}`);
+  console.log(`   활성 프로젝트: ${runtimeProjectState.name} (${runtimeProjectState.path})`);
   console.log(`   자동승인    : ${AUTO_APPROVE_CONFIG.enabled ? 'enabled' : 'disabled'}`);
   console.log(`   이력 버퍼   : max ${HISTORY_BUFFER_MAX_ITEMS} items`);
   console.log(`   자동승인 로그: max ${AUTO_APPROVE_LOG_MAX_ITEMS} items`);

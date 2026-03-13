@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node maestro-server.js",
+    "server": "node scripts/run-server.mjs",
     "check:env": "node scripts/preflight.mjs",
     "start:app": "npm run check:env && node scripts/start-app.mjs",
     "test": "npm run test:server && npm run test:ui",
@@ -17,7 +17,10 @@
     "smoke:integration": "bash scripts/smoke-agent-integration.sh",
     "qa": "bash scripts/qa-agent.sh",
     "setup": "sh scripts/setup_env.sh",
-    "configure": "node scripts/configure.js"
+    "configure": "node scripts/configure.js",
+    "project:list": "node scripts/projects.js list",
+    "project:add": "node scripts/projects.js add",
+    "project:use": "node scripts/projects.js use"
   },
   "dependencies": {
     "lucide-react": "^0.511.0",

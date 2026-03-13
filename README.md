@@ -28,14 +28,15 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 - 승인 시 서버에서 로컬 `git merge`를 수행
 - `MAESTRO_SERVER_TOKEN` 설정 시 `Authorization: Bearer` 인증 적용
 - 기본 `HOST=127.0.0.1` + `ALLOWED_ORIGINS` 화이트리스트 기반 CORS 적용
-- 승인 이력 악보뷰(`WP-009`): `GET /api/history` + `HISTORY_APPEND` 실시간 히스토리 패널
-- `function bach`: 상단 미니 플레이어에서 YouTube 기반 BGM 재생/일시정지/볼륨/채널 URL 등록
-- 조건부 자동승인(`WP-008`) 2~3차: explicit/cooldown/dry-run/중복승인 차단 + 운영 가시성 API(`GET /api/auto-approve/status`, `GET /api/auto-approve/events`) 반영
+- 프로젝트 연결 간소화: 등록된 로컬 Git 레포를 대시보드 `Repo` 패널이나 `project:use` 명령으로 즉시 전환
+- 승인 이력 악보뷰(`WP-009`): `GET /api/history` + `HISTORY_APPEND` + 레인 overview/밀도 표현/접근성 보강 완료
+- `function bach`: 상단 미니 플레이어에서 YouTube 기반 BGM 재생/일시정지/볼륨/채널 URL 등록 + 상태 칩/고정 `Hz` 슬롯 제공
+- 조건부 자동승인(`WP-008`): explicit/cooldown/dry-run/중복승인 차단 + 운영 가시성 API + `AutoOps` 대시보드 패널 반영
 
-## 현재 개발 현황 (2026-03-04 기준)
+## 현재 개발 현황 (2026-03-12 기준)
 
-- 단계: 실행 가능한 MVP
-- 확인된 동작: `npm run build` 성공, 서버 `/health` 응답 확인
+- 단계: 운영 가능한 MVP+
+- 확인된 동작: `npm run qa` 통과, 서버 `/health` 응답 확인
 - 완료된 기반 작업
   - React + Vite + Tailwind 기반 대시보드
   - WebSocket 기반 승인 요청 수신 및 표시
@@ -43,15 +44,32 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
   - 에이전트 연동용 훅 스크립트(`hooks/notify-maestro.sh`) 제공
   - CI 품질 게이트(`npm run qa`, E2E), 통합 스모크(`npm run smoke:integration`) 구축
   - 터치스크린 조작(레인 승인/반려, 롤백 버튼) 지원
-  - 승인 이력 악보뷰(`WP-009`) 1~2차 구현 완료
+  - 승인 이력 악보뷰(`WP-009`) 1~4차 완료
     - 서버 링버퍼 + 조회 API: `GET /api/history`
     - WebSocket 실시간 이벤트: `HISTORY_APPEND`
     - 헤더 `History` 버튼/`H` 단축키 + 우측 패널 필터(프로젝트/결과/소스)
+    - 4개 레인 overview, 이벤트 밀도 표현, 범례, `dialog` 접근성, 라이브 상태 요약
+  - 조건부 자동승인(`WP-008`) 운영 UI 완료
+    - 헤더 `AutoOps` 버튼으로 정책 상태/런타임/최근 이벤트 로그 조회
+    - `401 Unauthorized` 응답 시 토큰 입력/저장 후 재조회 지원
+    - 결정 필터(`Eligible/Blocked/Executing/Skipped/Merged/Failed`) 제공
+  - 프로젝트 전환 UX 완료
+    - 헤더 `Repo` 버튼에서 등록된 프로젝트 드롭다운 선택/적용
+    - `Repo` 패널 안에서 새 Git 레포 폴더를 바로 등록 후 즉시 적용
+    - 선택 즉시 런타임 merge/undo 대상 변경 + `.env` 영속화
+    - 토큰 모드에서도 같은 서버 토큰으로 목록 조회/전환 가능
+  - `function bach` 운용성 보강
+    - `booting/ready/queued/playing/paused/error` 상태 칩 노출
+    - `standby` 또는 `~xxxHz` 고정 슬롯으로 재생 상태 가시성 유지
+  - `WP-007` 구조 분해 완료
+    - `src/App.jsx` 422 lines로 축소
+    - BGM/실시간/이력/운영 패널 로직을 훅/컴포넌트로 분리
   - 원클릭 실행 경로(`npm run start:app`, `npm run check:env`) 제공
   - `start:app` 오류 조치 메시지/대시보드 URL 자동 감지 고도화
 - 확인된 개선 필요 항목
-  - 조건부 자동승인(`WP-008`) 운영 API 기반 대시보드 UI 가시화(후속)
-  - `KI-001` `function bach` Hz 미노출 환경 원인 분석/재현 확보 필요
+  - `KI-001` `function bach` Hz 미노출 환경 재현 데이터 확보 필요
+  - 승인 이력 영속 저장/export는 아직 범위 밖이며 `WP-010` 이후 검토 예정
+  - 로컬 데모 중심이라 다중 사용자 운영/원격 배포용 runbook은 추가 정리가 필요
 
 ## 변경 필요 항목 및 작업계획
 
@@ -59,9 +77,9 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 
 즉시 진행할 핵심 3가지:
 
-1. P1 조건부 자동승인 운영 UI(운영 API 시각화) 고도화
-2. P2 승인 이력(`WP-009`) 3차: 악보 시각화 고도화 + 접근성 마감
-3. P2 문서/운영 동기화: 실행 표준 경로와 장애 대응 가이드 지속 업데이트
+1. P1 `KI-001` 재현 환경 수집: 브라우저/줌/OS/플레이어 상태 로그 확보
+2. P2 승인 이력 후속(`WP-010`) 범위 정의: 영속 저장/export 필요성 검토
+3. P2 운영 가이드 보강: 토큰 모드/실행 표준 경로/장애 대응 runbook 지속 업데이트
 
 설치 단순화 1차 상세 계획은 [`docs/INSTALL_SIMPLIFICATION_PHASE1.md`](docs/INSTALL_SIMPLIFICATION_PHASE1.md)를 참고하세요.
 
@@ -79,6 +97,11 @@ npm install
 npm run configure
 # 또는 직접 .env.example을 복사해 편집
 cp .env.example .env
+
+# 자주 쓰는 프로젝트를 등록해두려면
+npm run project:add
+# 등록된 프로젝트 중 하나로 바로 전환하려면
+npm run project:use
 
 # 4. 원클릭 실행 (권장)
 npm run start:app
@@ -116,6 +139,29 @@ curl -X POST http://localhost:8080/api/request \
 curl -s http://localhost:8080/api/auto-approve/status | jq
 curl -s "http://localhost:8080/api/auto-approve/events?limit=20" | jq
 ```
+
+대시보드에서는 상단 `AutoOps` 버튼으로 같은 운영 상태를 바로 확인할 수 있습니다.
+
+## 프로젝트 연결 쉽게 하기
+
+Maestro는 실제 `git merge`를 로컬 폴더 기준으로 수행하므로, 최종적으로는 프로젝트 폴더 경로가 필요합니다. 대신 매번 경로를 다시 입력하지 않도록 프로젝트 등록 기능을 제공합니다.
+
+```bash
+# 1) 프로젝트 폴더/링크 등록
+npm run project:add
+
+# 2) 등록된 프로젝트 목록 보기
+npm run project:list
+
+# 3) 이번 세션에서 쓸 프로젝트 선택
+npm run project:use
+```
+
+- 폴더 경로는 실제 merge/undo 대상입니다.
+- 링크는 식별용 메모입니다. GitHub URL이나 origin URL을 저장해 둘 수 있습니다.
+- `npm run configure` 안에서도 등록된 프로젝트를 선택할 수 있습니다.
+- 대시보드에서는 헤더 `Repo` 버튼으로 현재 활성 레포를 바로 바꿀 수 있습니다.
+- 대시보드 `Repo` 패널 안에서 새 프로젝트 경로/별칭/링크를 직접 입력해 등록 후 바로 적용할 수도 있습니다.
 
 ## 설치 가이드 (Installation)
 

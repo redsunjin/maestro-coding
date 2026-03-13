@@ -6,6 +6,8 @@ export default function useMaestroKeyboardControls({
   previewNote,
   setPreviewNote,
   setIsBachPanelOpen,
+  setIsProjectPanelOpen,
+  setIsAutoApprovePanelOpen,
   setIsHistoryPanelOpen,
   setActiveProjectId,
   triggerUndoAction,
@@ -25,6 +27,8 @@ export default function useMaestroKeyboardControls({
       if (event.key === 'Escape') {
         setPreviewNote(null);
         setIsBachPanelOpen(false);
+        setIsProjectPanelOpen(false);
+        setIsAutoApprovePanelOpen(false);
         setIsHistoryPanelOpen(false);
         return;
       }
@@ -66,6 +70,8 @@ export default function useMaestroKeyboardControls({
     previewNote,
     setPreviewNote,
     setIsBachPanelOpen,
+    setIsProjectPanelOpen,
+    setIsAutoApprovePanelOpen,
     setIsHistoryPanelOpen,
     setActiveProjectId,
     triggerUndoAction,

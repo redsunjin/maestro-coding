@@ -5,10 +5,12 @@
 **목차**
 - [요구사항 (Prerequisites)](#요구사항-prerequisites)
 - [빠른 설치 & 실행](#빠른-설치--실행)
+- [프로젝트 등록/전환 쉽게 하기](#프로젝트-등록전환-쉽게-하기)
 - [실행 트러블슈팅](#실행-트러블슈팅)
 - [환경변수(.env) 설정 방법](#환경변수env-설정-방법)
 - [에이전트 연동 예제](#에이전트-연동-예제)
 - [승인(Approve) 시나리오 테스트](#승인approve-시나리오-테스트)
+- [자동승인 운영 패널(Auto Approve Ops) 사용법](#자동승인-운영-패널auto-approve-ops-사용법)
 - [롤백(UNDO) 사용법](#롤백undo-사용법)
 - [승인 이력(History) 사용법](#승인-이력history-사용법)
 - [배경음악(function bach) 사용법](#배경음악function-bach-사용법)
@@ -77,6 +79,40 @@ npm run dev
 
 ---
 
+## 프로젝트 등록/전환 쉽게 하기
+
+매번 `MAIN_REPO_PATH`를 손으로 바꾸지 않도록, 자주 쓰는 프로젝트를 등록해두고 선택만 할 수 있습니다.
+
+```bash
+# 프로젝트 폴더/링크 등록
+npm run project:add
+
+# 등록 목록 확인
+npm run project:list
+
+# 현재 .env에 연결할 프로젝트 선택
+npm run project:use
+```
+
+- `project:add`
+  - 실제 Git 레포 폴더 경로를 저장합니다.
+  - 원하면 GitHub 링크나 `origin` URL도 같이 메모로 저장할 수 있습니다.
+  - 저장 직후 현재 `.env`에 바로 적용할 수도 있습니다.
+- `project:use`
+  - 등록된 프로젝트 중 하나를 골라 `MAIN_REPO_PATH`를 즉시 바꿉니다.
+  - 기존 `HOST`, `PORT`, 토큰 등 다른 설정은 유지합니다.
+- `npm run configure`
+  - 등록된 프로젝트가 있으면 시작할 때 목록에서 바로 고를 수 있습니다.
+- 대시보드 `Repo`
+  - 실행 중에는 헤더 `Repo` 버튼으로 터미널 없이 프로젝트를 바꿀 수 있습니다.
+  - 선택 즉시 다음 승인/롤백부터 새 레포 경로가 적용됩니다.
+  - 변경 내용은 `.env`에도 저장되어 재시작 후 유지됩니다.
+  - 같은 패널 안에서 새 Git 레포 경로를 입력해 등록 후 바로 활성화할 수도 있습니다.
+
+> 참고: 링크만으로는 merge를 수행할 수 없습니다. 실제 승인/롤백은 로컬 폴더 기준으로 실행되므로, 등록 시에는 반드시 실제 Git 레포 경로가 필요합니다.
+
+---
+
 ## 실행 트러블슈팅
 
 - `npm run start:app`에서 `.env 파일이 없습니다` 오류가 나면: `npm run configure`를 먼저 실행하세요.
@@ -99,6 +135,7 @@ cp .env.example .env
 
 | 변수 | 기본값 | 설명 |
 |------|--------|------|
+| `MAESTRO_PROJECT_NAME` | (없음) | 현재 연결된 프로젝트 표시용 이름 (선택) |
 | `MAIN_REPO_PATH` | `process.cwd()` | `git merge`/`git reset`을 실행할 메인 레포지토리 경로 (필수 권장) |
 | `PORT` | `8080` | 서버 리스닝 포트 |
 | `HOST` | `127.0.0.1` | 서버 바인딩 호스트 (기본값 유지 권장) |
@@ -238,6 +275,28 @@ curl -s "http://localhost:8080/api/auto-approve/events?limit=20&decision=BLOCKED
 
 ---
 
+## 자동승인 운영 패널(Auto Approve Ops) 사용법
+
+- 위치: 상단 헤더 `AutoOps` 버튼
+- 열면 바로 확인 가능한 항목
+  - 정책 모드(`Disabled/Enabled/Dry Run`)
+  - trusted agent 수, branch prefix, explicit requirement, cooldown
+  - in-flight / tracked 요청 수, 최근 자동승인 시각
+  - 최근 이벤트 로그와 결정 필터(`All/Eligible/Blocked/Executing/Skipped/Merged/Failed`)
+- 패널 동작
+  - 열려 있는 동안 15초 주기로 운영 API를 다시 조회합니다.
+  - `AGENT_TASK_READY`, `MERGE_SUCCESS`, `MERGE_FAILED`, `AUTO_APPROVE_SKIPPED`, `AGENT_RESTARTED` 이벤트가 오면 짧은 debounce 뒤 자동 새로고침합니다.
+  - 닫기 버튼 또는 `Esc`로 패널을 닫을 수 있습니다.
+- 토큰 모드 서버(`MAESTRO_SERVER_TOKEN` 설정)
+  - 운영 API가 `401 Unauthorized`를 반환하면 패널 안에 토큰 입력창이 나타납니다.
+  - 토큰 저장 후 같은 패널에서 재조회할 수 있습니다.
+  - 저장한 토큰은 브라우저 `localStorage`에 보관되며, 필요하면 `Clear`로 지울 수 있습니다.
+- 대응 API
+  - `GET /api/auto-approve/status`
+  - `GET /api/auto-approve/events?limit=20`
+
+---
+
 ## 롤백(UNDO) 사용법
 
 대시보드에서 잘못 승인한 경우 **`Ctrl+Z`** 를 눌러 직전 병합을 취소할 수 있습니다.
@@ -255,6 +314,10 @@ curl -s "http://localhost:8080/api/auto-approve/events?limit=20&decision=BLOCKED
 - 기본 동작:
   - 서버 `GET /api/history`로 최근 이력 로드
   - 실시간 `HISTORY_APPEND` 이벤트를 패널에 즉시 추가
+- 시각화:
+  - 최근 이력을 4개 레인 악보 overview로 축약해 보여줍니다.
+  - 같은 시각대 이벤트는 밀도 점으로 묶여 표시됩니다.
+  - 범례와 `aria-live` 요약이 있어 필터 결과와 최신 이벤트를 함께 읽을 수 있습니다.
 - 제공 필터:
   - 프로젝트(`projectId`)
   - 결과(`REQUESTED/APPROVED/REJECTED/...`)
@@ -274,6 +337,8 @@ curl -s "http://localhost:8080/api/auto-approve/events?limit=20&decision=BLOCKED
   - 재생/일시정지
   - 볼륨 조절(0~100)
   - 유튜브 채널 경로(URL) 등록/저장
+  - 상태 칩(`booting/ready/queued/playing/paused/error`)
+  - 항상 보이는 `Hz` 슬롯(`standby` 또는 `~xxxHz`)
 
 채널 등록 절차:
 
@@ -288,6 +353,7 @@ curl -s "http://localhost:8080/api/auto-approve/events?limit=20&decision=BLOCKED
 - `https://www.youtube.com/watch?v=...`
 
 > 참고: `@handle` 형식 채널 주소는 직접 재생 대상 해석이 제한될 수 있어 `channel/UC...` 형식을 권장합니다.
+> 참고: 일부 환경에서 실제 재생 직전에는 `queued` 상태와 `standby`가 잠깐 보일 수 있습니다. 이는 플레이어 준비 단계이며, 재생이 시작되면 `playing`과 `~xxxHz`로 바뀝니다.
 
 ---
 

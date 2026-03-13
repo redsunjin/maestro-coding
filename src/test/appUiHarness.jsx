@@ -49,6 +49,7 @@ export class MockWebSocket {
 }
 
 const originalWebSocket = globalThis.WebSocket;
+const originalFetch = globalThis.fetch;
 const originalPrompt = window.prompt;
 const originalYT = window.YT;
 const originalAudioContext = window.AudioContext;
@@ -57,6 +58,40 @@ const originalWebkitAudioContext = window.webkitAudioContext;
 export function setupAppUiEnvironment() {
   MockWebSocket.instances = [];
   globalThis.WebSocket = MockWebSocket;
+  globalThis.fetch = vi.fn(async (input) => {
+    const url = String(input);
+    if (url.includes('/api/projects')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          currentProject: {
+            id: 'runtime_default',
+            name: 'runtime',
+            path: '/workspace/runtime',
+            repoUrl: '',
+            isActive: true,
+          },
+          items: [
+            {
+              id: 'runtime_default',
+              name: 'runtime',
+              path: '/workspace/runtime',
+              repoUrl: '',
+              isActive: true,
+            },
+          ],
+          count: 1,
+        }),
+      };
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    };
+  });
   window.prompt = originalPrompt;
   window.localStorage.clear();
   delete window.YT;
@@ -65,6 +100,7 @@ export function setupAppUiEnvironment() {
 export function teardownAppUiEnvironment() {
   vi.restoreAllMocks();
   globalThis.WebSocket = originalWebSocket;
+  globalThis.fetch = originalFetch;
   window.prompt = originalPrompt;
   if (typeof originalYT === 'undefined') {
     delete window.YT;

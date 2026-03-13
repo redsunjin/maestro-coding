@@ -3,5 +3,6 @@ dist/
 .env
 .env.local
 .env.*.local
+.maestro-projects.json
 playwright-report/
 test-results/

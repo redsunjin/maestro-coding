@@ -6,6 +6,9 @@ export default function MaestroHeader({
   isBachReady,
   isBachPlaybackRequested,
   bachVizHz,
+  bachHzLabel,
+  bachStatusLabel,
+  bachPlayerStateCode,
   toggleBachPlayback,
   bachVolume,
   onBachVolumeChange,
@@ -25,35 +28,68 @@ export default function MaestroHeader({
   onStartGame,
   onStopGame,
   onUndo,
+  currentRuntimeProjectName,
+  isProjectPanelOpen,
+  onToggleProjectPanel,
+  isProjectAuthRequired,
+  autoApproveStatusLabel,
+  autoApproveEventCount,
+  isAutoApproveEnabled,
+  isAutoApproveDryRun,
+  isAutoApproveAuthRequired,
+  isAutoApprovePanelOpen,
+  onToggleAutoApprovePanel,
   historyCount,
   isHistoryPanelOpen,
   onToggleHistoryPanel,
 }) {
   return (
-    <header className="flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur-md z-50 shadow-lg relative">
-      <div className="flex items-center space-x-3">
+    <header className="relative z-50 flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 bg-gray-900/50 p-4 shadow-lg backdrop-blur-md">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
         <Activity className="w-6 h-6 text-purple-500" />
         <h1 className="text-xl font-bold tracking-tight">Maestro <span className="text-purple-400 font-light">Workspace</span></h1>
-        <div className="relative ml-3 block">
+        <div className="relative block max-w-full">
           <div
             data-testid="function-bach-mini"
-            className="flex items-center gap-1 rounded-full border border-amber-400/40 bg-gray-900/80 px-2 py-1 text-[11px] text-gray-200 shadow-lg backdrop-blur"
+            className="flex max-w-full flex-wrap items-center gap-1 rounded-full border border-amber-400/40 bg-gray-900/80 px-2 py-1 text-[11px] text-gray-200 shadow-lg backdrop-blur"
           >
-            <span className="font-semibold text-amber-200">function bach</span>
-            <span className={`inline-block h-1.5 w-1.5 rounded-full ${isBachPlaying ? 'bg-green-400' : isBachReady ? 'bg-amber-300' : 'bg-gray-500'}`} />
-            {(isBachPlaying || isBachPlaybackRequested) && (
-              <span data-testid="function-bach-hz" className="rounded-full border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-mono text-amber-200">
-                ~{bachVizHz}Hz
-              </span>
-            )}
+            <span className="shrink-0 font-semibold text-amber-200">function bach</span>
+            <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${isBachPlaying ? 'bg-green-400' : isBachReady ? 'bg-amber-300' : 'bg-gray-500'}`} />
+            <span
+              data-testid="function-bach-state"
+              title={`YT state: ${bachPlayerStateCode}`}
+              className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${
+                bachStatusLabel === 'playing'
+                  ? 'border-green-500/40 bg-green-500/10 text-green-200'
+                  : bachStatusLabel === 'queued'
+                    ? 'border-blue-500/40 bg-blue-500/10 text-blue-200'
+                    : bachStatusLabel === 'paused'
+                      ? 'border-gray-600 bg-gray-800/90 text-gray-200'
+                      : bachStatusLabel === 'error'
+                        ? 'border-red-500/40 bg-red-500/10 text-red-200'
+                        : 'border-amber-500/30 bg-amber-500/10 text-amber-100'
+              }`}
+            >
+              {bachStatusLabel}
+            </span>
+            <span
+              data-testid="function-bach-hz"
+              className={`min-w-[72px] shrink-0 rounded-full border px-1.5 py-0.5 text-center text-[10px] font-mono ${
+                bachHzLabel.includes('Hz')
+                  ? 'border-amber-400/40 bg-amber-500/10 text-amber-200'
+                  : 'border-gray-700 bg-gray-900/70 text-gray-400'
+              }`}
+            >
+              {bachHzLabel}
+            </span>
             <button
               onClick={toggleBachPlayback}
               aria-label={isBachPlaying ? '배경음악 일시정지' : '배경음악 재생'}
-              className="rounded bg-gray-800/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-100 hover:bg-gray-700"
+              className="shrink-0 rounded bg-gray-800/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-100 hover:bg-gray-700"
             >
               {isBachPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3 fill-current" />}
             </button>
-            <label className="flex items-center gap-1 pl-1">
+            <label className="flex shrink-0 items-center gap-1 pl-1">
               <span className="text-[10px] text-gray-400">Vol</span>
               <input
                 aria-label="배경음악 볼륨"
@@ -68,7 +104,7 @@ export default function MaestroHeader({
             <button
               onClick={onToggleBachPanel}
               aria-label="배경음악 채널 설정"
-              className="rounded border border-gray-700 px-1.5 py-0.5 text-[10px] text-gray-300 hover:border-amber-300 hover:text-amber-200"
+              className="shrink-0 rounded border border-gray-700 px-1.5 py-0.5 text-[10px] text-gray-300 hover:border-amber-300 hover:text-amber-200"
             >
               채널
             </button>
@@ -136,9 +172,51 @@ export default function MaestroHeader({
         )}
         <button
           type="button"
+          onClick={onToggleProjectPanel}
+          aria-label="프로젝트 전환 패널 토글"
+          aria-controls="project-registry-panel"
+          aria-expanded={isProjectPanelOpen}
+          data-testid="project-panel-toggle"
+          className={`max-w-[220px] shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${
+            isProjectPanelOpen
+              ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-100'
+              : isProjectAuthRequired
+                ? 'border-amber-500/50 bg-amber-500/10 text-amber-200 hover:border-amber-400/70'
+                : 'border-gray-700 bg-gray-900/70 text-gray-300 hover:border-cyan-400/50 hover:text-cyan-100'
+          }`}
+        >
+          <span className="inline-block max-w-[180px] truncate align-bottom">
+            Repo {currentRuntimeProjectName || 'runtime'}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={onToggleAutoApprovePanel}
+          aria-label="자동승인 운영 패널 토글"
+          aria-controls="auto-approve-ops-panel"
+          aria-expanded={isAutoApprovePanelOpen}
+          data-testid="auto-approve-toggle"
+          className={`shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${
+            isAutoApprovePanelOpen
+              ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-100'
+              : isAutoApproveAuthRequired
+                ? 'border-amber-500/50 bg-amber-500/10 text-amber-200 hover:border-amber-400/70'
+                : isAutoApproveEnabled
+                  ? (isAutoApproveDryRun
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-200 hover:border-amber-400/60'
+                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:border-emerald-400/60')
+                  : 'border-gray-700 bg-gray-900/70 text-gray-300 hover:border-emerald-400/40 hover:text-emerald-100'
+          }`}
+        >
+          AutoOps {autoApproveStatusLabel} ({autoApproveEventCount})
+        </button>
+        <button
+          type="button"
           onClick={onToggleHistoryPanel}
           aria-label="히스토리 패널 토글"
-          className={`ml-2 rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${
+          aria-controls="approval-history-panel"
+          aria-expanded={isHistoryPanelOpen}
+          className={`shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${
             isHistoryPanelOpen
               ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-100'
               : 'border-gray-700 bg-gray-900/70 text-gray-300 hover:border-cyan-400/50 hover:text-cyan-100'
@@ -148,7 +226,7 @@ export default function MaestroHeader({
         </button>
       </div>
 
-      <div className="flex items-center space-x-6">
+      <div className="flex flex-wrap items-center justify-end gap-4">
         <div className="flex flex-col items-end">
           <span className="text-xs text-gray-400 uppercase tracking-wider">Merged PRs</span>
           <span className="text-2xl font-mono font-bold text-green-400">{score / 100}</span>

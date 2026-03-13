@@ -1,34 +1,28 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   WS_URL,
-  BACH_CHANNEL_STORAGE_KEY,
-  BACH_VOLUME_STORAGE_KEY,
-  DEFAULT_BACH_CHANNEL_URL,
-  YOUTUBE_URL_HELP_TEXT,
   LANES,
   PROJECTS,
   BASE_BOTTOM,
   NOTE_STATUS,
   LANE_HIT_FREQS,
 } from './constants/maestro.js';
-import { clamp, getStoredString, getStoredNumber, setStoredValue } from './utils/storage.js';
 import { ensureSfxAudioContext, playBeep } from './utils/audio.js';
-import {
-  resolveYouTubeTarget,
-  cueYouTubeTarget,
-  loadYouTubeTarget,
-  loadYouTubeIframeAPI,
-} from './utils/youtube.js';
 import useMaestroRealtime from './hooks/useMaestroRealtime.js';
 import useMaestroGameLoop from './hooks/useMaestroGameLoop.js';
 import useMaestroKeyboardControls from './hooks/useMaestroKeyboardControls.js';
 import useApprovalHistory from './hooks/useApprovalHistory.js';
+import useAutoApproveOps from './hooks/useAutoApproveOps.js';
+import useBachPlayer from './hooks/useBachPlayer.js';
+import useProjectRegistryOps from './hooks/useProjectRegistryOps.js';
 import MaestroHeader from './components/maestro/MaestroHeader.jsx';
 import ProjectTabs from './components/maestro/ProjectTabs.jsx';
 import LaneBoard from './components/maestro/LaneBoard.jsx';
 import FooterHelp from './components/maestro/FooterHelp.jsx';
 import PreviewModal from './components/maestro/PreviewModal.jsx';
 import HistoryScorePanel from './components/maestro/HistoryScorePanel.jsx';
+import AutoApproveOpsPanel from './components/maestro/AutoApproveOpsPanel.jsx';
+import ProjectRegistryPanel from './components/maestro/ProjectRegistryPanel.jsx';
 
 export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -41,22 +35,8 @@ export default function App() {
   const [sfxBursts, setSfxBursts] = useState([]);
   const [previewNote, setPreviewNote] = useState(null);
 
-  const [bachChannelUrl, setBachChannelUrl] = useState(() => getStoredString(BACH_CHANNEL_STORAGE_KEY, DEFAULT_BACH_CHANNEL_URL));
-  const [bachChannelInput, setBachChannelInput] = useState(() => getStoredString(BACH_CHANNEL_STORAGE_KEY, DEFAULT_BACH_CHANNEL_URL));
-  const [bachVolume, setBachVolume] = useState(() => getStoredNumber(BACH_VOLUME_STORAGE_KEY, 35));
-  const [isBachReady, setIsBachReady] = useState(false);
-  const [isBachPlaying, setIsBachPlaying] = useState(false);
-  const [isBachPlaybackRequested, setIsBachPlaybackRequested] = useState(false);
-  const [bachVizHz, setBachVizHz] = useState(0);
-  const [isBachPanelOpen, setIsBachPanelOpen] = useState(false);
-  const [bachError, setBachError] = useState('');
-
   const notesRef = useRef([]);
   const activeProjectRef = useRef(activeProjectId);
-  const bachPlayerHostRef = useRef(null);
-  const bachPlayerRef = useRef(null);
-  const bachPlayingRef = useRef(false);
-  const bachVizTickRef = useRef(0);
 
   useEffect(() => {
     notesRef.current = notes;
@@ -65,10 +45,6 @@ export default function App() {
   useEffect(() => {
     activeProjectRef.current = activeProjectId;
   }, [activeProjectId]);
-
-  useEffect(() => {
-    bachPlayingRef.current = isBachPlaying;
-  }, [isBachPlaying]);
 
   const showFeedback = useCallback((projectId, lane, text, color) => {
     const id = Date.now() + Math.random();
@@ -87,6 +63,30 @@ export default function App() {
   }, []);
 
   const {
+    youtubeUrlHelpText,
+    bachPlayerHostRef,
+    bachChannelInput,
+    setBachChannelInput,
+    bachVolume,
+    isBachReady,
+    isBachPlaying,
+    isBachPlaybackRequested,
+    bachVizHz,
+    bachPlayerStateCode,
+    bachStatusLabel,
+    bachHzLabel,
+    isBachPanelOpen,
+    setIsBachPanelOpen,
+    bachError,
+    toggleBachPlayback,
+    handleBachVolumeChange,
+    handleBachPanelToggle,
+    handleBachPanelClose,
+    saveBachChannel,
+    resetBachChannel,
+  } = useBachPlayer();
+
+  const {
     visibleHistoryItems,
     historyItems,
     historyError,
@@ -102,10 +102,70 @@ export default function App() {
     hasMoreHistoryItems,
     loadMoreHistory,
     filteredHistoryCount,
-    handleSocketEvent,
+    handleSocketEvent: handleHistorySocketEvent,
   } = useApprovalHistory({
     wsUrl: WS_URL,
   });
+
+  const {
+    projectItems,
+    currentProject,
+    selectedProjectId,
+    setSelectedProjectId,
+    projectError,
+    isProjectLoading,
+    isProjectApplying,
+    isProjectPanelOpen,
+    setIsProjectPanelOpen,
+    projectTokenInput,
+    setProjectTokenInput,
+    saveProjectToken,
+    clearProjectToken,
+    isProjectAuthRequired,
+    hasProjectApiToken,
+    lastProjectUpdatedAt,
+    newProjectPath,
+    setNewProjectPath,
+    newProjectName,
+    setNewProjectName,
+    newProjectRepoUrl,
+    setNewProjectRepoUrl,
+    refreshProjects,
+    applySelectedProject,
+    registerProject,
+    isProjectRegistering,
+    handleSocketEvent: handleProjectSocketEvent,
+  } = useProjectRegistryOps({
+    wsUrl: WS_URL,
+  });
+
+  const {
+    autoApproveStatus,
+    autoApproveEvents,
+    autoApproveError,
+    isAutoApproveLoading,
+    isAutoApprovePanelOpen,
+    setIsAutoApprovePanelOpen,
+    autoApproveDecisionFilter,
+    setAutoApproveDecisionFilter,
+    autoApproveTokenInput,
+    setAutoApproveTokenInput,
+    saveAutoApproveToken,
+    clearAutoApproveToken,
+    isAutoApproveAuthRequired,
+    hasAutoApproveApiToken,
+    lastAutoApproveUpdatedAt,
+    refreshAutoApproveData,
+    handleSocketEvent: handleAutoApproveSocketEvent,
+  } = useAutoApproveOps({
+    wsUrl: WS_URL,
+  });
+
+  const handleRealtimeEvent = useCallback((payload) => {
+    handleProjectSocketEvent(payload);
+    handleHistorySocketEvent(payload);
+    handleAutoApproveSocketEvent(payload);
+  }, [handleAutoApproveSocketEvent, handleHistorySocketEvent, handleProjectSocketEvent]);
 
   const {
     wsStatus,
@@ -121,7 +181,7 @@ export default function App() {
     setCombo,
     setMaxCombo,
     showFeedback,
-    onSocketEvent: handleSocketEvent,
+    onSocketEvent: handleRealtimeEvent,
   });
 
   useMaestroGameLoop({
@@ -129,129 +189,6 @@ export default function App() {
     wsStatus,
     setNotes,
   });
-
-  useEffect(() => {
-    setStoredValue(BACH_CHANNEL_STORAGE_KEY, bachChannelUrl);
-  }, [bachChannelUrl]);
-
-  useEffect(() => {
-    setStoredValue(BACH_VOLUME_STORAGE_KEY, String(bachVolume));
-    if (isBachReady && bachPlayerRef.current && typeof bachPlayerRef.current.setVolume === 'function') {
-      bachPlayerRef.current.setVolume(bachVolume);
-    }
-  }, [bachVolume, isBachReady]);
-
-  useEffect(() => {
-    if (!isBachPlaying && !isBachPlaybackRequested) {
-      bachVizTickRef.current = 0;
-      setBachVizHz(0);
-      return;
-    }
-
-    const updateHz = () => {
-      bachVizTickRef.current += 1;
-      const tick = bachVizTickRef.current;
-      const base = 220 + Math.round((bachVolume / 100) * 180);
-      const visualizedHz = Math.round(base + Math.abs(Math.sin(tick / 3)) * 320);
-      setBachVizHz(visualizedHz);
-    };
-
-    updateHz();
-    const timerId = setInterval(updateHz, 140);
-    return () => clearInterval(timerId);
-  }, [isBachPlaying, isBachPlaybackRequested, bachVolume]);
-
-  useEffect(() => {
-    let isDisposed = false;
-
-    loadYouTubeIframeAPI()
-      .then((YT) => {
-        if (isDisposed || !bachPlayerHostRef.current) return;
-
-        const player = new YT.Player(bachPlayerHostRef.current, {
-          width: '1',
-          height: '1',
-          playerVars: {
-            autoplay: 0,
-            controls: 0,
-            disablekb: 1,
-            fs: 0,
-            rel: 0,
-            modestbranding: 1,
-            playsinline: 1,
-          },
-          events: {
-            onReady: (event) => {
-              if (isDisposed) return;
-              const target = resolveYouTubeTarget(bachChannelUrl) || resolveYouTubeTarget(DEFAULT_BACH_CHANNEL_URL);
-
-              if (typeof event.target.setVolume === 'function') {
-                event.target.setVolume(bachVolume);
-              }
-              if (target) cueYouTubeTarget(event.target, target);
-
-              setIsBachReady(true);
-              setBachError('');
-            },
-            onStateChange: (event) => {
-              const playerState = window.YT?.PlayerState;
-              if (!playerState) return;
-
-              if (event.data === playerState.PLAYING) {
-                setIsBachPlaying(true);
-                setIsBachPlaybackRequested(true);
-              }
-              if (event.data === playerState.PAUSED || event.data === playerState.ENDED || event.data === playerState.CUED) {
-                setIsBachPlaying(false);
-                if (event.data !== playerState.CUED) {
-                  setIsBachPlaybackRequested(false);
-                }
-              }
-            },
-            onError: () => {
-              if (isDisposed) return;
-              setIsBachPlaying(false);
-              setIsBachPlaybackRequested(false);
-              setBachError('재생에 실패했습니다. 채널/영상 URL을 확인해주세요.');
-            },
-          },
-        });
-
-        bachPlayerRef.current = player;
-      })
-      .catch(() => {
-        if (isDisposed) return;
-        setBachError('YouTube 플레이어를 로드하지 못했습니다.');
-      });
-
-    return () => {
-      isDisposed = true;
-      if (bachPlayerRef.current && typeof bachPlayerRef.current.destroy === 'function') {
-        bachPlayerRef.current.destroy();
-      }
-      bachPlayerRef.current = null;
-      setIsBachReady(false);
-      setIsBachPlaying(false);
-      setIsBachPlaybackRequested(false);
-    };
-  }, []);
-
-  useEffect(() => {
-    const target = resolveYouTubeTarget(bachChannelUrl);
-    if (!target) {
-      setBachError(YOUTUBE_URL_HELP_TEXT);
-      return;
-    }
-
-    if (!isBachReady || !bachPlayerRef.current) return;
-
-    if (bachPlayingRef.current) {
-      loadYouTubeTarget(bachPlayerRef.current, target);
-      return;
-    }
-
-    cueYouTubeTarget(bachPlayerRef.current, target);
-  }, [bachChannelUrl, isBachReady]);
 
   const triggerLaneAction = useCallback((laneId, options = {}) => {
     const { isRejectAction = false, promptFeedback = false } = options;
@@ -363,6 +300,8 @@ export default function App() {
     previewNote,
     setPreviewNote,
     setIsBachPanelOpen,
+    setIsProjectPanelOpen,
+    setIsAutoApprovePanelOpen,
     setIsHistoryPanelOpen,
     setActiveProjectId,
     triggerUndoAction,
@@ -383,75 +322,8 @@ export default function App() {
     setIsPlaying(false);
     setNotes([]);
     setSfxBursts([]);
-    setIsBachPlaybackRequested(false);
     disconnectWebSocket();
   };
-
-  const playBach = useCallback(() => {
-    setIsBachPlaybackRequested(true);
-    if (!isBachReady || !bachPlayerRef.current) {
-      setBachError('YouTube 플레이어 준비 중입니다.');
-      return;
-    }
-
-    const target = resolveYouTubeTarget(bachChannelUrl);
-    if (!target) {
-      setBachError(YOUTUBE_URL_HELP_TEXT);
-      return;
-    }
-
-    setBachError('');
-    loadYouTubeTarget(bachPlayerRef.current, target);
-  }, [bachChannelUrl, isBachReady]);
-
-  const pauseBach = useCallback(() => {
-    if (!isBachReady || !bachPlayerRef.current) return;
-    if (typeof bachPlayerRef.current.pauseVideo === 'function') {
-      bachPlayerRef.current.pauseVideo();
-    }
-    setIsBachPlaying(false);
-    setIsBachPlaybackRequested(false);
-  }, [isBachReady]);
-
-  const toggleBachPlayback = useCallback(() => {
-    if (isBachPlaying) {
-      pauseBach();
-      return;
-    }
-    playBach();
-  }, [isBachPlaying, pauseBach, playBach]);
-
-  const saveBachChannel = () => {
-    const target = resolveYouTubeTarget(bachChannelInput);
-    if (!target) {
-      setBachError(YOUTUBE_URL_HELP_TEXT);
-      return;
-    }
-
-    setBachChannelUrl(target.canonicalUrl);
-    setBachChannelInput(target.canonicalUrl);
-    setBachError('');
-    setIsBachPanelOpen(false);
-  };
-
-  const resetBachChannel = () => {
-    setBachChannelUrl(DEFAULT_BACH_CHANNEL_URL);
-    setBachChannelInput(DEFAULT_BACH_CHANNEL_URL);
-    setBachError('');
-  };
-
-  const handleBachVolumeChange = useCallback((value) => {
-    setBachVolume(clamp(value, 0, 100));
-  }, []);
-
-  const handleBachPanelToggle = useCallback(() => {
-    setIsBachPanelOpen((open) => !open);
-  }, []);
-
-  const handleBachPanelClose = useCallback(() => {
-    setBachChannelInput(bachChannelUrl);
-    setIsBachPanelOpen(false);
-  }, [bachChannelUrl]);
 
   const handleHistoryPanelToggle = useCallback(() => {
     setIsHistoryPanelOpen((open) => !open);
@@ -460,6 +332,28 @@ export default function App() {
   const handleHistoryPanelClose = useCallback(() => {
     setIsHistoryPanelOpen(false);
   }, [setIsHistoryPanelOpen]);
+
+  const handleAutoApprovePanelToggle = useCallback(() => {
+    setIsAutoApprovePanelOpen((open) => !open);
+  }, [setIsAutoApprovePanelOpen]);
+
+  const handleAutoApprovePanelClose = useCallback(() => {
+    setIsAutoApprovePanelOpen(false);
+  }, [setIsAutoApprovePanelOpen]);
+
+  const handleProjectPanelToggle = useCallback(() => {
+    setIsProjectPanelOpen((open) => !open);
+  }, [setIsProjectPanelOpen]);
+
+  const handleProjectPanelClose = useCallback(() => {
+    setIsProjectPanelOpen(false);
+  }, [setIsProjectPanelOpen]);
+
+  const autoApproveStatusLabel = isAutoApproveAuthRequired
+    ? 'Locked'
+    : autoApproveStatus.config.enabled
+      ? (autoApproveStatus.config.dryRun ? 'Dry Run' : 'Enabled')
+      : 'Disabled';
 
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white font-sans overflow-hidden selection:bg-purple-500/30">
@@ -474,6 +368,9 @@ export default function App() {
         isBachReady={isBachReady}
         isBachPlaybackRequested={isBachPlaybackRequested}
         bachVizHz={bachVizHz}
+        bachHzLabel={bachHzLabel}
+        bachStatusLabel={bachStatusLabel}
+        bachPlayerStateCode={bachPlayerStateCode}
         toggleBachPlayback={toggleBachPlayback}
         bachVolume={bachVolume}
         onBachVolumeChange={handleBachVolumeChange}
@@ -484,7 +381,7 @@ export default function App() {
         onResetBachChannel={resetBachChannel}
         onCloseBachPanel={handleBachPanelClose}
         onSaveBachChannel={saveBachChannel}
-        youtubeUrlHelpText={YOUTUBE_URL_HELP_TEXT}
+        youtubeUrlHelpText={youtubeUrlHelpText}
         bachError={bachError}
         wsStatus={wsStatus}
         isPlaying={isPlaying}
@@ -493,6 +390,17 @@ export default function App() {
         onStartGame={startGame}
         onStopGame={stopGame}
         onUndo={triggerUndoAction}
+        currentRuntimeProjectName={currentProject.name}
+        isProjectPanelOpen={isProjectPanelOpen}
+        onToggleProjectPanel={handleProjectPanelToggle}
+        isProjectAuthRequired={isProjectAuthRequired}
+        autoApproveStatusLabel={autoApproveStatusLabel}
+        autoApproveEventCount={autoApproveStatus.runtime.autoApproveEventCount}
+        isAutoApproveEnabled={autoApproveStatus.config.enabled}
+        isAutoApproveDryRun={autoApproveStatus.config.dryRun}
+        isAutoApproveAuthRequired={isAutoApproveAuthRequired}
+        isAutoApprovePanelOpen={isAutoApprovePanelOpen}
+        onToggleAutoApprovePanel={handleAutoApprovePanelToggle}
         historyCount={historyItems.length}
         isHistoryPanelOpen={isHistoryPanelOpen}
         onToggleHistoryPanel={handleHistoryPanelToggle}
@@ -519,6 +427,52 @@ export default function App() {
       />
 
       <FooterHelp />
+      <ProjectRegistryPanel
+        isOpen={isProjectPanelOpen}
+        onClose={handleProjectPanelClose}
+        projects={projectItems}
+        currentProject={currentProject}
+        selectedProjectId={selectedProjectId}
+        onSelectedProjectChange={setSelectedProjectId}
+        onRefresh={refreshProjects}
+        onApply={applySelectedProject}
+        isLoading={isProjectLoading}
+        isApplying={isProjectApplying}
+        error={projectError}
+        isAuthRequired={isProjectAuthRequired}
+        tokenInput={projectTokenInput}
+        onTokenInputChange={setProjectTokenInput}
+        onSaveToken={saveProjectToken}
+        onClearToken={clearProjectToken}
+        hasToken={hasProjectApiToken}
+        lastUpdatedAt={lastProjectUpdatedAt}
+        newProjectPath={newProjectPath}
+        onNewProjectPathChange={setNewProjectPath}
+        newProjectName={newProjectName}
+        onNewProjectNameChange={setNewProjectName}
+        newProjectRepoUrl={newProjectRepoUrl}
+        onNewProjectRepoUrlChange={setNewProjectRepoUrl}
+        onRegisterProject={registerProject}
+        isRegistering={isProjectRegistering}
+      />
+      <AutoApproveOpsPanel
+        isOpen={isAutoApprovePanelOpen}
+        onClose={handleAutoApprovePanelClose}
+        statusData={autoApproveStatus}
+        events={autoApproveEvents}
+        isLoading={isAutoApproveLoading}
+        error={autoApproveError}
+        isAuthRequired={isAutoApproveAuthRequired}
+        decisionFilter={autoApproveDecisionFilter}
+        onDecisionFilterChange={setAutoApproveDecisionFilter}
+        onRefresh={refreshAutoApproveData}
+        tokenInput={autoApproveTokenInput}
+        onTokenInputChange={setAutoApproveTokenInput}
+        onSaveToken={saveAutoApproveToken}
+        onClearToken={clearAutoApproveToken}
+        hasToken={hasAutoApproveApiToken}
+        lastUpdatedAt={lastAutoApproveUpdatedAt}
+      />
       <HistoryScorePanel
         isOpen={isHistoryPanelOpen}
         onClose={handleHistoryPanelClose}
@@ -529,6 +483,7 @@ export default function App() {
         hasMore={hasMoreHistoryItems}
         onLoadMore={loadMoreHistory}
         projects={PROJECTS}
+        lanes={LANES}
         projectFilter={historyProjectFilter}
         onProjectFilterChange={setHistoryProjectFilter}
         resultFilter={historyResultFilter}

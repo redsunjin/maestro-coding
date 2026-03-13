@@ -4,6 +4,8 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import { dirname, resolve } from 'node:path';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 
@@ -136,6 +138,24 @@ async function waitForAutoApproveEvents(port, predicate, timeoutMs = 5000) {
   throw new Error(`auto approve events condition not met within ${timeoutMs}ms`);
 }
 
+function createTempGitRepo(parentDir, name) {
+  const repoPath = resolve(parentDir, name);
+  mkdirSync(resolve(repoPath, '.git'), { recursive: true });
+  return repoPath;
+}
+
+function createProjectRegistryFixture(projects) {
+  const tempDir = mkdtempSync(resolve(os.tmpdir(), 'maestro-project-switch-'));
+  const registryPath = resolve(tempDir, 'projects.json');
+  const envPath = resolve(tempDir, '.env');
+  writeFileSync(registryPath, JSON.stringify(projects, null, 2));
+  return {
+    tempDir,
+    registryPath,
+    envPath,
+  };
+}
+
 test('POST /api/request accepts unauthenticated request when token is disabled', async (t) => {
   const server = startServer();
   t.after(async () => {
@@ -148,6 +168,192 @@ test('POST /api/request accepts unauthenticated request when token is disabled',
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.success, true);
+});
+
+test('GET /api/projects returns active runtime project and registered candidates', async (t) => {
+  const fixture = createProjectRegistryFixture([]);
+  t.after(() => {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  });
+
+  const alphaRepo = createTempGitRepo(fixture.tempDir, 'alpha');
+  const betaRepo = createTempGitRepo(fixture.tempDir, 'beta');
+  writeFileSync(fixture.registryPath, JSON.stringify([
+    {
+      id: 'alpha',
+      name: 'alpha',
+      path: alphaRepo,
+      repoUrl: 'https://example.com/alpha.git',
+    },
+    {
+      id: 'beta',
+      name: 'beta',
+      path: betaRepo,
+      repoUrl: 'https://example.com/beta.git',
+    },
+  ], null, 2));
+
+  const server = startServer({
+    extraEnv: {
+      MAIN_REPO_PATH: alphaRepo,
+      MAESTRO_PROJECT_NAME: 'alpha',
+      MAESTRO_PROJECT_REGISTRY_PATH: fixture.registryPath,
+      MAESTRO_ENV_FILE_PATH: fixture.envPath,
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/projects`);
+  assert.equal(response.status, 200);
+
+  const body = await response.json();
+  assert.equal(body.currentProject.name, 'alpha');
+  assert.equal(body.currentProject.path, alphaRepo);
+  assert.equal(body.items.length, 2);
+  assert.equal(body.items.some((item) => item.name === 'beta' && item.path === betaRepo), true);
+});
+
+test('POST /api/projects/select switches active repo, persists env, and broadcasts websocket event', async (t) => {
+  const fixture = createProjectRegistryFixture([]);
+  t.after(() => {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  });
+
+  const alphaRepo = createTempGitRepo(fixture.tempDir, 'alpha');
+  const betaRepo = createTempGitRepo(fixture.tempDir, 'beta');
+  writeFileSync(fixture.registryPath, JSON.stringify([
+    {
+      id: 'alpha',
+      name: 'alpha',
+      path: alphaRepo,
+      repoUrl: 'https://example.com/alpha.git',
+    },
+    {
+      id: 'beta',
+      name: 'beta',
+      path: betaRepo,
+      repoUrl: 'https://example.com/beta.git',
+    },
+  ], null, 2));
+
+  const server = startServer({
+    extraEnv: {
+      MAIN_REPO_PATH: alphaRepo,
+      MAESTRO_PROJECT_NAME: 'alpha',
+      MAESTRO_PROJECT_REGISTRY_PATH: fixture.registryPath,
+      MAESTRO_ENV_FILE_PATH: fixture.envPath,
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const switchEventPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'PROJECT_SWITCHED' && event.currentProject?.name === 'beta',
+    3000,
+    'project switched event',
+  );
+
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/projects/select`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      projectId: 'beta',
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.success, true);
+  assert.equal(body.currentProject.name, 'beta');
+  assert.equal(body.currentProject.path, betaRepo);
+
+  const switchEvent = await switchEventPromise;
+  assert.equal(switchEvent.currentProject.path, betaRepo);
+
+  const healthRes = await fetch(`http://127.0.0.1:${server.port}/health`);
+  const healthBody = await healthRes.json();
+  assert.equal(healthBody.project.name, 'beta');
+  assert.equal(healthBody.project.path, betaRepo);
+
+  const persistedEnv = readFileSync(fixture.envPath, 'utf8');
+  assert.match(persistedEnv, new RegExp(`MAIN_REPO_PATH=${betaRepo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  assert.match(persistedEnv, /MAESTRO_PROJECT_NAME=beta/);
+});
+
+test('POST /api/projects/register saves a new repo and activates it immediately', async (t) => {
+  const fixture = createProjectRegistryFixture([]);
+  t.after(() => {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  });
+
+  const alphaRepo = createTempGitRepo(fixture.tempDir, 'alpha');
+  const gammaRepo = createTempGitRepo(fixture.tempDir, 'gamma');
+  writeFileSync(fixture.registryPath, JSON.stringify([
+    {
+      id: 'alpha',
+      name: 'alpha',
+      path: alphaRepo,
+      repoUrl: 'https://example.com/alpha.git',
+    },
+  ], null, 2));
+
+  const server = startServer({
+    extraEnv: {
+      MAIN_REPO_PATH: alphaRepo,
+      MAESTRO_PROJECT_NAME: 'alpha',
+      MAESTRO_PROJECT_REGISTRY_PATH: fixture.registryPath,
+      MAESTRO_ENV_FILE_PATH: fixture.envPath,
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/projects/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      projectPath: gammaRepo,
+      projectName: 'gamma',
+      repoUrl: 'https://example.com/gamma.git',
+      activate: true,
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.success, true);
+  assert.equal(body.didActivate, true);
+  assert.equal(body.currentProject.name, 'gamma');
+  assert.equal(body.currentProject.path, gammaRepo);
+
+  const registryProjects = JSON.parse(readFileSync(fixture.registryPath, 'utf8'));
+  assert.equal(registryProjects.some((project) => project.name === 'gamma' && project.path === gammaRepo), true);
+
+  const healthRes = await fetch(`http://127.0.0.1:${server.port}/health`);
+  const healthBody = await healthRes.json();
+  assert.equal(healthBody.project.name, 'gamma');
+  assert.equal(healthBody.project.path, gammaRepo);
 });
 
 test('POST /api/request enforces bearer token when MAESTRO_SERVER_TOKEN is set', async (t) => {

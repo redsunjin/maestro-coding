@@ -20,6 +20,10 @@
 - 확인된 사실:
   - 자동 테스트에서는 `function-bach-hz` 요소 노출 검증 통과
   - 로컬 수동 테스트 보고와 자동 테스트 결과 간 불일치 존재
+- 2026-03-12 완화 조치:
+  - `Hz` 슬롯을 항상 렌더링해 `standby`/`~xxxHz`로 상태를 고정 노출
+  - `function bach` 상태 칩(`booting/ready/queued/playing/paused/error`)과 raw player state title을 추가
+  - 헤더/미니플레이어를 `flex-wrap` 가능하게 조정해 줌/좁은 뷰포트에서 칩이 덜 가려지도록 보강
 - 다음 조사 계획:
   1. 런타임 디버그 오버레이(재생요청/PLAYING/CUED/state code) 일시 추가
   2. 사용자 환경 브라우저/OS/줌 비율/해상도 수집

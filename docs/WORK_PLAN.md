@@ -1,6 +1,6 @@
 # Maestro Coding 작업계획
 
-기준일: 2026-03-04
+기준일: 2026-03-12
 
 ## 0) 착수 순서 고정 + 비손상/비오염 선언 (2026-02-28)
 
@@ -21,18 +21,18 @@
 
 ## 1) 현재 상태 요약
 
-- 현재 단계: MVP (핵심 데모 흐름 동작)
+- 현재 단계: 운영 가능한 MVP+ (핵심 데모/운영 흐름 동작)
 - 확인된 강점
   - 대시보드 빌드/실행 경로 확보
   - `POST /api/request` -> WebSocket 브로드캐스트 흐름 동작
-  - `APPROVE`/`UNDO` Git 명령 연동 동작
+  - `APPROVE`/`REJECT`/`UNDO` + 자동승인 + 승인 이력 + `function bach` 운용 흐름 검증
+  - `npm run qa` 기준 회귀 게이트 유지
 - 확인된 핵심 갭
-  - 서버 노출 기본정책(CORS/바인딩) 강화 필요
-  - 프론트엔드 승인/반려 이벤트의 엣지 케이스 검증 확대 필요
-  - `REJECT` 사용자 플로우 수동 QA 시나리오 보강 필요
-  - 회귀 테스트 범위를 UI/E2E까지 확장 필요
+  - `KI-001` 재현 환경 미확보로 일부 브라우저/줌 조건에서 `Hz` 미노출 원인 미확정
+  - 승인 이력 영속 저장/export는 아직 범위 밖
+  - 로컬 데모 중심이라 다중 사용자/원격 운영 runbook은 추가 정리 필요
 
-## 1-1) 진행 현황 (2026-03-04 업데이트)
+## 1-1) 진행 현황 (2026-03-12 업데이트)
 
 - `WP-001` 완료: 토큰 인증 로직/문서 정합성 반영
 - `WP-002` 완료: 승인 이벤트 처리 정합성 개선 + UI 회귀 테스트 반영
@@ -40,19 +40,19 @@
 - `WP-004` 완료: 기본 바인딩(`HOST=127.0.0.1`) + Origin 화이트리스트 CORS 반영
 - `WP-005` 완료: 서버/UI/E2E + CI 게이트 + 통합 스모크(`npm run smoke:integration`) 반영
 - `WP-006` 완료: `check:env` preflight + `start:app` 원클릭 런처 + 가이드 반영
-- `WP-007` 진행중: 1차(상수/유틸 분리) + 2차(UI 컴포넌트 분해) + 3차(게임/입력/WebSocket 훅 분리) 완료
-- `WP-008` 완료: 1차(정책 골격) + 2차(가드레일/중복승인 방지/운영스위치) + 3차(운영 가시성 API/로그) 완료
-- `WP-009` 진행중: 1차(서버 이력 버퍼/API) + 2차(히스토리 패널/필터/토글) 완료
+- `WP-007` 완료: 1차(상수/유틸 분리) + 2차(UI 컴포넌트 분해) + 3차(게임/입력/WebSocket 훅 분리) + 후속(`useBachPlayer` 분리) 완료
+- `WP-008` 완료: 1차(정책 골격) + 2차(가드레일/중복승인 방지/운영스위치) + 3차(운영 가시성 API/로그) + 후속 UI화(운영 패널/이벤트 로그) 완료
+- `WP-009` 완료: 1차(서버 이력 버퍼/API) + 2차(히스토리 패널/필터/토글) + 3차(악보 시각화/밀도 표현) + 4차(접근성/회귀 보강) 완료
 - QA 에이전트 설정 완료: `npm run qa` + 회귀 테스트 스위트 + QA 가이드 추가
-- `function bach` 1차 완료: 상단 미니 플레이어, 채널 URL 저장, 재생/일시정지/볼륨, 주파수(Hz) 시각화 반영
+- `function bach` 운용성 보강 완료: 상태 칩(`booting/ready/queued/playing/paused/error`) + 고정 `Hz` 슬롯(`standby`/`~xxxHz`) + 좁은 뷰포트 래핑 개선
 - 터치 입력 대응 완료: 레인 승인/반려 버튼 + 터치 롤백 버튼 + UI 회귀 테스트 반영
-- 오픈 이슈 분리 추적: [`docs/KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) (`KI-001`: `function bach` Hz 미노출 환경 조사)
+- 오픈 이슈 분리 추적: [`docs/KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) (`KI-001`: `function bach` Hz 미노출 환경 조사, 완화 조치 적용 완료)
 
 ## 1-2) 다음 작업 포인트 (즉시 실행)
 
-1. `WP-009` 3차 구현: 악보 시각화(레인/밀도 표현) 고도화 + 접근성 마무리
-2. `WP-008` 운영 API UI화: 운영 지표를 대시보드에서 시각 확인 가능하도록 확장
-3. `KI-001` 분리 추적: `function bach` Hz 미노출 환경 재현/원인 수집
+1. `KI-001` 분리 추적: 브라우저/줌/OS/YouTube player state 기준 재현 데이터 수집
+2. 승인 이력 후속 검토: 영속 저장/export는 `WP-010` 이후 별도 범위로 검토
+3. 운영 가이드 보강: 토큰 모드/로컬 runbook/장애 대응 문서 지속 갱신
 
 ## 1-6) `WP-009` 상세설계/전문가 검증 상태 (2026-03-04)
 
@@ -69,8 +69,8 @@
   3. 악보 시각화/필터
   4. 회귀 테스트/문서 동기화
 - 현재 상태:
-  - 1, 2, 4 완료 (`npm run qa`, `npm run test:e2e`, `npm run smoke:integration` 통과)
-  - 3은 다음 스프린트에서 시각화 고도화로 진행
+  - 1~4 완료: 악보 overview(레인/밀도), 범례, `dialog` 접근성, 포커스 이동, 라이브 상태 요약 반영
+  - 회귀 검증 완료: `npm run qa` 통과
 
 ## 1-5) `WP-008` 상세 실행계획 및 진행 상태 (2026-03-04)
 
@@ -93,6 +93,12 @@
 | 운영 가시성 API/로그 | `/api/auto-approve/status`, `/api/auto-approve/events` + 링버퍼 로그(`MAESTRO_AUTO_APPROVE_LOG_MAX_ITEMS`) | 정책 판정/실행 결과를 API로 추적 가능 | 완료 |
 | 회귀 테스트 | 서버 회귀에 explicit/cooldown/dry-run/duplicate 케이스 추가 | `npm run qa` 통과 | 완료 |
 
+후속 UI화 (2026-03-12):
+
+- 좌측 `Auto Approve Ops` 패널 추가: 정책 상태, 런타임 요약, 최근 이벤트 로그, 결정 필터 표시
+- token 모드 대응: 운영 API 401 시 토큰 입력/저장 후 재시도 가능
+- UI 회귀 추가 후 `npm run qa` 재통과
+
 ## 1-3) 즉시 실행 결과 (2026-02-28)
 
 - 완료: `qa-gate` 워크플로 추가 (`pull_request/main`, `push/main`) + `npm run qa` 실행
@@ -109,14 +115,14 @@
   - 여전히 `.env` 설정과 환경오류 대응(포트/경로) 가이드는 지속 개선 필요
 - 코드/컨텍스트 규모
   - 전체 추적 파일 수: 약 30개
-  - `src/App.jsx`: 490 lines (`WP-007` 3차 완료, 목표 450 lines 추가 축소 필요)
-  - UI 상태/이펙트 훅 수가 많아(30+), 변경 시 회귀 영향 범위가 넓음
+  - `src/App.jsx`: 422 lines (`WP-007` 목표인 450 lines 이하 달성)
+  - 핵심 상태는 `useMaestroRealtime` / `useMaestroGameLoop` / `useMaestroKeyboardControls` / `useApprovalHistory` / `useAutoApproveOps` / `useBachPlayer`로 분리됨
 - 런타임/번들
-  - `vite build` 기준 JS 번들 약 228 kB (gzip 71 kB)로 현재 성능 병목은 크지 않음
+  - 최근 `vite build` 기준으로 현재 JS 번들은 즉시 성능 병목으로 보이지 않음
   - 즉시 최적화 우선순위는 성능보다 구조 분해(유지보수/컨텍스트 절감)
 - 결론
   - 1차는 `앱 패키징`보다 `원클릭 실행형` 자동화가 ROI가 높음
-  - 병행 과제로 `App.jsx` 분해를 진행해야 이후 기능 개발 속도/품질이 안정됨
+  - 구조 분해 1차 목표는 달성됐고, 이후 우선순위는 운영 데이터 수집과 runbook 정리로 이동
 
 ## 2) 우선순위 백로그
 
@@ -128,9 +134,9 @@
 | WP-004 | P2 | 런타임 기본 보안 강화 | `maestro-server.js`, `.env.example`, 문서 | 기본 바인딩/허용 출처 정책 명시, 로컬 기본값 강화 |
 | WP-005 | P3 | 테스트 자동화 도입 | `package.json`, `tests/*`, `.github/workflows/*` | 서버/UI/E2E/CI 게이트 + 통합 스모크까지 동작 |
 | WP-006 | P1 | 설치 단순화 1차 (`원클릭 실행형`) | `package.json`, `scripts/*`, `README.md`, `USER_GUIDE.md` | 초회 설치 후 단일 명령으로 서버+UI 실행/종료 가능 |
-| WP-007 | P1 | 컨텍스트/유지보수 최적화 (App 모듈 분해) | `src/App.jsx`, `src/components/*`, `src/features/*`, `src/hooks/*`, `src/App.ui.test.jsx` | `App.jsx` 450 lines 이하 + 기능 회귀 없음 |
+| WP-007 | P1 | 컨텍스트/유지보수 최적화 (App 모듈 분해) | `src/App.jsx`, `src/components/*`, `src/features/*`, `src/hooks/*`, `src/App.ui.test.jsx` | `App.jsx` 450 lines 이하 + 기능 회귀 없음 (완료, `src/App.jsx` 422 lines) |
 
-## 3) 실행 계획 (다음 2스프린트)
+## 3) 완료된 기반 스프린트 기록
 
 ### Sprint A: 설치 단순화 1차 (`WP-006`)
 
@@ -139,7 +145,7 @@
 3. 온보딩 단순화 (`bootstrap`/`configure`/`start:app` 3단계 문서화)
 4. QA 시나리오 추가 (macOS/Windows에서 실행-종료-재실행 체크)
 
-예상 산출물:
+결과:
 - 신규 사용자: 설치 후 단일 명령으로 대시보드 진입
 - 운영자: 실행 절차 표준화, 장애 원인(환경/포트) 빠른 식별
 
@@ -153,7 +159,7 @@
 3. 테스트 분해 및 회귀 보강 (`App.ui.test.jsx` 역할 분리)
 4. 기능 동일성 검증 (`npm run qa`, `npm run smoke:integration`, `npm run test:e2e`)
 
-예상 산출물:
+결과:
 - 단일 파일 집중도 완화, 변경 단위 축소
 - AI/리뷰 컨텍스트 비용 감소 + 회귀 디버깅 속도 개선
 
