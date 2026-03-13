@@ -113,9 +113,12 @@ export default function App() {
     currentProject,
     selectedProjectId,
     setSelectedProjectId,
+    selectedProjectLaneCount,
+    setSelectedProjectLaneCount,
     projectError,
     isProjectLoading,
     isProjectApplying,
+    isProjectUpdating,
     isProjectPanelOpen,
     setIsProjectPanelOpen,
     projectTokenInput,
@@ -135,6 +138,7 @@ export default function App() {
     setNewProjectLaneCount,
     refreshProjects,
     applySelectedProject,
+    updateSelectedProjectLaneCount,
     registerProject,
     isProjectRegistering,
     handleSocketEvent: handleProjectSocketEvent,
@@ -443,10 +447,14 @@ export default function App() {
         currentProject={currentProject}
         selectedProjectId={selectedProjectId}
         onSelectedProjectChange={setSelectedProjectId}
+        selectedProjectLaneCount={selectedProjectLaneCount}
+        onSelectedProjectLaneCountChange={setSelectedProjectLaneCount}
         onRefresh={refreshProjects}
         onApply={applySelectedProject}
         isLoading={isProjectLoading}
         isApplying={isProjectApplying}
+        isUpdating={isProjectUpdating}
+        onUpdateLaneCount={updateSelectedProjectLaneCount}
         error={projectError}
         isAuthRequired={isProjectAuthRequired}
         tokenInput={projectTokenInput}

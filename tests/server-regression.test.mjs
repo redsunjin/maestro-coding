@@ -430,6 +430,145 @@ test('POST /api/projects/register clamps lane count above 8 to the supported max
   assert.equal(healthBody.project.laneCount, 8);
 });
 
+test('POST /api/projects/update changes an inactive project lane count without switching runtime project', async (t) => {
+  const fixture = createProjectRegistryFixture([]);
+  t.after(() => {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  });
+
+  const alphaRepo = createTempGitRepo(fixture.tempDir, 'alpha');
+  const betaRepo = createTempGitRepo(fixture.tempDir, 'beta');
+  writeFileSync(fixture.registryPath, JSON.stringify([
+    {
+      id: 'alpha',
+      name: 'alpha',
+      path: alphaRepo,
+      repoUrl: 'https://example.com/alpha.git',
+      laneCount: 4,
+    },
+    {
+      id: 'beta',
+      name: 'beta',
+      path: betaRepo,
+      repoUrl: 'https://example.com/beta.git',
+      laneCount: 6,
+    },
+  ], null, 2));
+
+  const server = startServer({
+    extraEnv: {
+      MAIN_REPO_PATH: alphaRepo,
+      MAESTRO_PROJECT_NAME: 'alpha',
+      MAESTRO_PROJECT_LANE_COUNT: '4',
+      MAESTRO_PROJECT_REGISTRY_PATH: fixture.registryPath,
+      MAESTRO_ENV_FILE_PATH: fixture.envPath,
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/projects/update`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      projectId: 'beta',
+      laneCount: 8,
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.success, true);
+  assert.equal(body.didAffectActiveProject, false);
+  assert.equal(body.updatedProject.id, 'beta');
+  assert.equal(body.updatedProject.laneCount, 8);
+  assert.equal(body.currentProject.name, 'alpha');
+  assert.equal(body.currentProject.laneCount, 4);
+
+  const registryProjects = JSON.parse(readFileSync(fixture.registryPath, 'utf8'));
+  assert.equal(registryProjects.some((project) => project.id === 'beta' && project.laneCount === 8), true);
+});
+
+test('POST /api/projects/update updates active project lane count and persists runtime env', async (t) => {
+  const fixture = createProjectRegistryFixture([]);
+  t.after(() => {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  });
+
+  const alphaRepo = createTempGitRepo(fixture.tempDir, 'alpha');
+  writeFileSync(fixture.registryPath, JSON.stringify([
+    {
+      id: 'alpha',
+      name: 'alpha',
+      path: alphaRepo,
+      repoUrl: 'https://example.com/alpha.git',
+      laneCount: 4,
+    },
+  ], null, 2));
+
+  const server = startServer({
+    extraEnv: {
+      MAIN_REPO_PATH: alphaRepo,
+      MAESTRO_PROJECT_NAME: 'alpha',
+      MAESTRO_PROJECT_LANE_COUNT: '4',
+      MAESTRO_PROJECT_REGISTRY_PATH: fixture.registryPath,
+      MAESTRO_ENV_FILE_PATH: fixture.envPath,
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const updateEventPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'PROJECT_UPDATED' && event.updatedProject?.id === 'alpha',
+    3000,
+    'project updated event',
+  );
+
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/projects/update`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      projectId: 'alpha',
+      laneCount: 6,
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.success, true);
+  assert.equal(body.didAffectActiveProject, true);
+  assert.equal(body.currentProject.laneCount, 6);
+  assert.equal(body.updatedProject.laneCount, 6);
+
+  const updateEvent = await updateEventPromise;
+  assert.equal(updateEvent.currentProject.laneCount, 6);
+  assert.equal(updateEvent.didAffectActiveProject, true);
+
+  const persistedEnv = readFileSync(fixture.envPath, 'utf8');
+  assert.match(persistedEnv, /MAESTRO_PROJECT_LANE_COUNT=6/);
+
+  const healthRes = await fetch(`http://127.0.0.1:${server.port}/health`);
+  const healthBody = await healthRes.json();
+  assert.equal(healthBody.project.laneCount, 6);
+});
+
 test('POST /api/request enforces bearer token when MAESTRO_SERVER_TOKEN is set', async (t) => {
   const server = startServer({ token: 'secret-token' });
   t.after(async () => {

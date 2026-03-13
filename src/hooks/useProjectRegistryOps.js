@@ -78,6 +78,7 @@ export default function useProjectRegistryOps({ wsUrl }) {
   const [isProjectLoading, setIsProjectLoading] = useState(false);
   const [isProjectApplying, setIsProjectApplying] = useState(false);
   const [isProjectRegistering, setIsProjectRegistering] = useState(false);
+  const [isProjectUpdating, setIsProjectUpdating] = useState(false);
   const [isProjectPanelOpen, setIsProjectPanelOpen] = useState(false);
   const [projectApiToken, setProjectApiToken] = useState(() => getStoredString(SERVER_API_TOKEN_STORAGE_KEY, ''));
   const [projectTokenInput, setProjectTokenInput] = useState(() => getStoredString(SERVER_API_TOKEN_STORAGE_KEY, ''));
@@ -87,23 +88,33 @@ export default function useProjectRegistryOps({ wsUrl }) {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectRepoUrl, setNewProjectRepoUrl] = useState('');
   const [newProjectLaneCount, setNewProjectLaneCount] = useState(String(DEFAULT_LANE_COUNT));
+  const [selectedProjectLaneCount, setSelectedProjectLaneCount] = useState(String(DEFAULT_LANE_COUNT));
 
   const refreshTimerRef = useRef(null);
   const mountedRef = useRef(true);
   const currentProjectRef = useRef(currentProject);
+  const selectedProjectIdRef = useRef('');
 
   useEffect(() => {
     currentProjectRef.current = currentProject;
   }, [currentProject]);
+
+  useEffect(() => {
+    selectedProjectIdRef.current = selectedProjectId;
+  }, [selectedProjectId]);
 
   const applyProjectPayload = useCallback((body = {}) => {
     const items = Array.isArray(body.items) ? body.items.map((item) => normalizeProject(item)) : [];
     const normalizedCurrentProject = normalizeProject(
       body.currentProject || items.find((item) => item.isActive) || currentProjectRef.current,
     );
+    const preferredSelection = selectedProjectIdRef.current;
+    const nextSelectedProjectId = preferredSelection && items.some((item) => item.id === preferredSelection)
+      ? preferredSelection
+      : normalizedCurrentProject.id;
     setProjectItems(items);
     setCurrentProject(normalizedCurrentProject);
-    setSelectedProjectId(normalizedCurrentProject.id);
+    setSelectedProjectId(nextSelectedProjectId);
     setProjectError('');
     setIsProjectAuthRequired(false);
     setLastProjectUpdatedAt(new Date().toISOString());
@@ -163,6 +174,10 @@ export default function useProjectRegistryOps({ wsUrl }) {
     () => projectItems.find((item) => item.id === selectedProjectId) || currentProject,
     [currentProject, projectItems, selectedProjectId],
   );
+
+  useEffect(() => {
+    setSelectedProjectLaneCount(String(sanitizeLaneCount(selectedProject?.laneCount, DEFAULT_LANE_COUNT)));
+  }, [selectedProject?.id, selectedProject?.laneCount]);
 
   const applySelectedProject = useCallback(async () => {
     if (!selectedProjectId) return;
@@ -251,6 +266,48 @@ export default function useProjectRegistryOps({ wsUrl }) {
     }
   }, [applyProjectPayload, newProjectLaneCount, newProjectName, newProjectPath, newProjectRepoUrl, projectApiToken, wsUrl]);
 
+  const updateSelectedProjectLaneCount = useCallback(async () => {
+    if (!selectedProjectId) return;
+    setIsProjectUpdating(true);
+    try {
+      const response = await fetch(toApiUrl(wsUrl, '/api/projects/update'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildAuthHeaders(projectApiToken),
+        },
+        body: JSON.stringify({
+          projectId: selectedProjectId,
+          laneCount: sanitizeLaneCount(selectedProjectLaneCount, DEFAULT_LANE_COUNT),
+        }),
+      });
+
+      if (response.status === 401) {
+        if (!mountedRef.current) return;
+        setIsProjectAuthRequired(true);
+        setProjectError('프로젝트 전환 API 인증이 필요합니다. 서버 토큰을 입력해주세요.');
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(await readProjectApiError(response, '프로젝트 레인 수 저장에 실패했습니다.'));
+      }
+
+      const body = await response.json();
+      if (!mountedRef.current) return;
+      applyProjectPayload(body);
+      setSelectedProjectLaneCount(String(sanitizeLaneCount(body.updatedProject?.laneCount, DEFAULT_LANE_COUNT)));
+    } catch (error) {
+      if (!mountedRef.current) return;
+      const message = error instanceof Error ? error.message : '프로젝트 레인 수 저장에 실패했습니다.';
+      setProjectError(message);
+    } finally {
+      if (mountedRef.current) {
+        setIsProjectUpdating(false);
+      }
+    }
+  }, [applyProjectPayload, projectApiToken, selectedProjectId, selectedProjectLaneCount, wsUrl]);
+
   const saveProjectToken = useCallback(() => {
     const normalizedToken = projectTokenInput.trim();
     setStoredValue(SERVER_API_TOKEN_STORAGE_KEY, normalizedToken);
@@ -265,7 +322,7 @@ export default function useProjectRegistryOps({ wsUrl }) {
   }, []);
 
   const handleSocketEvent = useCallback((payload) => {
-    if (payload?.event !== 'PROJECT_SWITCHED') return;
+    if (payload?.event !== 'PROJECT_SWITCHED' && payload?.event !== 'PROJECT_UPDATED') return;
 
     if (payload.currentProject) {
       setCurrentProject(normalizeProject(payload.currentProject));
@@ -286,9 +343,12 @@ export default function useProjectRegistryOps({ wsUrl }) {
     selectedProject,
     selectedProjectId,
     setSelectedProjectId,
+    selectedProjectLaneCount,
+    setSelectedProjectLaneCount,
     projectError,
     isProjectLoading,
     isProjectApplying,
+    isProjectUpdating,
     isProjectPanelOpen,
     setIsProjectPanelOpen,
     projectTokenInput,
@@ -308,6 +368,7 @@ export default function useProjectRegistryOps({ wsUrl }) {
     setNewProjectLaneCount,
     refreshProjects,
     applySelectedProject,
+    updateSelectedProjectLaneCount,
     registerProject,
     isProjectRegistering,
     handleSocketEvent,

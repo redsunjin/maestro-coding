@@ -26,10 +26,14 @@ export default function ProjectRegistryPanel({
   currentProject,
   selectedProjectId,
   onSelectedProjectChange,
+  selectedProjectLaneCount,
+  onSelectedProjectLaneCountChange,
   onRefresh,
   onApply,
   isLoading,
   isApplying,
+  isUpdating,
+  onUpdateLaneCount,
   error,
   isAuthRequired,
   tokenInput,
@@ -183,6 +187,44 @@ export default function ProjectRegistryPanel({
                 )}
                 <div className="mt-2 text-[10px] text-gray-500">
                   lanes {selectedProject.laneCount || 4}
+                </div>
+              </div>
+            )}
+
+            {selectedProject && (
+              <div className="mt-3 rounded-lg border border-gray-800 bg-gray-950/70 px-3 py-3">
+                <div className="text-[11px] font-semibold text-gray-200">기존 프로젝트 레인 수 수정</div>
+                <p className="mt-1 text-[10px] text-gray-500">
+                  활성 프로젝트를 수정하면 런타임과 `.env`에 즉시 반영됩니다.
+                </p>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="flex-1">
+                    <label htmlFor="selected-project-lane-count" className="block text-[11px] text-gray-300">
+                      선택 프로젝트 레인 수
+                    </label>
+                    <select
+                      id="selected-project-lane-count"
+                      aria-label="선택 프로젝트 레인 수"
+                      value={selectedProjectLaneCount}
+                      onChange={(event) => onSelectedProjectLaneCountChange(event.target.value)}
+                      className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-950 px-2 py-2 text-sm text-gray-100 outline-none focus:border-cyan-300"
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => (
+                        <option key={count} value={String(count)}>
+                          {count} lanes
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onUpdateLaneCount}
+                    disabled={isUpdating || String(selectedProject.laneCount || 4) === String(selectedProjectLaneCount)}
+                    className="mt-5 inline-flex items-center gap-1.5 rounded-md bg-cyan-400 px-3 py-1.5 text-[11px] font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    {isUpdating ? '저장 중...' : '레인 저장'}
+                  </button>
                 </div>
               </div>
             )}

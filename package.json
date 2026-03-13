@@ -15,6 +15,7 @@
     "test:ui": "vitest run --passWithNoTests",
     "test:e2e": "playwright test",
     "smoke:integration": "bash scripts/smoke-agent-integration.sh",
+    "smoke:lanes": "node scripts/smoke-project-lanes.mjs",
     "qa": "bash scripts/qa-agent.sh",
     "setup": "sh scripts/setup_env.sh",
     "configure": "node scripts/configure.js",

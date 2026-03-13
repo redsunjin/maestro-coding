@@ -286,4 +286,111 @@ describe('App UI regression - project registry panel', () => {
       expect(screen.getAllByText(/lanes 6/i).length).toBeGreaterThan(0);
     });
   });
+
+  test('project registry panel updates lane count for an existing registered project', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = String(input);
+
+      if (url.includes('/api/history')) {
+        return Promise.resolve(createFetchResponse({ items: [], count: 0 }));
+      }
+
+      if (url.includes('/api/projects/update') && init?.method === 'POST') {
+        return Promise.resolve(createFetchResponse({
+          success: true,
+          didAffectActiveProject: false,
+          updatedProject: {
+            id: 'beta',
+            name: 'beta',
+            path: '/workspace/beta',
+            repoUrl: 'https://example.com/beta.git',
+            laneCount: 8,
+            isActive: false,
+          },
+          currentProject: {
+            id: 'alpha',
+            name: 'alpha',
+            path: '/workspace/alpha',
+            repoUrl: 'https://example.com/alpha.git',
+            laneCount: 4,
+            isActive: true,
+          },
+          items: [
+            {
+              id: 'alpha',
+              name: 'alpha',
+              path: '/workspace/alpha',
+              repoUrl: 'https://example.com/alpha.git',
+              laneCount: 4,
+              isActive: true,
+            },
+            {
+              id: 'beta',
+              name: 'beta',
+              path: '/workspace/beta',
+              repoUrl: 'https://example.com/beta.git',
+              laneCount: 8,
+              isActive: false,
+            },
+          ],
+          count: 2,
+        }));
+      }
+
+      if (url.includes('/api/projects')) {
+        return Promise.resolve(createFetchResponse({
+          currentProject: {
+            id: 'alpha',
+            name: 'alpha',
+            path: '/workspace/alpha',
+            repoUrl: 'https://example.com/alpha.git',
+            laneCount: 4,
+            isActive: true,
+          },
+          items: [
+            {
+              id: 'alpha',
+              name: 'alpha',
+              path: '/workspace/alpha',
+              repoUrl: 'https://example.com/alpha.git',
+              laneCount: 4,
+              isActive: true,
+            },
+            {
+              id: 'beta',
+              name: 'beta',
+              path: '/workspace/beta',
+              repoUrl: 'https://example.com/beta.git',
+              laneCount: 6,
+              isActive: false,
+            },
+          ],
+          count: 2,
+        }));
+      }
+
+      return Promise.resolve(createFetchResponse({}));
+    });
+
+    await startLiveSession();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '프로젝트 전환 패널 토글' }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/lanes 4/i).length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('연결할 프로젝트'), { target: { value: 'beta' } });
+      fireEvent.change(screen.getByLabelText('선택 프로젝트 레인 수'), { target: { value: '8' } });
+      fireEvent.click(screen.getByRole('button', { name: '레인 저장' }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/lanes 8/i).length).toBeGreaterThan(0);
+      expect(screen.getByText(/Repo alpha/)).toBeInTheDocument();
+    });
+  });
 });

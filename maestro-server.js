@@ -326,6 +326,14 @@ function getActiveMainRepoPath() {
   return runtimeProjectState.path;
 }
 
+function resolveProjectUpdateTarget({ projectId, projectPath }) {
+  const projects = listAvailableProjects();
+  return projects.find((project) => (
+    (projectId && project.id === projectId)
+    || (projectPath && project.path === projectPath)
+  )) || null;
+}
+
 // ── HTTP 서버 ────────────────────────────────────────────────────────────────
 
 const server = http.createServer((req, res) => {
@@ -391,11 +399,7 @@ const server = http.createServer((req, res) => {
         const data = JSON.parse(body);
         const projectId = sanitizeHistoryText(data.projectId || '', 80) || null;
         const projectPath = data.projectPath ? path.resolve(String(data.projectPath).trim()) : '';
-        const projects = listAvailableProjects();
-        const targetProject = projects.find((project) => (
-          (projectId && project.id === projectId)
-          || (projectPath && project.path === projectPath)
-        )) || null;
+        const targetProject = resolveProjectUpdateTarget({ projectId, projectPath });
 
         if (!targetProject) {
           res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -424,6 +428,75 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           success: true,
+          ...payload,
+        }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/projects/update') {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const projectId = sanitizeHistoryText(data.projectId || '', 80) || null;
+        const projectPath = data.projectPath ? path.resolve(String(data.projectPath).trim()) : '';
+        const targetProject = resolveProjectUpdateTarget({ projectId, projectPath });
+
+        if (!targetProject) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Project not found' }));
+          return;
+        }
+
+        const pathValidationError = validateRuntimeProjectPath(targetProject.path);
+        if (pathValidationError) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            error: pathValidationError,
+            path: targetProject.path,
+          }));
+          return;
+        }
+
+        const updatedProject = upsertProjectEntry({
+          id: targetProject.id,
+          name: sanitizeHistoryText(data.projectName || '', 80) || targetProject.name,
+          path: targetProject.path,
+          repoUrl: sanitizeHistoryText(data.repoUrl || '', 240) || targetProject.repoUrl || inferProjectRemoteUrl(targetProject.path),
+          laneCount: sanitizeLaneCount(data.laneCount, targetProject.laneCount || DEFAULT_LANE_COUNT),
+        });
+
+        const didAffectActiveProject = updatedProject.path === runtimeProjectState.path;
+        if (didAffectActiveProject) {
+          persistRuntimeProject(updatedProject);
+          markProjectUsed(updatedProject.id);
+        }
+
+        const payload = getActiveProjectResponse();
+        broadcastToClients({
+          event: 'PROJECT_UPDATED',
+          currentProject: payload.currentProject,
+          updatedProject,
+          didAffectActiveProject,
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          didAffectActiveProject,
+          updatedProject,
           ...payload,
         }));
       } catch {
