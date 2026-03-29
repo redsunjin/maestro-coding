@@ -26,7 +26,9 @@ import AutoApproveOpsPanel from './components/maestro/AutoApproveOpsPanel.jsx';
 import ProjectRegistryPanel from './components/maestro/ProjectRegistryPanel.jsx';
 
 export default function App() {
+  const headerRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [panelTopOffset, setPanelTopOffset] = useState(92);
   const [activeProjectId, setActiveProjectId] = useState(PROJECTS[0].id);
   const [notes, setNotes] = useState([]);
   const [score, setScore] = useState(0);
@@ -46,6 +48,32 @@ export default function App() {
   useEffect(() => {
     activeProjectRef.current = activeProjectId;
   }, [activeProjectId]);
+
+  useEffect(() => {
+    const headerNode = headerRef.current;
+    if (!headerNode) return undefined;
+
+    const updatePanelTopOffset = () => {
+      const nextHeight = Math.ceil(headerNode.getBoundingClientRect().height);
+      setPanelTopOffset(nextHeight + 12);
+    };
+
+    updatePanelTopOffset();
+
+    let resizeObserver;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        updatePanelTopOffset();
+      });
+      resizeObserver.observe(headerNode);
+    }
+
+    window.addEventListener('resize', updatePanelTopOffset);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updatePanelTopOffset);
+    };
+  }, []);
 
   const showFeedback = useCallback((projectId, lane, text, color) => {
     const id = Date.now() + Math.random();
@@ -103,6 +131,7 @@ export default function App() {
     hasMoreHistoryItems,
     loadMoreHistory,
     filteredHistoryCount,
+    historyBadgeCount,
     handleSocketEvent: handleHistorySocketEvent,
   } = useApprovalHistory({
     wsUrl: WS_URL,
@@ -176,6 +205,21 @@ export default function App() {
 
   const activeLaneCount = currentProject?.laneCount || DEFAULT_LANE_COUNT;
   const activeLanes = useMemo(() => getLaneDefinitions(activeLaneCount), [activeLaneCount]);
+  const historyProjects = useMemo(() => {
+    const mergedProjects = [...projectItems, ...PROJECTS];
+    const projectMap = new Map();
+
+    mergedProjects.forEach((project) => {
+      if (!project?.id) return;
+      if (projectMap.has(project.id)) return;
+      projectMap.set(project.id, {
+        id: project.id,
+        name: project.name || project.id,
+      });
+    });
+
+    return Array.from(projectMap.values());
+  }, [projectItems]);
 
   const {
     wsStatus,
@@ -377,6 +421,7 @@ export default function App() {
       />
 
       <MaestroHeader
+        headerRef={headerRef}
         isBachPlaying={isBachPlaying}
         isBachReady={isBachReady}
         isBachPlaybackRequested={isBachPlaybackRequested}
@@ -414,7 +459,7 @@ export default function App() {
         isAutoApproveAuthRequired={isAutoApproveAuthRequired}
         isAutoApprovePanelOpen={isAutoApprovePanelOpen}
         onToggleAutoApprovePanel={handleAutoApprovePanelToggle}
-        historyCount={historyItems.length}
+        historyCount={historyBadgeCount}
         isHistoryPanelOpen={isHistoryPanelOpen}
         onToggleHistoryPanel={handleHistoryPanelToggle}
       />
@@ -442,6 +487,7 @@ export default function App() {
       <FooterHelp lanes={activeLanes} />
       <ProjectRegistryPanel
         isOpen={isProjectPanelOpen}
+        panelTopOffset={panelTopOffset}
         onClose={handleProjectPanelClose}
         projects={projectItems}
         currentProject={currentProject}
@@ -476,6 +522,7 @@ export default function App() {
       />
       <AutoApproveOpsPanel
         isOpen={isAutoApprovePanelOpen}
+        panelTopOffset={panelTopOffset}
         onClose={handleAutoApprovePanelClose}
         statusData={autoApproveStatus}
         events={autoApproveEvents}
@@ -494,6 +541,7 @@ export default function App() {
       />
       <HistoryScorePanel
         isOpen={isHistoryPanelOpen}
+        panelTopOffset={panelTopOffset}
         onClose={handleHistoryPanelClose}
         items={visibleHistoryItems}
         isLoading={isHistoryLoading}
@@ -501,7 +549,7 @@ export default function App() {
         filteredHistoryCount={filteredHistoryCount}
         hasMore={hasMoreHistoryItems}
         onLoadMore={loadMoreHistory}
-        projects={PROJECTS}
+        projects={historyProjects}
         lanes={activeLanes}
         projectFilter={historyProjectFilter}
         onProjectFilterChange={setHistoryProjectFilter}

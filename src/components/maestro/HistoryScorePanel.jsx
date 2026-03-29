@@ -189,6 +189,7 @@ function ScoreLaneMini({ laneIndex, laneCount, result }) {
 
 export default function HistoryScorePanel({
   isOpen,
+  panelTopOffset = 92,
   onClose,
   items,
   isLoading,
@@ -231,9 +232,10 @@ export default function HistoryScorePanel({
         isOpen
           ? 'pointer-events-auto opacity-100 translate-y-0 sm:translate-x-0'
           : 'pointer-events-none opacity-0 translate-y-2 sm:translate-x-4'
-      } bottom-16 left-3 right-3 sm:bottom-auto sm:left-auto sm:right-4 sm:top-20 sm:w-[420px]`}
+      } bottom-16 left-3 right-3 sm:bottom-auto sm:left-auto sm:right-4 sm:top-[var(--panel-top-offset)] sm:w-[420px]`}
       aria-hidden={!isOpen}
       tabIndex={-1}
+      style={{ '--panel-top-offset': `${panelTopOffset}px` }}
     >
       <div className="rounded-2xl border border-gray-700/80 bg-gray-900/95 shadow-2xl backdrop-blur-md">
         <div className="flex items-center justify-between border-b border-gray-700/70 px-3 py-2">
@@ -309,6 +311,20 @@ export default function HistoryScorePanel({
               ))}
             </select>
           </label>
+        </div>
+
+        <div className="border-b border-gray-700/70 px-3 py-2">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+            Live History
+          </div>
+          <div className="mt-0.5 text-[10px] text-gray-400">
+            최근 승인/반려/롤백 이벤트를 현재 운영 이력 기준으로 악보형 overview에 요약합니다.
+          </div>
+          {historyError && (
+            <div className="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+              {historyError}
+            </div>
+          )}
         </div>
 
         <div className="max-h-[52vh] overflow-y-auto px-3 py-2">

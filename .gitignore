@@ -4,5 +4,6 @@ dist/
 .env.local
 .env.*.local
 .maestro-projects.json
+.maestro-history.json
 playwright-report/
 test-results/

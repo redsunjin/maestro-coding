@@ -12,7 +12,7 @@
 //   GET        /api/auto-approve/events — 자동승인 이벤트 로그 조회
 
 import http from 'http';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { WebSocketServer, WebSocket as WSWebSocket } from 'ws';
 import { execFile } from 'child_process';
@@ -67,6 +67,8 @@ const HISTORY_BUFFER_MAX_ITEMS = Math.min(
   2000,
   Math.max(40, parsePositiveInt(process.env.MAESTRO_HISTORY_MAX_ITEMS, 300)),
 );
+const HISTORY_STORE_PATH = path.resolve(ROOT_DIR, process.env.MAESTRO_HISTORY_STORE_PATH || '.maestro-history.json');
+const HISTORY_STORE_VERSION = 1;
 const HISTORY_DEFAULT_LIMIT = 40;
 const AUTO_APPROVE_EVENTS_DEFAULT_LIMIT = 40;
 const persistedEnvValues = readEnvFile(ENV_PATH).values;
@@ -212,6 +214,47 @@ function normalizeAutoApproveDecision(value) {
   ]);
   if (allowedDecisions.has(value)) return value;
   return 'BLOCKED';
+}
+
+function normalizePersistedHistoryEntry(item = {}) {
+  const timestamp = item.timestamp || new Date().toISOString();
+  return {
+    id: sanitizeHistoryText(item.id || '', 120) || `hist_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    timestamp,
+    requestId: sanitizeHistoryText(item.requestId || '', 80) || null,
+    projectId: sanitizeHistoryText(item.projectId || '', 64) || null,
+    laneIndex: normalizeLaneIndex(item.laneIndex),
+    agentId: sanitizeHistoryText(item.agentId || '', 64) || null,
+    branchName: sanitizeHistoryText(item.branchName || '', 120) || null,
+    title: sanitizeHistoryText(item.title || '', 120) || null,
+    result: normalizeHistoryResult(item.result),
+    source: normalizeHistorySource(item.source),
+    reason: sanitizeHistoryText(item.reason || '', 64) || null,
+    autoApproved: item.autoApproved === true,
+  };
+}
+
+function loadPersistedHistory(storePath = HISTORY_STORE_PATH) {
+  if (!existsSync(storePath)) {
+    return [];
+  }
+
+  try {
+    const raw = JSON.parse(readFileSync(storePath, 'utf8'));
+    const itemsSource = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.items)
+        ? raw.items
+        : [];
+
+    return itemsSource
+      .map((item) => normalizePersistedHistoryEntry(item))
+      .slice(-HISTORY_BUFFER_MAX_ITEMS)
+      .sort((left, right) => Date.parse(left.timestamp || 0) - Date.parse(right.timestamp || 0));
+  } catch (error) {
+    console.error(`히스토리 저장소 로드 실패: ${error.message}`);
+    return [];
+  }
 }
 
 function parseAllowedOrigins(rawValue) {
@@ -806,9 +849,28 @@ const requestStateById = new Map();
 const requestMetaById = new Map();
 const autoApproveInFlight = new Set();
 const autoApproveEvents = [];
-const approvalHistory = [];
+const approvalHistory = loadPersistedHistory();
 const historyDedupByKey = new Map();
 let lastAutoApproveAt = 0;
+
+function persistHistoryStore(storePath = HISTORY_STORE_PATH) {
+  const tempPath = `${storePath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    writeFileSync(tempPath, JSON.stringify({
+      version: HISTORY_STORE_VERSION,
+      updatedAt: new Date().toISOString(),
+      items: approvalHistory,
+    }, null, 2) + '\n', 'utf8');
+    renameSync(tempPath, storePath);
+    return true;
+  } catch (error) {
+    try {
+      rmSync(tempPath, { force: true });
+    } catch {}
+    console.error(`히스토리 저장 실패: ${error.message}`);
+    return false;
+  }
+}
 
 function setRequestMeta(requestId, meta = {}) {
   if (!requestId) return;
@@ -939,6 +1001,7 @@ function appendHistory(input = {}) {
   while (approvalHistory.length > HISTORY_BUFFER_MAX_ITEMS) {
     approvalHistory.shift();
   }
+  persistHistoryStore();
 
   broadcastToClients({
     event: 'HISTORY_APPEND',
@@ -1280,6 +1343,7 @@ server.listen(PORT, HOST, () => {
   console.log(`   활성 프로젝트: ${runtimeProjectState.name} (${runtimeProjectState.path})`);
   console.log(`   자동승인    : ${AUTO_APPROVE_CONFIG.enabled ? 'enabled' : 'disabled'}`);
   console.log(`   이력 버퍼   : max ${HISTORY_BUFFER_MAX_ITEMS} items`);
+  console.log(`   이력 저장소 : ${HISTORY_STORE_PATH}`);
   console.log(`   자동승인 로그: max ${AUTO_APPROVE_LOG_MAX_ITEMS} items`);
   if (AUTO_APPROVE_CONFIG.enabled) {
     console.log(`     - trusted agents : ${AUTO_APPROVE_CONFIG.trustedAgents.length > 0 ? AUTO_APPROVE_CONFIG.trustedAgents.join(', ') : '(all)'}`);

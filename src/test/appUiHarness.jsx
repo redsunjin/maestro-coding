@@ -54,10 +54,16 @@ const originalPrompt = window.prompt;
 const originalYT = window.YT;
 const originalAudioContext = window.AudioContext;
 const originalWebkitAudioContext = window.webkitAudioContext;
+const originalInnerWidth = window.innerWidth;
 
 export function setupAppUiEnvironment() {
   MockWebSocket.instances = [];
   globalThis.WebSocket = MockWebSocket;
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: 1600,
+  });
   globalThis.fetch = vi.fn(async (input) => {
     const url = String(input);
     if (url.includes('/api/projects')) {
@@ -103,6 +109,11 @@ export function teardownAppUiEnvironment() {
   vi.restoreAllMocks();
   globalThis.WebSocket = originalWebSocket;
   globalThis.fetch = originalFetch;
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: originalInnerWidth,
+  });
   window.prompt = originalPrompt;
   if (typeof originalYT === 'undefined') {
     delete window.YT;
