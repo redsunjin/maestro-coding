@@ -17,6 +17,7 @@ import useAutoApproveOps from './hooks/useAutoApproveOps.js';
 import useBachPlayer from './hooks/useBachPlayer.js';
 import useProjectRegistryOps from './hooks/useProjectRegistryOps.js';
 import useWorkConsoleShell from './hooks/useWorkConsoleShell.js';
+import useWorkSessions from './hooks/useWorkSessions.js';
 import MaestroHeader from './components/maestro/MaestroHeader.jsx';
 import ProjectTabs from './components/maestro/ProjectTabs.jsx';
 import LaneBoard from './components/maestro/LaneBoard.jsx';
@@ -160,6 +161,23 @@ export default function App() {
   } = useWorkConsoleShell();
 
   const {
+    sessions: workSessions,
+    selectedSession: selectedWorkSession,
+    selectedSessionMessages,
+    sessionError: workSessionError,
+    isSessionListLoading,
+    isSessionDetailLoading,
+    isSubmittingMessage,
+    createSession,
+    submitMessage,
+    handleSocketEvent: handleWorkSessionsSocketEvent,
+  } = useWorkSessions({
+    wsUrl: WS_URL,
+    selectedSessionId: selectedWorkSessionId,
+    onSelectedSessionChange: setSelectedWorkSessionId,
+  });
+
+  const {
     autoApproveStatus,
     autoApproveEvents,
     autoApproveError,
@@ -185,7 +203,8 @@ export default function App() {
     handleProjectSocketEvent(payload);
     handleHistorySocketEvent(payload);
     handleAutoApproveSocketEvent(payload);
-  }, [handleAutoApproveSocketEvent, handleHistorySocketEvent, handleProjectSocketEvent]);
+    handleWorkSessionsSocketEvent(payload);
+  }, [handleAutoApproveSocketEvent, handleHistorySocketEvent, handleProjectSocketEvent, handleWorkSessionsSocketEvent]);
 
   const activeLaneCount = currentProject?.laneCount || DEFAULT_LANE_COUNT;
   const activeLanes = useMemo(() => getLaneDefinitions(activeLaneCount), [activeLaneCount]);
@@ -466,8 +485,17 @@ export default function App() {
       <WorkConsolePanel
         isOpen={isWorkConsoleOpen}
         dockSide={workConsoleDockSide}
+        sessions={workSessions}
         selectedSessionId={selectedWorkSessionId}
+        selectedSession={selectedWorkSession}
+        messages={selectedSessionMessages}
+        isSessionListLoading={isSessionListLoading}
+        isSessionDetailLoading={isSessionDetailLoading}
+        isSubmittingMessage={isSubmittingMessage}
+        sessionError={workSessionError}
         onSelectSession={setSelectedWorkSessionId}
+        onCreateSession={createSession}
+        onSubmitMessage={submitMessage}
         onClose={handleWorkConsoleClose}
         onMoveLeft={moveWorkConsoleLeft}
         onMoveRight={moveWorkConsoleRight}

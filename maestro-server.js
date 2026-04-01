@@ -12,7 +12,7 @@
 //   GET        /api/auto-approve/events — 자동승인 이벤트 로그 조회
 
 import http from 'http';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { WebSocketServer, WebSocket as WSWebSocket } from 'ws';
 import { execFile } from 'child_process';
@@ -69,6 +69,20 @@ const HISTORY_BUFFER_MAX_ITEMS = Math.min(
 );
 const HISTORY_DEFAULT_LIMIT = 40;
 const AUTO_APPROVE_EVENTS_DEFAULT_LIMIT = 40;
+const WORK_SESSION_DEFAULT_LIMIT = 40;
+const WORK_MESSAGE_DEFAULT_LIMIT = 100;
+const WORK_SESSION_MAX_ITEMS = Math.min(
+  200,
+  Math.max(20, parsePositiveInt(process.env.MAESTRO_WORK_SESSION_MAX_ITEMS, 60)),
+);
+const WORK_MESSAGE_MAX_ITEMS = Math.min(
+  500,
+  Math.max(20, parsePositiveInt(process.env.MAESTRO_WORK_MESSAGE_MAX_ITEMS, 120)),
+);
+const WORKFLOW_STORE_PATH = path.resolve(
+  ROOT_DIR,
+  process.env.MAESTRO_WORKFLOW_STORE_PATH || '.maestro-workflows.json',
+);
 const persistedEnvValues = readEnvFile(ENV_PATH).values;
 let runtimeProjectState = createRuntimeProjectState({
   path: process.env.MAIN_REPO_PATH || persistedEnvValues.MAIN_REPO_PATH || process.cwd(),
@@ -334,6 +348,433 @@ function resolveProjectUpdateTarget({ projectId, projectPath }) {
   )) || null;
 }
 
+const WORK_SESSION_STATUS = {
+  QUEUED: 'queued',
+  ACTIVE: 'active',
+  BLOCKED: 'blocked',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+  CANCELLED: 'cancelled',
+};
+
+const WORK_MESSAGE_KIND = {
+  MESSAGE: 'message',
+  COMMAND: 'command',
+  COMMAND_RESULT: 'command_result',
+  STATUS: 'status',
+  WARNING: 'warning',
+};
+
+const WORK_MESSAGE_ROLE = {
+  OPERATOR: 'operator',
+  AGENT: 'agent',
+  SYSTEM: 'system',
+};
+
+const COMMAND_RESULT_STATUS = {
+  ACCEPTED: 'accepted',
+  REJECTED: 'rejected',
+  NEEDS_INPUT: 'needs_input',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+};
+
+const workSessionsById = new Map();
+const workMessagesBySessionId = new Map();
+
+function normalizeWorkSessionStatus(value) {
+  const allowed = new Set(Object.values(WORK_SESSION_STATUS));
+  return allowed.has(value) ? value : WORK_SESSION_STATUS.ACTIVE;
+}
+
+function normalizeWorkMessageKind(value) {
+  const allowed = new Set(Object.values(WORK_MESSAGE_KIND));
+  return allowed.has(value) ? value : WORK_MESSAGE_KIND.MESSAGE;
+}
+
+function normalizeWorkMessageRole(value) {
+  const allowed = new Set(Object.values(WORK_MESSAGE_ROLE));
+  return allowed.has(value) ? value : WORK_MESSAGE_ROLE.SYSTEM;
+}
+
+function normalizeCommandResultStatus(value) {
+  const allowed = new Set(Object.values(COMMAND_RESULT_STATUS));
+  return allowed.has(value) ? value : COMMAND_RESULT_STATUS.COMPLETED;
+}
+
+function sanitizeWorkMetadata(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value;
+}
+
+function createWorkSessionId() {
+  return `wsn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createWorkMessageId() {
+  return `wmsg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function isTerminalWorkSessionStatus(status) {
+  return [
+    WORK_SESSION_STATUS.COMPLETED,
+    WORK_SESSION_STATUS.FAILED,
+    WORK_SESSION_STATUS.CANCELLED,
+  ].includes(status);
+}
+
+function ensureWorkMessageList(workSessionId) {
+  if (!workMessagesBySessionId.has(workSessionId)) {
+    workMessagesBySessionId.set(workSessionId, []);
+  }
+  return workMessagesBySessionId.get(workSessionId);
+}
+
+function parseWorkLimit(value, fallback, maxValue) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, maxValue);
+}
+
+function parseWorkSessionLimit(value) {
+  return parseWorkLimit(value, WORK_SESSION_DEFAULT_LIMIT, WORK_SESSION_MAX_ITEMS);
+}
+
+function parseWorkMessageLimit(value) {
+  return parseWorkLimit(value, WORK_MESSAGE_DEFAULT_LIMIT, WORK_MESSAGE_MAX_ITEMS);
+}
+
+function sortWorkSessions(items) {
+  return items
+    .slice()
+    .sort((a, b) => Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0));
+}
+
+function pruneClosedWorkSessions() {
+  const activeSessions = [];
+  const closedSessions = [];
+
+  for (const session of workSessionsById.values()) {
+    if (isTerminalWorkSessionStatus(session.status)) {
+      closedSessions.push(session);
+    } else {
+      activeSessions.push(session);
+    }
+  }
+
+  const keepClosedIds = new Set(
+    sortWorkSessions(closedSessions)
+      .slice(0, WORK_SESSION_MAX_ITEMS)
+      .map((session) => session.workSessionId),
+  );
+
+  for (const session of closedSessions) {
+    if (keepClosedIds.has(session.workSessionId)) continue;
+    workSessionsById.delete(session.workSessionId);
+    workMessagesBySessionId.delete(session.workSessionId);
+  }
+}
+
+function persistWorkflowStore() {
+  const storeDir = path.dirname(WORKFLOW_STORE_PATH);
+  mkdirSync(storeDir, { recursive: true });
+
+  const payload = {
+    savedAt: new Date().toISOString(),
+    sessions: sortWorkSessions(Array.from(workSessionsById.values())),
+    messagesBySession: Object.fromEntries(
+      Array.from(workMessagesBySessionId.entries()).map(([workSessionId, items]) => [
+        workSessionId,
+        items.slice(-WORK_MESSAGE_MAX_ITEMS),
+      ]),
+    ),
+  };
+
+  writeFileSync(WORKFLOW_STORE_PATH, JSON.stringify(payload, null, 2));
+}
+
+function loadWorkflowStore() {
+  if (!existsSync(WORKFLOW_STORE_PATH)) return;
+
+  try {
+    const raw = readFileSync(WORKFLOW_STORE_PATH, 'utf8');
+    if (!raw.trim()) return;
+    const parsed = JSON.parse(raw);
+    const sessions = Array.isArray(parsed.sessions) ? parsed.sessions : [];
+    const messagesBySession = parsed.messagesBySession && typeof parsed.messagesBySession === 'object'
+      ? parsed.messagesBySession
+      : {};
+
+    sessions.forEach((session) => {
+      const workSessionId = sanitizeHistoryText(session.workSessionId || '', 80);
+      if (!workSessionId) return;
+      workSessionsById.set(workSessionId, {
+        workSessionId,
+        projectId: sanitizeHistoryText(session.projectId || '', 64) || runtimeProjectState.id,
+        title: sanitizeHistoryText(session.title || '', 120) || '새 작업 세션',
+        status: normalizeWorkSessionStatus(session.status),
+        agentId: sanitizeHistoryText(session.agentId || '', 64) || 'openclaw',
+        source: sanitizeHistoryText(session.source || '', 32) || 'api',
+        createdAt: session.createdAt || new Date().toISOString(),
+        updatedAt: session.updatedAt || session.createdAt || new Date().toISOString(),
+        lastMessageAt: session.lastMessageAt || null,
+        pendingOperatorDecision: session.pendingOperatorDecision === true,
+        metadata: sanitizeWorkMetadata(session.metadata),
+      });
+    });
+
+    Object.entries(messagesBySession).forEach(([workSessionId, items]) => {
+      const normalizedSessionId = sanitizeHistoryText(workSessionId || '', 80);
+      if (!normalizedSessionId || !Array.isArray(items) || !workSessionsById.has(normalizedSessionId)) return;
+      const normalizedItems = items
+        .map((item) => ({
+          workMessageId: sanitizeHistoryText(item.workMessageId || '', 80) || createWorkMessageId(),
+          workSessionId: normalizedSessionId,
+          role: normalizeWorkMessageRole(item.role),
+          kind: normalizeWorkMessageKind(item.kind),
+          body: sanitizeHistoryText(item.body || '', 500) || '',
+          command: sanitizeHistoryText(item.command || '', 80) || null,
+          status: item.status ? normalizeCommandResultStatus(item.status) : null,
+          createdAt: item.createdAt || new Date().toISOString(),
+        }))
+        .filter((item) => item.body);
+      workMessagesBySessionId.set(normalizedSessionId, normalizedItems.slice(-WORK_MESSAGE_MAX_ITEMS));
+    });
+
+    pruneClosedWorkSessions();
+  } catch (error) {
+    console.error('workflow store load failed:', error.message);
+  }
+}
+
+function listWorkSessions({ projectId = null, status = null, limit = WORK_SESSION_DEFAULT_LIMIT } = {}) {
+  const normalizedProjectId = sanitizeHistoryText(projectId || '', 64) || null;
+  const normalizedStatus = status ? normalizeWorkSessionStatus(status) : null;
+
+  return sortWorkSessions(Array.from(workSessionsById.values()))
+    .filter((session) => {
+      if (normalizedProjectId && session.projectId !== normalizedProjectId) return false;
+      if (normalizedStatus && session.status !== normalizedStatus) return false;
+      return true;
+    })
+    .slice(0, parseWorkSessionLimit(limit));
+}
+
+function getWorkSession(workSessionId) {
+  const normalizedWorkSessionId = sanitizeHistoryText(workSessionId || '', 80);
+  if (!normalizedWorkSessionId) return null;
+  return workSessionsById.get(normalizedWorkSessionId) || null;
+}
+
+function updateWorkSession(workSessionId, patch = {}) {
+  const existing = getWorkSession(workSessionId);
+  if (!existing) return null;
+
+  const nextSession = {
+    ...existing,
+    title: sanitizeHistoryText(patch.title ?? existing.title ?? '', 120) || existing.title || '새 작업 세션',
+    status: normalizeWorkSessionStatus(patch.status ?? existing.status),
+    agentId: sanitizeHistoryText(patch.agentId ?? existing.agentId ?? '', 64) || existing.agentId || 'openclaw',
+    source: sanitizeHistoryText(patch.source ?? existing.source ?? '', 32) || existing.source || 'api',
+    projectId: sanitizeHistoryText(patch.projectId ?? existing.projectId ?? '', 64) || existing.projectId || runtimeProjectState.id,
+    updatedAt: patch.updatedAt || new Date().toISOString(),
+    lastMessageAt: patch.lastMessageAt ?? existing.lastMessageAt ?? null,
+    pendingOperatorDecision: patch.pendingOperatorDecision ?? existing.pendingOperatorDecision ?? false,
+    metadata: sanitizeWorkMetadata(patch.metadata ?? existing.metadata),
+  };
+
+  workSessionsById.set(workSessionId, nextSession);
+  pruneClosedWorkSessions();
+  persistWorkflowStore();
+  return nextSession;
+}
+
+function createWorkSession(input = {}) {
+  const now = new Date().toISOString();
+  const workSessionId = createWorkSessionId();
+  const session = {
+    workSessionId,
+    projectId: sanitizeHistoryText(input.projectId || '', 64) || runtimeProjectState.id,
+    title: sanitizeHistoryText(input.title || '', 120) || '새 작업 세션',
+    status: normalizeWorkSessionStatus(input.status || WORK_SESSION_STATUS.ACTIVE),
+    agentId: sanitizeHistoryText(input.agentId || '', 64) || 'openclaw',
+    source: sanitizeHistoryText(input.source || '', 32) || 'dashboard',
+    createdAt: now,
+    updatedAt: now,
+    lastMessageAt: null,
+    pendingOperatorDecision: input.pendingOperatorDecision === true,
+    metadata: sanitizeWorkMetadata(input.metadata),
+  };
+
+  workSessionsById.set(workSessionId, session);
+  ensureWorkMessageList(workSessionId);
+  pruneClosedWorkSessions();
+  persistWorkflowStore();
+  return session;
+}
+
+function appendWorkMessage(workSessionId, input = {}) {
+  const session = getWorkSession(workSessionId);
+  if (!session) return null;
+
+  const body = sanitizeHistoryText(input.body || '', 500);
+  if (!body) return null;
+
+  const message = {
+    workMessageId: createWorkMessageId(),
+    workSessionId: session.workSessionId,
+    role: normalizeWorkMessageRole(input.role),
+    kind: normalizeWorkMessageKind(input.kind),
+    body,
+    command: sanitizeHistoryText(input.command || '', 80) || null,
+    status: input.status ? normalizeCommandResultStatus(input.status) : null,
+    createdAt: new Date().toISOString(),
+  };
+
+  const messageList = ensureWorkMessageList(workSessionId);
+  messageList.push(message);
+  while (messageList.length > WORK_MESSAGE_MAX_ITEMS) {
+    messageList.shift();
+  }
+
+  const nextSession = updateWorkSession(workSessionId, {
+    updatedAt: message.createdAt,
+    lastMessageAt: message.createdAt,
+  });
+
+  return {
+    session: nextSession,
+    message,
+  };
+}
+
+function getWorkSessionDetail(workSessionId, { limit = WORK_MESSAGE_DEFAULT_LIMIT } = {}) {
+  const session = getWorkSession(workSessionId);
+  if (!session) return null;
+  const messages = (workMessagesBySessionId.get(workSessionId) || []).slice(-parseWorkMessageLimit(limit));
+  return {
+    item: session,
+    messages,
+    count: messages.length,
+  };
+}
+
+function buildStatusCommandSummary(session) {
+  const messageCount = (workMessagesBySessionId.get(session.workSessionId) || []).length;
+  const lastMessageLabel = session.lastMessageAt || 'none';
+  return `status=${session.status}, messages=${messageCount}, lastMessageAt=${lastMessageLabel}, pendingDecision=${session.pendingOperatorDecision ? 'yes' : 'no'}`;
+}
+
+function processWorkSessionInput(workSessionId, rawBody) {
+  const session = getWorkSession(workSessionId);
+  if (!session) {
+    return { ok: false, code: 404, error: 'WORK_SESSION_NOT_FOUND' };
+  }
+
+  const normalizedBody = sanitizeHistoryText(rawBody || '', 500);
+  if (!normalizedBody) {
+    return { ok: false, code: 400, error: 'MESSAGE_BODY_REQUIRED' };
+  }
+
+  if (!normalizedBody.startsWith('/')) {
+    const appended = appendWorkMessage(workSessionId, {
+      role: WORK_MESSAGE_ROLE.OPERATOR,
+      kind: WORK_MESSAGE_KIND.MESSAGE,
+      body: normalizedBody,
+    });
+
+    return {
+      ok: true,
+      session: appended?.session || session,
+      messages: appended ? [appended.message] : [],
+      commandEvent: null,
+    };
+  }
+
+  const commandMessage = appendWorkMessage(workSessionId, {
+    role: WORK_MESSAGE_ROLE.OPERATOR,
+    kind: WORK_MESSAGE_KIND.COMMAND,
+    body: normalizedBody,
+    command: normalizedBody.split(/\s+/, 1)[0],
+  });
+  if (!commandMessage) {
+    return { ok: false, code: 400, error: 'COMMAND_RECORD_FAILED' };
+  }
+
+  const [commandNameRaw, ...argParts] = normalizedBody.slice(1).split(/\s+/);
+  const commandName = sanitizeHistoryText(commandNameRaw || '', 40)?.toLowerCase() || '';
+  const commandArgs = argParts.join(' ').trim();
+  let currentSession = commandMessage.session;
+  const createdMessages = [commandMessage.message];
+  let commandEvent = 'COMMAND_ACCEPTED';
+  let commandResultStatus = COMMAND_RESULT_STATUS.COMPLETED;
+  let resultBody = '';
+
+  switch (commandName) {
+    case 'status':
+      resultBody = buildStatusCommandSummary(currentSession);
+      break;
+    case 'ask':
+      if (!commandArgs) {
+        commandEvent = 'COMMAND_REJECTED';
+        commandResultStatus = COMMAND_RESULT_STATUS.NEEDS_INPUT;
+        resultBody = '질문 내용을 함께 입력해야 합니다.';
+      } else {
+        resultBody = `질문을 세션에 기록했습니다: ${sanitizeHistoryText(commandArgs, 240)}`;
+      }
+      break;
+    case 'close':
+      if (isTerminalWorkSessionStatus(currentSession.status)) {
+        commandEvent = 'COMMAND_REJECTED';
+        commandResultStatus = COMMAND_RESULT_STATUS.REJECTED;
+        resultBody = '이미 종료된 세션입니다.';
+      } else {
+        currentSession = updateWorkSession(workSessionId, {
+          status: WORK_SESSION_STATUS.COMPLETED,
+          updatedAt: new Date().toISOString(),
+        }) || currentSession;
+        const statusMessage = appendWorkMessage(workSessionId, {
+          role: WORK_MESSAGE_ROLE.SYSTEM,
+          kind: WORK_MESSAGE_KIND.STATUS,
+          body: '세션이 종료되었습니다.',
+        });
+        if (statusMessage) {
+          currentSession = statusMessage.session;
+          createdMessages.push(statusMessage.message);
+        }
+        resultBody = '세션을 종료했습니다.';
+      }
+      break;
+    default:
+      commandEvent = 'COMMAND_REJECTED';
+      commandResultStatus = COMMAND_RESULT_STATUS.REJECTED;
+      resultBody = `지원하지 않는 명령입니다: /${commandName || 'unknown'}`;
+      break;
+  }
+
+  const resultMessage = appendWorkMessage(workSessionId, {
+    role: WORK_MESSAGE_ROLE.SYSTEM,
+    kind: WORK_MESSAGE_KIND.COMMAND_RESULT,
+    body: resultBody,
+    command: `/${commandName || 'unknown'}`,
+    status: commandResultStatus,
+  });
+
+  if (resultMessage) {
+    currentSession = resultMessage.session;
+    createdMessages.push(resultMessage.message);
+  }
+
+  return {
+    ok: true,
+    session: currentSession,
+    messages: createdMessages,
+    commandEvent,
+  };
+}
+
+loadWorkflowStore();
+
 // ── HTTP 서버 ────────────────────────────────────────────────────────────────
 
 const server = http.createServer((req, res) => {
@@ -368,6 +809,10 @@ const server = http.createServer((req, res) => {
         name: runtimeProjectState.name,
         path: runtimeProjectState.path,
         laneCount: runtimeProjectState.laneCount,
+      },
+      workflow: {
+        sessionCount: workSessionsById.size,
+        storePath: WORKFLOW_STORE_PATH,
       },
     }));
     return;
@@ -572,6 +1017,216 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
       }
     });
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/work-sessions') {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const items = listWorkSessions({
+      projectId: requestUrl.searchParams.get('projectId'),
+      status: requestUrl.searchParams.get('status'),
+      limit: requestUrl.searchParams.get('limit'),
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      items,
+      count: items.length,
+      maxItems: WORK_SESSION_MAX_ITEMS,
+    }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/work-sessions') {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const session = createWorkSession({
+          projectId: data.projectId || runtimeProjectState.id,
+          title: data.title,
+          agentId: data.agentId,
+          source: data.source,
+        });
+        const initialStatusMessage = appendWorkMessage(session.workSessionId, {
+          role: WORK_MESSAGE_ROLE.SYSTEM,
+          kind: WORK_MESSAGE_KIND.STATUS,
+          body: 'Work session created.',
+        });
+        const responseSession = initialStatusMessage?.session || session;
+
+        broadcastToClients({
+          event: 'WORK_SESSION_CREATED',
+          session: responseSession,
+        });
+        if (initialStatusMessage) {
+          broadcastToClients({
+            event: 'WORK_MESSAGE_CREATED',
+            session: initialStatusMessage.session,
+            message: initialStatusMessage.message,
+          });
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          item: responseSession,
+          messages: initialStatusMessage ? [initialStatusMessage.message] : [],
+        }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
+  const workSessionDetailMatch = pathname.match(/^\/api\/work-sessions\/([^/]+)$/);
+  if (req.method === 'GET' && workSessionDetailMatch) {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const workSessionId = decodeURIComponent(workSessionDetailMatch[1]);
+    const detail = getWorkSessionDetail(workSessionId, {
+      limit: requestUrl.searchParams.get('messageLimit'),
+    });
+
+    if (!detail) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'WORK_SESSION_NOT_FOUND' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(detail));
+    return;
+  }
+
+  const workSessionMessagesMatch = pathname.match(/^\/api\/work-sessions\/([^/]+)\/messages$/);
+  if (req.method === 'POST' && workSessionMessagesMatch) {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const workSessionId = decodeURIComponent(workSessionMessagesMatch[1]);
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const result = processWorkSessionInput(workSessionId, data.body);
+
+        if (!result.ok) {
+          res.writeHead(result.code || 400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: result.error || 'WORK_MESSAGE_FAILED' }));
+          return;
+        }
+
+        result.messages.forEach((message) => {
+          const eventName = message.kind === WORK_MESSAGE_KIND.COMMAND_RESULT
+            ? 'COMMAND_RESULT'
+            : 'WORK_MESSAGE_CREATED';
+          broadcastToClients({
+            event: eventName,
+            session: result.session,
+            message,
+          });
+        });
+
+        if (result.commandEvent) {
+          broadcastToClients({
+            event: result.commandEvent,
+            session: result.session,
+            command: result.messages.find((message) => message.kind === WORK_MESSAGE_KIND.COMMAND)?.body || null,
+          });
+        }
+
+        if (result.messages.some((message) => message.kind === WORK_MESSAGE_KIND.STATUS)) {
+          broadcastToClients({
+            event: 'WORK_SESSION_UPDATED',
+            session: result.session,
+          });
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          item: result.session,
+          messages: result.messages,
+        }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
+  const workSessionCloseMatch = pathname.match(/^\/api\/work-sessions\/([^/]+)\/close$/);
+  if (req.method === 'POST' && workSessionCloseMatch) {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const workSessionId = decodeURIComponent(workSessionCloseMatch[1]);
+    const session = getWorkSession(workSessionId);
+
+    if (!session) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'WORK_SESSION_NOT_FOUND' }));
+      return;
+    }
+
+    const nextStatus = isTerminalWorkSessionStatus(session.status)
+      ? session.status
+      : WORK_SESSION_STATUS.COMPLETED;
+    const updatedSession = updateWorkSession(workSessionId, {
+      status: nextStatus,
+      updatedAt: new Date().toISOString(),
+    });
+    const statusMessage = appendWorkMessage(workSessionId, {
+      role: WORK_MESSAGE_ROLE.SYSTEM,
+      kind: WORK_MESSAGE_KIND.STATUS,
+      body: nextStatus === session.status ? '세션은 이미 종료 상태입니다.' : '세션이 종료되었습니다.',
+    });
+
+    broadcastToClients({
+      event: 'WORK_SESSION_UPDATED',
+      session: statusMessage?.session || updatedSession,
+    });
+    if (statusMessage) {
+      broadcastToClients({
+        event: 'WORK_MESSAGE_CREATED',
+        session: statusMessage.session,
+        message: statusMessage.message,
+      });
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      item: statusMessage?.session || updatedSession,
+      messages: statusMessage ? [statusMessage.message] : [],
+    }));
     return;
   }
 

@@ -60,6 +60,42 @@ export function setupAppUiEnvironment() {
   globalThis.WebSocket = MockWebSocket;
   globalThis.fetch = vi.fn(async (input) => {
     const url = String(input);
+    if (url.includes('/api/work-sessions/')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          item: {
+            workSessionId: 'wsn_default',
+            projectId: 'runtime_default',
+            title: '기본 세션',
+            status: 'active',
+            agentId: 'openclaw',
+            source: 'dashboard',
+            createdAt: '2026-04-01T00:00:00.000Z',
+            updatedAt: '2026-04-01T00:00:00.000Z',
+            lastMessageAt: null,
+            pendingOperatorDecision: false,
+            metadata: {},
+          },
+          messages: [],
+          count: 0,
+        }),
+      };
+    }
+
+    if (url.includes('/api/work-sessions')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [],
+          count: 0,
+          maxItems: 60,
+        }),
+      };
+    }
+
     if (url.includes('/api/projects')) {
       return {
         ok: true,

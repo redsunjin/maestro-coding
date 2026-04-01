@@ -105,6 +105,32 @@ async function postApprovalRequest(port, headers = {}, payloadOverrides = {}) {
   return response;
 }
 
+async function postWorkSession(port, payload = {}, headers = {}) {
+  const response = await fetch(`http://127.0.0.1:${port}/api/work-sessions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return response;
+}
+
+async function postWorkSessionMessage(port, workSessionId, body, headers = {}) {
+  const response = await fetch(`http://127.0.0.1:${port}/api/work-sessions/${workSessionId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify({ body }),
+  });
+
+  return response;
+}
+
 async function waitForWebSocketEvent(ws, predicate, timeoutMs = 5000, label = 'websocket event') {
   return withTimeout(new Promise((resolve) => {
     const onMessage = (payload) => {
@@ -168,6 +194,111 @@ test('POST /api/request accepts unauthenticated request when token is disabled',
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.success, true);
+});
+
+test('work session APIs create, list, detail, and emit websocket events', async (t) => {
+  const fixture = createProjectRegistryFixture([]);
+  const workflowStorePath = resolve(fixture.tempDir, 'workflows.json');
+  t.after(() => {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  });
+
+  const server = startServer({
+    extraEnv: {
+      MAESTRO_WORKFLOW_STORE_PATH: workflowStorePath,
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => ws.close());
+  await once(ws, 'open');
+  const createdEventPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'WORK_SESSION_CREATED',
+    5000,
+    'WORK_SESSION_CREATED',
+  );
+
+  const createResponse = await postWorkSession(server.port, {
+    projectId: 'runtime_default',
+    title: 'Session Core Smoke',
+    agentId: 'openclaw',
+    source: 'dashboard',
+  });
+  assert.equal(createResponse.status, 200);
+  const createBody = await createResponse.json();
+  assert.equal(createBody.success, true);
+  assert.equal(createBody.item.title, 'Session Core Smoke');
+  assert.equal(createBody.item.status, 'active');
+
+  const createdEvent = await createdEventPromise;
+  assert.equal(createdEvent.session.title, 'Session Core Smoke');
+  assert.equal(createdEvent.session.workSessionId, createBody.item.workSessionId);
+
+  const listResponse = await fetch(`http://127.0.0.1:${server.port}/api/work-sessions?limit=10`);
+  assert.equal(listResponse.status, 200);
+  const listBody = await listResponse.json();
+  assert.equal(listBody.items.length, 1);
+  assert.equal(listBody.items[0].workSessionId, createBody.item.workSessionId);
+
+  const statusResponse = await postWorkSessionMessage(server.port, createBody.item.workSessionId, '/status');
+  assert.equal(statusResponse.status, 200);
+  const statusBody = await statusResponse.json();
+  assert.equal(statusBody.success, true);
+  assert.equal(statusBody.messages.some((message) => message.kind === 'command_result'), true);
+
+  const detailResponse = await fetch(`http://127.0.0.1:${server.port}/api/work-sessions/${createBody.item.workSessionId}`);
+  assert.equal(detailResponse.status, 200);
+  const detailBody = await detailResponse.json();
+  assert.equal(detailBody.item.workSessionId, createBody.item.workSessionId);
+  assert.equal(detailBody.messages.some((message) => message.kind === 'command_result'), true);
+});
+
+test('work session store restores sessions and messages after restart', async (t) => {
+  const fixture = createProjectRegistryFixture([]);
+  const workflowStorePath = resolve(fixture.tempDir, 'workflows.json');
+  t.after(() => {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  });
+
+  const firstServer = startServer({
+    extraEnv: {
+      MAESTRO_WORKFLOW_STORE_PATH: workflowStorePath,
+    },
+  });
+  await waitForHealth(firstServer.port);
+
+  const createResponse = await postWorkSession(firstServer.port, {
+    title: 'Persistent Work Session',
+  });
+  assert.equal(createResponse.status, 200);
+  const createBody = await createResponse.json();
+
+  const messageResponse = await postWorkSessionMessage(firstServer.port, createBody.item.workSessionId, '운영자 메모');
+  assert.equal(messageResponse.status, 200);
+  await stopServer(firstServer.proc);
+
+  const secondServer = startServer({
+    extraEnv: {
+      MAESTRO_WORKFLOW_STORE_PATH: workflowStorePath,
+    },
+  });
+  t.after(async () => {
+    await stopServer(secondServer.proc);
+  });
+
+  await waitForHealth(secondServer.port);
+
+  const detailResponse = await fetch(`http://127.0.0.1:${secondServer.port}/api/work-sessions/${createBody.item.workSessionId}`);
+  assert.equal(detailResponse.status, 200);
+  const detailBody = await detailResponse.json();
+  assert.equal(detailBody.item.title, 'Persistent Work Session');
+  assert.equal(detailBody.messages.some((message) => message.body === '운영자 메모'), true);
 });
 
 test('GET /api/projects returns active runtime project and registered candidates', async (t) => {
