@@ -16,6 +16,7 @@ import useApprovalHistory from './hooks/useApprovalHistory.js';
 import useAutoApproveOps from './hooks/useAutoApproveOps.js';
 import useBachPlayer from './hooks/useBachPlayer.js';
 import useProjectRegistryOps from './hooks/useProjectRegistryOps.js';
+import useWorkConsoleShell from './hooks/useWorkConsoleShell.js';
 import MaestroHeader from './components/maestro/MaestroHeader.jsx';
 import ProjectTabs from './components/maestro/ProjectTabs.jsx';
 import LaneBoard from './components/maestro/LaneBoard.jsx';
@@ -24,6 +25,7 @@ import PreviewModal from './components/maestro/PreviewModal.jsx';
 import HistoryScorePanel from './components/maestro/HistoryScorePanel.jsx';
 import AutoApproveOpsPanel from './components/maestro/AutoApproveOpsPanel.jsx';
 import ProjectRegistryPanel from './components/maestro/ProjectRegistryPanel.jsx';
+import WorkConsolePanel from './components/maestro/WorkConsolePanel.jsx';
 
 export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -145,6 +147,17 @@ export default function App() {
   } = useProjectRegistryOps({
     wsUrl: WS_URL,
   });
+
+  const {
+    isWorkConsoleOpen,
+    workConsoleDockSide,
+    selectedWorkSessionId,
+    setSelectedWorkSessionId,
+    toggleWorkConsole,
+    closeWorkConsole,
+    moveWorkConsoleLeft,
+    moveWorkConsoleRight,
+  } = useWorkConsoleShell();
 
   const {
     autoApproveStatus,
@@ -362,6 +375,14 @@ export default function App() {
     setIsProjectPanelOpen(false);
   }, [setIsProjectPanelOpen]);
 
+  const handleWorkConsoleToggle = useCallback(() => {
+    toggleWorkConsole();
+  }, [toggleWorkConsole]);
+
+  const handleWorkConsoleClose = useCallback(() => {
+    closeWorkConsole();
+  }, [closeWorkConsole]);
+
   const autoApproveStatusLabel = isAutoApproveAuthRequired
     ? 'Locked'
     : autoApproveStatus.config.enabled
@@ -417,6 +438,8 @@ export default function App() {
         historyCount={historyItems.length}
         isHistoryPanelOpen={isHistoryPanelOpen}
         onToggleHistoryPanel={handleHistoryPanelToggle}
+        isWorkConsoleOpen={isWorkConsoleOpen}
+        onToggleWorkConsole={handleWorkConsoleToggle}
       />
 
       <ProjectTabs
@@ -440,6 +463,15 @@ export default function App() {
       />
 
       <FooterHelp lanes={activeLanes} />
+      <WorkConsolePanel
+        isOpen={isWorkConsoleOpen}
+        dockSide={workConsoleDockSide}
+        selectedSessionId={selectedWorkSessionId}
+        onSelectSession={setSelectedWorkSessionId}
+        onClose={handleWorkConsoleClose}
+        onMoveLeft={moveWorkConsoleLeft}
+        onMoveRight={moveWorkConsoleRight}
+      />
       <ProjectRegistryPanel
         isOpen={isProjectPanelOpen}
         onClose={handleProjectPanelClose}

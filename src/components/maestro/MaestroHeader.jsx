@@ -42,6 +42,8 @@ export default function MaestroHeader({
   historyCount,
   isHistoryPanelOpen,
   onToggleHistoryPanel,
+  isWorkConsoleOpen,
+  onToggleWorkConsole,
 }) {
   return (
     <header className="relative z-50 flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 bg-gray-900/50 p-4 shadow-lg backdrop-blur-md">
@@ -170,6 +172,21 @@ export default function MaestroHeader({
             {bachError}
           </div>
         )}
+        <button
+          type="button"
+          onClick={onToggleWorkConsole}
+          aria-label="Work Console 패널 토글"
+          aria-controls="work-console-panel"
+          aria-expanded={isWorkConsoleOpen}
+          data-testid="work-console-toggle"
+          className={`shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${
+            isWorkConsoleOpen
+              ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-100'
+              : 'border-gray-700 bg-gray-900/70 text-gray-300 hover:border-cyan-400/50 hover:text-cyan-100'
+          }`}
+        >
+          Work
+        </button>
         <button
           type="button"
           onClick={onToggleProjectPanel}
