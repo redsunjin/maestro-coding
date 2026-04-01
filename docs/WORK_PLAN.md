@@ -58,6 +58,7 @@
    - 현재 기준 runbook 초안 추가: [`docs/OPERATIONS_RUNBOOK.md`](./OPERATIONS_RUNBOOK.md)
 4. `WP-011` 후속 범위 분리: `Work Console Session Core`는 별도 계획으로 수립
    - 구현 승격 문서: [`docs/WP-011_WORK_CONSOLE_SHELL_PLAN.md`](./WP-011_WORK_CONSOLE_SHELL_PLAN.md)
+   - 다음 설계 문서: [`docs/version-upgrades/vu-001-openclaw-work-orchestration/WORK_CONSOLE_SESSION_CORE_PLAN.md`](./version-upgrades/vu-001-openclaw-work-orchestration/WORK_CONSOLE_SESSION_CORE_PLAN.md)
 
 ## 1-6) `WP-009` 상세설계/전문가 검증 상태 (2026-03-04)
 
