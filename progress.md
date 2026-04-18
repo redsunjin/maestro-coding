@@ -15,3 +15,4 @@ Original prompt: 좋아 계속 작업을 진행해보자
 - Implemented `replayAudioEngine` and connected chart-driven synth cue playback to `PlayerRunPanel`.
 - Added independent BGM mute/unmute, live cue summary text, and kept click-track plus beat-meter as separate controls.
 - `npm run qa` stayed green after the BGM pass.
+- Started judgment window refinement so manual play can expose a clearer `perfect / great / good / miss` rhythm skill curve.

@@ -130,6 +130,7 @@ runtime_signals:
 - public repo URL을 등록하면 replay source가 생성됨
 - click track과 beat meter가 현재 run beat를 따라간다
 - chart cue가 BGM layer로 재생되며 mute/unmute가 독립 동작한다
+- 수동 플레이에서 timing distance가 `perfect/great/good/miss`로 일관되게 분류된다
 
 ### 3-5. Guardrails
 

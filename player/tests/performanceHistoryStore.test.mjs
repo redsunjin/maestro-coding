@@ -71,6 +71,7 @@ function createRecord(overrides = {}) {
     laneCount: 4,
     judgments: {
       perfect: 7,
+      great: 0,
       good: 1,
       miss: 1,
     },

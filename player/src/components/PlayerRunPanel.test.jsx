@@ -116,6 +116,7 @@ describe('PlayerRunPanel', () => {
     });
 
     expect(screen.getByText('Perfect 2')).toBeVisible();
+    expect(screen.getByText('Great 0')).toBeVisible();
     expect(screen.getByText('Timing bias: Centered')).toBeVisible();
     expect(screen.getByText(/BGM state:/i)).toBeVisible();
     expect(screen.getByText(/Completed manual play with 2 \/ 2 notes resolved/i)).toBeVisible();
@@ -175,6 +176,40 @@ describe('PlayerRunPanel', () => {
 
     expect(screen.getByText('BGM Layer Off')).toBeVisible();
     expect(screen.getByText('BGM state: BGM muted')).toBeVisible();
+  });
+
+  test('maps near-miss timing into a great judgment tier', () => {
+    vi.useFakeTimers();
+    const audioDriver = createAudioDriverHarness();
+    const bgmDriver = createBgmDriverHarness();
+
+    render(
+      <PlayerRunPanel
+        tempo={120}
+        audioDriver={audioDriver}
+        bgmDriver={bgmDriver}
+        chart={{
+          laneCount: 4,
+          notes: [
+            { noteId: 'great-1', laneIndex: 1, beatOffset: 0.8, durationBeats: 0.25, noteType: 'tap' },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Run' }));
+
+    act(() => {
+      vi.advanceTimersByTime(320);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Hit A' }));
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(screen.getByText('Great 1')).toBeVisible();
+    expect(screen.getByText(/Timing bias: Avg late 100ms/i)).toBeVisible();
   });
 });
 

@@ -146,7 +146,7 @@
 - click track 기반 beat sync feedback
 - chart-driven synth BGM layer
 - manual input 또는 autoplay preview 기반 run loop
-- 점수/콤보/판정
+- 점수/콤보/세분화된 판정 window
 - 로컬 score history persistence
 - 악보 또는 score history 뷰
 - replay summary

@@ -5,6 +5,7 @@ import { createBrowserReplayAudioDriver, createReplayCuePlan } from '../lib/repl
 const TICK_MS = 160;
 const BEAT_STEP = 0.5;
 const PERFECT_WINDOW = 0.18;
+const GREAT_WINDOW = 0.26;
 const GOOD_WINDOW = 0.4;
 const VIEW_BEATS = 6;
 
@@ -12,6 +13,12 @@ const SCORE_BY_NOTE_TYPE = Object.freeze({
   tap: 100,
   accent: 140,
   hold: 160,
+});
+
+const JUDGMENT_MULTIPLIERS = Object.freeze({
+  perfect: 1,
+  great: 0.85,
+  good: 0.7,
 });
 
 const PLAY_MODES = Object.freeze([
@@ -426,6 +433,7 @@ export default function PlayerRunPanel({
 
       <div className="player-run-panel__judgment-row">
         <span>Perfect {runState.judgments.perfect}</span>
+        <span>Great {runState.judgments.great}</span>
         <span>Good {runState.judgments.good}</span>
         <span>Miss {runState.judgments.miss}</span>
         <span>{runState.lastJudgment || audioSyncLabel}</span>
@@ -514,6 +522,7 @@ function createEmptyRunState() {
     notesHit: 0,
     judgments: {
       perfect: 0,
+      great: 0,
       good: 0,
       miss: 0,
     },
@@ -625,12 +634,14 @@ function resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo
 
   processedNoteIds.add(candidate.note.noteId);
 
-  const judgment = candidate.distance <= PERFECT_WINDOW ? 'perfect' : 'good';
+  const judgment = candidate.distance <= PERFECT_WINDOW
+    ? 'perfect'
+    : candidate.distance <= GREAT_WINDOW
+      ? 'great'
+      : 'good';
   const beatDurationMs = 60000 / Math.max(1, tempo);
   const signedOffsetMs = Math.round((previousState.currentBeat - candidate.note.beatOffset) * beatDurationMs);
-  const scoreDelta = judgment === 'perfect'
-    ? scoreNote(candidate.note)
-    : Math.round(scoreNote(candidate.note) * 0.7);
+  const scoreDelta = Math.round(scoreNote(candidate.note) * (JUDGMENT_MULTIPLIERS[judgment] || JUDGMENT_MULTIPLIERS.good));
   const nextCombo = previousState.combo + 1;
   const nextMaxCombo = Math.max(previousState.maxCombo, nextCombo);
   const nextNotesHit = previousState.notesHit + 1;
@@ -650,7 +661,7 @@ function resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo
     },
     timedHitCount: previousState.timedHitCount + 1,
     timingOffsetTotalMs: previousState.timingOffsetTotalMs + signedOffsetMs,
-    lastJudgment: `${judgment === 'perfect' ? 'Perfect' : 'Good'} ${formatSignedOffsetLabel(signedOffsetMs)} on lane ${laneIndex}`,
+    lastJudgment: `${formatJudgmentLabel(judgment)} ${formatSignedOffsetLabel(signedOffsetMs)} on lane ${laneIndex}`,
   };
 }
 
@@ -729,6 +740,18 @@ function formatSignedOffsetLabel(offsetMs) {
   }
 
   return `late ${roundedOffsetMs}ms`;
+}
+
+function formatJudgmentLabel(judgment) {
+  if (judgment === 'perfect') {
+    return 'Perfect';
+  }
+
+  if (judgment === 'great') {
+    return 'Great';
+  }
+
+  return 'Good';
 }
 
 function clamp(value, min = 0, max = 1) {

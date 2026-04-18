@@ -136,6 +136,7 @@ function normalizeJudgments(value) {
 
   return {
     perfect: normalizeNonNegativeNumber(judgments.perfect),
+    great: normalizeNonNegativeNumber(judgments.great),
     good: normalizeNonNegativeNumber(judgments.good),
     miss: normalizeNonNegativeNumber(judgments.miss),
   };
