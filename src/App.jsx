@@ -170,6 +170,7 @@ export default function App() {
     isSubmittingMessage,
     createSession,
     submitMessage,
+    closeSession,
     handleSocketEvent: handleWorkSessionsSocketEvent,
   } = useWorkSessions({
     wsUrl: WS_URL,
@@ -496,6 +497,7 @@ export default function App() {
         onSelectSession={setSelectedWorkSessionId}
         onCreateSession={createSession}
         onSubmitMessage={submitMessage}
+        onCloseSession={closeSession}
         onClose={handleWorkConsoleClose}
         onMoveLeft={moveWorkConsoleLeft}
         onMoveRight={moveWorkConsoleRight}

@@ -48,6 +48,7 @@ export default function WorkConsolePanel({
   onSelectSession,
   onCreateSession,
   onSubmitMessage,
+  onCloseSession,
   onClose,
   onMoveLeft,
   onMoveRight,
@@ -237,9 +238,21 @@ export default function WorkConsolePanel({
                     {selectedSession ? selectedSession.title : '세션을 선택하면 대화와 명령 결과가 여기에 표시됩니다.'}
                   </div>
                 </div>
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] ${getSessionStatusClass(selectedSession?.status)}`}>
-                  {selectedSession?.status || 'idle'}
-                </span>
+                <div className="flex items-center gap-2">
+                  {selectedSession && (
+                    <button
+                      type="button"
+                      onClick={() => { void onCloseSession?.(); }}
+                      disabled={selectedSession.status === 'completed' || selectedSession.status === 'cancelled' || isSubmittingMessage}
+                      className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Close Session
+                    </button>
+                  )}
+                  <span className={`rounded-full border px-2 py-0.5 text-[10px] ${getSessionStatusClass(selectedSession?.status)}`}>
+                    {selectedSession?.status || 'idle'}
+                  </span>
+                </div>
               </div>
             </div>
 

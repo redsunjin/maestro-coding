@@ -238,6 +238,35 @@ export default function useWorkSessions({
     }
   }, [apiBase, appendMessage, selectedSessionId, upsertSession]);
 
+  const closeSession = useCallback(async () => {
+    if (!selectedSessionId) return false;
+
+    try {
+      const response = await fetch(`${apiBase}/${selectedSessionId}/close`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`work_session_close_failed_${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.item) {
+        upsertSession(data.item);
+      }
+      const createdMessages = Array.isArray(data.messages) ? data.messages : [];
+      createdMessages.forEach((message) => appendMessage(message));
+      setSessionError('');
+      return true;
+    } catch {
+      setSessionError('세션을 종료하지 못했습니다.');
+      return false;
+    }
+  }, [apiBase, appendMessage, selectedSessionId, upsertSession]);
+
   const handleSocketEvent = useCallback((payload) => {
     if (!payload?.event) return;
 
@@ -265,6 +294,7 @@ export default function useWorkSessions({
     refreshSessions,
     createSession,
     submitMessage,
+    closeSession,
     handleSocketEvent,
   };
 }

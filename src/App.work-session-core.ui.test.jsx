@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import {
   setupAppUiEnvironment,
   startLiveSession,
@@ -248,6 +248,126 @@ describe('App UI regression - work session core', () => {
     await waitFor(() => {
       expect(screen.getAllByText('새 작업 세션').length).toBeGreaterThan(0);
       expect(screen.getByText('Work session created.')).toBeInTheDocument();
+    });
+  });
+
+  test('work console closes the selected session from the panel action', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = String(input);
+
+      if (url.includes('/api/work-sessions/wsn_close/close') && init?.method === 'POST') {
+        return Promise.resolve(createFetchResponse({
+          success: true,
+          item: {
+            workSessionId: 'wsn_close',
+            projectId: 'runtime_default',
+            title: 'Closable Session',
+            status: 'completed',
+            agentId: 'openclaw',
+            source: 'dashboard',
+            createdAt: '2026-04-01T02:00:00.000Z',
+            updatedAt: '2026-04-01T02:02:00.000Z',
+            lastMessageAt: '2026-04-01T02:02:00.000Z',
+            pendingOperatorDecision: false,
+            metadata: {},
+          },
+          messages: [
+            {
+              workMessageId: 'wmsg_close',
+              workSessionId: 'wsn_close',
+              role: 'system',
+              kind: 'status',
+              body: '세션이 종료되었습니다.',
+              command: null,
+              status: null,
+              createdAt: '2026-04-01T02:02:00.000Z',
+            },
+          ],
+        }));
+      }
+
+      if (url.includes('/api/work-sessions/wsn_close')) {
+        return Promise.resolve(createFetchResponse({
+          item: {
+            workSessionId: 'wsn_close',
+            projectId: 'runtime_default',
+            title: 'Closable Session',
+            status: 'active',
+            agentId: 'openclaw',
+            source: 'dashboard',
+            createdAt: '2026-04-01T02:00:00.000Z',
+            updatedAt: '2026-04-01T02:01:00.000Z',
+            lastMessageAt: '2026-04-01T02:01:00.000Z',
+            pendingOperatorDecision: false,
+            metadata: {},
+          },
+          messages: [
+            {
+              workMessageId: 'wmsg_seed',
+              workSessionId: 'wsn_close',
+              role: 'system',
+              kind: 'status',
+              body: 'Work session created.',
+              command: null,
+              status: null,
+              createdAt: '2026-04-01T02:00:00.000Z',
+            },
+          ],
+          count: 1,
+        }));
+      }
+
+      if (url.includes('/api/work-sessions')) {
+        return Promise.resolve(createFetchResponse({
+          items: [
+            {
+              workSessionId: 'wsn_close',
+              projectId: 'runtime_default',
+              title: 'Closable Session',
+              status: 'active',
+              agentId: 'openclaw',
+              source: 'dashboard',
+              createdAt: '2026-04-01T02:00:00.000Z',
+              updatedAt: '2026-04-01T02:01:00.000Z',
+              lastMessageAt: '2026-04-01T02:01:00.000Z',
+              pendingOperatorDecision: false,
+              metadata: {},
+            },
+          ],
+          count: 1,
+          maxItems: 60,
+        }));
+      }
+
+      if (url.includes('/api/history')) {
+        return Promise.resolve(createFetchResponse({ items: [], count: 0 }));
+      }
+
+      return Promise.resolve(createFetchResponse({}));
+    });
+
+    await startLiveSession();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Work Console 패널 토글' }));
+    });
+
+    await waitFor(() => {
+      const currentSessionSection = screen.getByText('Current Session').closest('section');
+      expect(currentSessionSection).not.toBeNull();
+      expect(screen.getAllByText('Closable Session').length).toBeGreaterThan(0);
+      expect(within(currentSessionSection).getByText('active')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Close Session' }));
+    });
+
+    await waitFor(() => {
+      const currentSessionSection = screen.getByText('Current Session').closest('section');
+      expect(currentSessionSection).not.toBeNull();
+      expect(within(currentSessionSection).getByText('completed')).toBeInTheDocument();
+      expect(screen.getByText('세션이 종료되었습니다.')).toBeInTheDocument();
     });
   });
 });

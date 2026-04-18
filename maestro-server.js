@@ -773,6 +773,38 @@ function processWorkSessionInput(workSessionId, rawBody) {
   };
 }
 
+function appendExternalWorkMessage(workSessionId, input = {}) {
+  const session = getWorkSession(workSessionId);
+  if (!session) {
+    return { ok: false, code: 404, error: 'WORK_SESSION_NOT_FOUND' };
+  }
+
+  const role = normalizeWorkMessageRole(input.role);
+  const kind = normalizeWorkMessageKind(input.kind || WORK_MESSAGE_KIND.MESSAGE);
+  const body = sanitizeHistoryText(input.body || '', 500);
+
+  if (!body) {
+    return { ok: false, code: 400, error: 'MESSAGE_BODY_REQUIRED' };
+  }
+
+  if (body.startsWith('/')) {
+    return processWorkSessionInput(workSessionId, body);
+  }
+
+  const appended = appendWorkMessage(workSessionId, {
+    role,
+    kind,
+    body,
+  });
+
+  return {
+    ok: true,
+    session: appended?.session || session,
+    messages: appended ? [appended.message] : [],
+    commandEvent: null,
+  };
+}
+
 loadWorkflowStore();
 
 // ── HTTP 서버 ────────────────────────────────────────────────────────────────
@@ -1131,7 +1163,11 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const data = JSON.parse(body);
-        const result = processWorkSessionInput(workSessionId, data.body);
+        const result = appendExternalWorkMessage(workSessionId, {
+          body: data.body,
+          role: data.role,
+          kind: data.kind,
+        });
 
         if (!result.ok) {
           res.writeHead(result.code || 400, { 'Content-Type': 'application/json' });

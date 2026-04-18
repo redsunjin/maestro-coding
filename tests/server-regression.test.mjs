@@ -125,7 +125,7 @@ async function postWorkSessionMessage(port, workSessionId, body, headers = {}) {
       'Content-Type': 'application/json',
       ...headers,
     },
-    body: JSON.stringify({ body }),
+    body: JSON.stringify(body),
   });
 
   return response;
@@ -246,17 +246,32 @@ test('work session APIs create, list, detail, and emit websocket events', async 
   assert.equal(listBody.items.length, 1);
   assert.equal(listBody.items[0].workSessionId, createBody.item.workSessionId);
 
-  const statusResponse = await postWorkSessionMessage(server.port, createBody.item.workSessionId, '/status');
+  const statusResponse = await postWorkSessionMessage(server.port, createBody.item.workSessionId, { body: '/status' });
   assert.equal(statusResponse.status, 200);
   const statusBody = await statusResponse.json();
   assert.equal(statusBody.success, true);
   assert.equal(statusBody.messages.some((message) => message.kind === 'command_result'), true);
+
+  const agentMessageResponse = await postWorkSessionMessage(server.port, createBody.item.workSessionId, {
+    body: '에이전트 진행 상황 공유',
+    role: 'agent',
+    kind: 'message',
+  });
+  assert.equal(agentMessageResponse.status, 200);
 
   const detailResponse = await fetch(`http://127.0.0.1:${server.port}/api/work-sessions/${createBody.item.workSessionId}`);
   assert.equal(detailResponse.status, 200);
   const detailBody = await detailResponse.json();
   assert.equal(detailBody.item.workSessionId, createBody.item.workSessionId);
   assert.equal(detailBody.messages.some((message) => message.kind === 'command_result'), true);
+  assert.equal(detailBody.messages.some((message) => message.role === 'agent' && message.body === '에이전트 진행 상황 공유'), true);
+
+  const closeResponse = await fetch(`http://127.0.0.1:${server.port}/api/work-sessions/${createBody.item.workSessionId}/close`, {
+    method: 'POST',
+  });
+  assert.equal(closeResponse.status, 200);
+  const closeBody = await closeResponse.json();
+  assert.equal(closeBody.item.status, 'completed');
 });
 
 test('work session store restores sessions and messages after restart', async (t) => {
@@ -279,7 +294,7 @@ test('work session store restores sessions and messages after restart', async (t
   assert.equal(createResponse.status, 200);
   const createBody = await createResponse.json();
 
-  const messageResponse = await postWorkSessionMessage(firstServer.port, createBody.item.workSessionId, '운영자 메모');
+  const messageResponse = await postWorkSessionMessage(firstServer.port, createBody.item.workSessionId, { body: '운영자 메모' });
   assert.equal(messageResponse.status, 200);
   await stopServer(firstServer.proc);
 
