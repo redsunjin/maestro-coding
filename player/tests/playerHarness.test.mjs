@@ -24,6 +24,7 @@ test('player harness keeps required docs and source files in sync', () => {
     '../src/lib/localRepoBridge.js',
     '../src/lib/metronomeEngine.js',
     '../src/lib/performanceHistoryStore.js',
+    '../src/lib/replayAudioEngine.js',
     '../src/lib/sourceRegistry.js',
     '../src/lib/publicRepoAdapter.js',
     '../src/lib/musicIntentMapper.js',

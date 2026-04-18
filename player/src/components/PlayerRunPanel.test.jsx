@@ -24,12 +24,14 @@ describe('PlayerRunPanel', () => {
     vi.useFakeTimers();
     const onRunComplete = vi.fn();
     const audioDriver = createAudioDriverHarness();
+    const bgmDriver = createBgmDriverHarness();
 
     render(
       <PlayerRunPanel
         tempo={120}
         onRunComplete={onRunComplete}
         audioDriver={audioDriver}
+        bgmDriver={bgmDriver}
         chart={{
           laneCount: 4,
           notes: [
@@ -51,9 +53,12 @@ describe('PlayerRunPanel', () => {
     expect(screen.getByText(/Completed autoplay preview with 2 \/ 2 notes resolved/i)).toBeVisible();
     expect(screen.getByText('240')).toBeVisible();
     expect(screen.getByText('Click Track On')).toBeVisible();
+    expect(screen.getByText('BGM Layer On')).toBeVisible();
     expect(onRunComplete).toHaveBeenCalledTimes(1);
     expect(audioDriver.prime).toHaveBeenCalledTimes(1);
+    expect(bgmDriver.prime).toHaveBeenCalledTimes(1);
     expect(audioDriver.pulse).toHaveBeenCalled();
+    expect(bgmDriver.playCueBatch).toHaveBeenCalled();
     expect(onRunComplete).toHaveBeenCalledWith(expect.objectContaining({
       playMode: 'auto',
       score: 240,
@@ -71,12 +76,14 @@ describe('PlayerRunPanel', () => {
     vi.useFakeTimers();
     const onRunComplete = vi.fn();
     const audioDriver = createAudioDriverHarness();
+    const bgmDriver = createBgmDriverHarness();
 
     render(
       <PlayerRunPanel
         tempo={120}
         onRunComplete={onRunComplete}
         audioDriver={audioDriver}
+        bgmDriver={bgmDriver}
         chart={{
           laneCount: 4,
           notes: [
@@ -110,6 +117,7 @@ describe('PlayerRunPanel', () => {
 
     expect(screen.getByText('Perfect 2')).toBeVisible();
     expect(screen.getByText('Timing bias: Centered')).toBeVisible();
+    expect(screen.getByText(/BGM state:/i)).toBeVisible();
     expect(screen.getByText(/Completed manual play with 2 \/ 2 notes resolved/i)).toBeVisible();
     expect(onRunComplete).toHaveBeenCalledTimes(1);
     expect(onRunComplete).toHaveBeenCalledWith(expect.objectContaining({
@@ -121,11 +129,13 @@ describe('PlayerRunPanel', () => {
 
   test('allows muting the click track without removing the beat meter', () => {
     const audioDriver = createAudioDriverHarness();
+    const bgmDriver = createBgmDriverHarness();
 
     render(
       <PlayerRunPanel
         tempo={132}
         audioDriver={audioDriver}
+        bgmDriver={bgmDriver}
         chart={{
           laneCount: 4,
           notes: [
@@ -141,6 +151,31 @@ describe('PlayerRunPanel', () => {
     expect(screen.getByText('Click Track Off')).toBeVisible();
     expect(screen.getByLabelText('Beat meter')).toBeVisible();
   });
+
+  test('allows muting the BGM layer independently from the click track', () => {
+    const audioDriver = createAudioDriverHarness();
+    const bgmDriver = createBgmDriverHarness();
+
+    render(
+      <PlayerRunPanel
+        tempo={124}
+        audioDriver={audioDriver}
+        bgmDriver={bgmDriver}
+        chart={{
+          laneCount: 4,
+          notes: [
+            { noteId: 'bgm-1', laneIndex: 2, beatOffset: 0, durationBeats: 1, noteType: 'accent' },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText('BGM Layer On')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Mute BGM Layer' }));
+
+    expect(screen.getByText('BGM Layer Off')).toBeVisible();
+    expect(screen.getByText('BGM state: BGM muted')).toBeVisible();
+  });
 });
 
 function createAudioDriverHarness() {
@@ -148,6 +183,15 @@ function createAudioDriverHarness() {
     isSupported: () => true,
     prime: vi.fn(),
     pulse: vi.fn(),
+    stop: vi.fn(),
+  };
+}
+
+function createBgmDriverHarness() {
+  return {
+    isSupported: () => true,
+    prime: vi.fn(),
+    playCueBatch: vi.fn(),
     stop: vi.fn(),
   };
 }

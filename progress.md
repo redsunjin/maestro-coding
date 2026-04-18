@@ -11,3 +11,7 @@ Original prompt: 좋아 계속 작업을 진행해보자
 - Added `metronomeEngine` plus click-track UI, beat meter, and timing bias feedback in `PlayerRunPanel`.
 - `npm run qa` stayed green after the audio sync/timing pass.
 - Live browser smoke in this environment still cannot complete public replay load because real GitHub fetches are restricted, but the local UI/test harness remains green.
+- Started the next roadmap item: a chart-driven synth BGM layer that sits above the click track and follows run-step cue batches.
+- Implemented `replayAudioEngine` and connected chart-driven synth cue playback to `PlayerRunPanel`.
+- Added independent BGM mute/unmute, live cue summary text, and kept click-track plus beat-meter as separate controls.
+- `npm run qa` stayed green after the BGM pass.

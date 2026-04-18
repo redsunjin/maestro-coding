@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createBrowserMetronomeDriver, createPulseDescriptor } from '../lib/metronomeEngine.js';
+import { createBrowserReplayAudioDriver, createReplayCuePlan } from '../lib/replayAudioEngine.js';
 
 const TICK_MS = 160;
 const BEAT_STEP = 0.5;
@@ -25,6 +26,7 @@ export default function PlayerRunPanel({
   tempo = 120,
   onRunComplete = null,
   audioDriver = null,
+  bgmDriver = null,
 }) {
   const notes = useMemo(
     () => [...(chart?.notes || [])].sort((left, right) => left.beatOffset - right.beatOffset),
@@ -38,19 +40,37 @@ export default function PlayerRunPanel({
   const [playMode, setPlayMode] = useState('manual');
   const [runState, setRunState] = useState(createEmptyRunState());
   const [clickTrackEnabled, setClickTrackEnabled] = useState(true);
+  const [bgmEnabled, setBgmEnabled] = useState(true);
   const [pulseIndicator, setPulseIndicator] = useState(null);
+  const [activeCueSummary, setActiveCueSummary] = useState('');
   const lastReportedRunTokenRef = useRef('');
   const lastPulseStepRef = useRef(-1);
+  const lastCueStepRef = useRef(-1);
   const metronomeDriver = useMemo(
     () => audioDriver || createBrowserMetronomeDriver(globalThis),
     [audioDriver],
   );
+  const replayAudioDriver = useMemo(
+    () => bgmDriver || createBrowserReplayAudioDriver(globalThis),
+    [bgmDriver],
+  );
+  const cuePlan = useMemo(
+    () => createReplayCuePlan(notes, { laneCount }),
+    [laneCount, notes],
+  );
+  const cuePlanByStep = useMemo(
+    () => new Map(cuePlan.map((batch) => [batch.stepIndex, batch])),
+    [cuePlan],
+  );
   const audioSupported = metronomeDriver?.isSupported?.() ?? false;
+  const bgmSupported = replayAudioDriver?.isSupported?.() ?? false;
 
   useEffect(() => {
     setRunState(createEmptyRunState());
     setPulseIndicator(null);
+    setActiveCueSummary('');
     lastPulseStepRef.current = -1;
+    lastCueStepRef.current = -1;
   }, [chart, totalBeats, notes.length, playMode]);
 
   useEffect(() => {
@@ -146,6 +166,39 @@ export default function PlayerRunPanel({
     metronomeDriver?.pulse?.({ pulse, tempo });
   }, [audioSupported, clickTrackEnabled, metronomeDriver, runState.currentBeat, runState.status, tempo]);
 
+  useEffect(() => {
+    if (runState.status !== 'running') {
+      if (runState.status !== 'paused') {
+        setActiveCueSummary('');
+      }
+      replayAudioDriver?.stop?.();
+      return;
+    }
+
+    if (!bgmEnabled || !bgmSupported) {
+      return;
+    }
+
+    const nextStepIndex = Math.round(runState.currentBeat / BEAT_STEP);
+    if (nextStepIndex === lastCueStepRef.current) {
+      return;
+    }
+
+    lastCueStepRef.current = nextStepIndex;
+    const nextBatch = cuePlanByStep.get(nextStepIndex);
+
+    if (!nextBatch) {
+      setActiveCueSummary('BGM armed');
+      return;
+    }
+
+    setActiveCueSummary(nextBatch.summary);
+    replayAudioDriver?.playCueBatch?.({
+      batch: nextBatch,
+      tempo,
+    });
+  }, [bgmEnabled, bgmSupported, cuePlanByStep, replayAudioDriver, runState.currentBeat, runState.status, tempo]);
+
   const processedNoteIds = runState.processedNoteIds;
   const progressPercent = totalBeats > 0
     ? Math.min(100, Math.round((runState.currentBeat / totalBeats) * 100))
@@ -173,10 +226,15 @@ export default function PlayerRunPanel({
           ? `Beat ${pulseIndicator.beatInBar}${pulseIndicator.isSubdivision ? ' subdivision' : ''}`
           : 'Click track armed'
       : 'Click track muted';
+  const bgmStatusLabel = !bgmSupported
+    ? 'BGM unavailable'
+    : bgmEnabled
+      ? activeCueSummary || 'BGM armed'
+      : 'BGM muted';
 
   if (!chart || notes.length === 0) {
     return (
-        <section className="player-card" aria-labelledby="player-run-panel-title">
+      <section className="player-card" aria-labelledby="player-run-panel-title">
         <div className="player-card__header">
           <div>
             <p className="player-kicker">Run Session</p>
@@ -222,6 +280,12 @@ export default function PlayerRunPanel({
             </span>
             <span className="player-run-panel__sync-label">{audioSyncLabel}</span>
           </div>
+          <div className="player-run-panel__sync-meta">
+            <span className={`player-pill${bgmEnabled && bgmSupported ? ' is-live' : ''}`}>
+              {bgmSupported ? (bgmEnabled ? 'BGM Layer On' : 'BGM Layer Off') : 'BGM Pending'}
+            </span>
+            <span className="player-run-panel__sync-label">{bgmStatusLabel}</span>
+          </div>
           <div className="player-run-panel__meter" aria-label="Beat meter">
             {Array.from({ length: 4 }, (_, beatOffset) => {
               const beat = beatOffset + 1;
@@ -263,6 +327,9 @@ export default function PlayerRunPanel({
               if (audioSupported) {
                 metronomeDriver?.prime?.();
               }
+              if (bgmSupported) {
+                replayAudioDriver?.prime?.();
+              }
 
               setRunState((previousState) => {
                 if (previousState.status === 'complete') {
@@ -294,6 +361,16 @@ export default function PlayerRunPanel({
           <button
             className="player-button player-button--secondary"
             type="button"
+            disabled={!bgmSupported}
+            onClick={() => {
+              setBgmEnabled((enabled) => !enabled);
+            }}
+          >
+            {bgmEnabled ? 'Mute BGM Layer' : 'Enable BGM Layer'}
+          </button>
+          <button
+            className="player-button player-button--secondary"
+            type="button"
             disabled={runState.status !== 'running'}
             onClick={() => {
               setRunState((previousState) => ({
@@ -310,6 +387,7 @@ export default function PlayerRunPanel({
             disabled={runState.status === 'idle'}
             onClick={() => {
               setRunState(createEmptyRunState());
+              setActiveCueSummary('');
             }}
           >
             Retry Run
@@ -355,6 +433,7 @@ export default function PlayerRunPanel({
       <p className="player-run-panel__timing-note">
         {playMode === 'manual' ? `Timing bias: ${averageOffsetLabel}` : 'Timing bias: Auto mode resolves notes without human timing.'}
       </p>
+      <p className="player-run-panel__timing-note">{`BGM state: ${bgmStatusLabel}`}</p>
 
       <div className="player-run-panel__lanes" aria-label="Chart lanes">
         {Array.from({ length: laneCount }, (_, laneOffset) => {

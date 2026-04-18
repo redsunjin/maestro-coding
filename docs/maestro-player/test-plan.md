@@ -70,6 +70,7 @@
 - manual lane input
 - lane/note visualization
 - click track / beat sync feedback
+- chart-driven BGM cue playback
 - score/combo/result 화면
 - local score history persistence
 
@@ -78,6 +79,7 @@
 - 샘플 차트 1개 이상을 끊김 없이 재생 가능
 - manual lane input으로 기본 판정과 combo 증가를 확인할 수 있다.
 - beat sync UI가 현재 박자와 함께 갱신된다.
+- 차트 cue가 BGM layer 상태와 함께 재생 루프에 반영된다.
 - 공개 레포 URL 등록 후 chart 생성 흐름이 직관적이다.
 - 플레이 종료 후 결과 화면이 표시됨
 - 플레이 종료 후 최근 score history가 다시 표시됨

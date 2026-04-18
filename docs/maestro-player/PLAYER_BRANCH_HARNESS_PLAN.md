@@ -111,6 +111,7 @@ targeted_tests:
 - `player/tests/chartMapper.test.mjs`
 - `player/tests/gitReplayAdapter.test.mjs`
 - `player/tests/metronomeEngine.test.mjs`
+- `player/tests/replayAudioEngine.test.mjs`
 - `player/tests/publicRepoAdapter.test.mjs`
 - `player/tests/accountRepoAdapter.test.mjs`
 - `player/tests/playerHarness.test.mjs`
@@ -128,6 +129,7 @@ runtime_signals:
 - 이벤트가 몰려도 density cap이 유지됨
 - public repo URL을 등록하면 replay source가 생성됨
 - click track과 beat meter가 현재 run beat를 따라간다
+- chart cue가 BGM layer로 재생되며 mute/unmute가 독립 동작한다
 
 ### 3-5. Guardrails
 
