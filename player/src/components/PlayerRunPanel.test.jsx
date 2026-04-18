@@ -23,11 +23,13 @@ describe('PlayerRunPanel', () => {
   test('supports autoplay preview completion and retry', () => {
     vi.useFakeTimers();
     const onRunComplete = vi.fn();
+    const audioDriver = createAudioDriverHarness();
 
     render(
       <PlayerRunPanel
         tempo={120}
         onRunComplete={onRunComplete}
+        audioDriver={audioDriver}
         chart={{
           laneCount: 4,
           notes: [
@@ -48,7 +50,10 @@ describe('PlayerRunPanel', () => {
     expect(screen.getByText('Run complete')).toBeVisible();
     expect(screen.getByText(/Completed autoplay preview with 2 \/ 2 notes resolved/i)).toBeVisible();
     expect(screen.getByText('240')).toBeVisible();
+    expect(screen.getByText('Click Track On')).toBeVisible();
     expect(onRunComplete).toHaveBeenCalledTimes(1);
+    expect(audioDriver.prime).toHaveBeenCalledTimes(1);
+    expect(audioDriver.pulse).toHaveBeenCalled();
     expect(onRunComplete).toHaveBeenCalledWith(expect.objectContaining({
       playMode: 'auto',
       score: 240,
@@ -65,11 +70,13 @@ describe('PlayerRunPanel', () => {
   test('supports manual judgment with lane buttons and renders chart lanes', () => {
     vi.useFakeTimers();
     const onRunComplete = vi.fn();
+    const audioDriver = createAudioDriverHarness();
 
     render(
       <PlayerRunPanel
         tempo={120}
         onRunComplete={onRunComplete}
+        audioDriver={audioDriver}
         chart={{
           laneCount: 4,
           notes: [
@@ -82,6 +89,7 @@ describe('PlayerRunPanel', () => {
 
     expect(screen.getByRole('tab', { name: 'Manual Play' })).toBeVisible();
     expect(screen.getByLabelText('Chart lanes')).toBeVisible();
+    expect(screen.getByLabelText('Beat meter')).toBeVisible();
     expect(screen.getAllByRole('button', { name: /Hit / })).toHaveLength(4);
 
     fireEvent.click(screen.getByRole('button', { name: 'Start Run' }));
@@ -101,6 +109,7 @@ describe('PlayerRunPanel', () => {
     });
 
     expect(screen.getByText('Perfect 2')).toBeVisible();
+    expect(screen.getByText('Timing bias: Centered')).toBeVisible();
     expect(screen.getByText(/Completed manual play with 2 \/ 2 notes resolved/i)).toBeVisible();
     expect(onRunComplete).toHaveBeenCalledTimes(1);
     expect(onRunComplete).toHaveBeenCalledWith(expect.objectContaining({
@@ -109,4 +118,36 @@ describe('PlayerRunPanel', () => {
       totalNotes: 2,
     }));
   });
+
+  test('allows muting the click track without removing the beat meter', () => {
+    const audioDriver = createAudioDriverHarness();
+
+    render(
+      <PlayerRunPanel
+        tempo={132}
+        audioDriver={audioDriver}
+        chart={{
+          laneCount: 4,
+          notes: [
+            { noteId: 'muted-1', laneIndex: 1, beatOffset: 0, durationBeats: 1, noteType: 'tap' },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Click Track On')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Mute Click Track' }));
+
+    expect(screen.getByText('Click Track Off')).toBeVisible();
+    expect(screen.getByLabelText('Beat meter')).toBeVisible();
+  });
 });
+
+function createAudioDriverHarness() {
+  return {
+    isSupported: () => true,
+    prime: vi.fn(),
+    pulse: vi.fn(),
+    stop: vi.fn(),
+  };
+}

@@ -22,6 +22,7 @@ test('player harness keeps required docs and source files in sync', () => {
     '../src/lib/collaborationOverlayAdapter.js',
     '../src/lib/gitReplayAdapter.js',
     '../src/lib/localRepoBridge.js',
+    '../src/lib/metronomeEngine.js',
     '../src/lib/performanceHistoryStore.js',
     '../src/lib/sourceRegistry.js',
     '../src/lib/publicRepoAdapter.js',

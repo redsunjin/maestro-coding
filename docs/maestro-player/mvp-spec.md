@@ -143,6 +143,7 @@
 - 차트 생성
 - 기본 플레이 화면
 - 레인/노트 시각화
+- click track 기반 beat sync feedback
 - manual input 또는 autoplay preview 기반 run loop
 - 점수/콤보/판정
 - 로컬 score history persistence

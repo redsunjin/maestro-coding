@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createBrowserMetronomeDriver, createPulseDescriptor } from '../lib/metronomeEngine.js';
 
 const TICK_MS = 160;
 const BEAT_STEP = 0.5;
@@ -23,6 +24,7 @@ export default function PlayerRunPanel({
   chart = null,
   tempo = 120,
   onRunComplete = null,
+  audioDriver = null,
 }) {
   const notes = useMemo(
     () => [...(chart?.notes || [])].sort((left, right) => left.beatOffset - right.beatOffset),
@@ -35,10 +37,20 @@ export default function PlayerRunPanel({
   );
   const [playMode, setPlayMode] = useState('manual');
   const [runState, setRunState] = useState(createEmptyRunState());
+  const [clickTrackEnabled, setClickTrackEnabled] = useState(true);
+  const [pulseIndicator, setPulseIndicator] = useState(null);
   const lastReportedRunTokenRef = useRef('');
+  const lastPulseStepRef = useRef(-1);
+  const metronomeDriver = useMemo(
+    () => audioDriver || createBrowserMetronomeDriver(globalThis),
+    [audioDriver],
+  );
+  const audioSupported = metronomeDriver?.isSupported?.() ?? false;
 
   useEffect(() => {
     setRunState(createEmptyRunState());
+    setPulseIndicator(null);
+    lastPulseStepRef.current = -1;
   }, [chart, totalBeats, notes.length, playMode]);
 
   useEffect(() => {
@@ -71,14 +83,14 @@ export default function PlayerRunPanel({
       }
 
       event.preventDefault();
-      setRunState((previousState) => resolveManualLaneHit(previousState, laneIndex, notes, totalBeats));
+      setRunState((previousState) => resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo));
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [laneCount, notes, playMode, runState.status, totalBeats]);
+  }, [laneCount, notes, playMode, runState.status, tempo, totalBeats]);
 
   useEffect(() => {
     if (runState.status !== 'complete' || !onRunComplete) {
@@ -105,6 +117,35 @@ export default function PlayerRunPanel({
     });
   }, [laneCount, notes.length, onRunComplete, playMode, runState, tempo]);
 
+  useEffect(() => {
+    if (runState.status !== 'running') {
+      if (runState.status !== 'paused') {
+        setPulseIndicator(null);
+      }
+      metronomeDriver?.stop?.();
+      return;
+    }
+
+    if (!clickTrackEnabled || !audioSupported) {
+      return;
+    }
+
+    const nextStepIndex = Math.round(runState.currentBeat / BEAT_STEP);
+    if (nextStepIndex === lastPulseStepRef.current) {
+      return;
+    }
+
+    lastPulseStepRef.current = nextStepIndex;
+    const pulse = createPulseDescriptor({
+      stepIndex: nextStepIndex,
+      beatsPerBar: 4,
+      subdivision: Math.round(1 / BEAT_STEP),
+    });
+
+    setPulseIndicator(pulse);
+    metronomeDriver?.pulse?.({ pulse, tempo });
+  }, [audioSupported, clickTrackEnabled, metronomeDriver, runState.currentBeat, runState.status, tempo]);
+
   const processedNoteIds = runState.processedNoteIds;
   const progressPercent = totalBeats > 0
     ? Math.min(100, Math.round((runState.currentBeat / totalBeats) * 100))
@@ -119,10 +160,23 @@ export default function PlayerRunPanel({
   const accuracyLabel = notes.length
     ? `${Math.round((runState.notesHit / notes.length) * 100)}%`
     : '0%';
+  const averageOffsetLabel = runState.timedHitCount
+    ? formatAverageOffsetLabel(runState.timingOffsetTotalMs / runState.timedHitCount)
+    : 'No timing data';
+  const activeBeatInBar = pulseIndicator?.beatInBar || ((Math.floor(runState.currentBeat) % 4) + 1);
+  const audioSyncLabel = !audioSupported
+    ? 'Audio unavailable'
+    : clickTrackEnabled
+      ? pulseIndicator?.isDownbeat
+        ? `Downbeat on beat ${pulseIndicator.beatInBar}`
+        : pulseIndicator
+          ? `Beat ${pulseIndicator.beatInBar}${pulseIndicator.isSubdivision ? ' subdivision' : ''}`
+          : 'Click track armed'
+      : 'Click track muted';
 
   if (!chart || notes.length === 0) {
     return (
-      <section className="player-card" aria-labelledby="player-run-panel-title">
+        <section className="player-card" aria-labelledby="player-run-panel-title">
         <div className="player-card__header">
           <div>
             <p className="player-kicker">Run Session</p>
@@ -161,6 +215,30 @@ export default function PlayerRunPanel({
               : 'Auto mode resolves notes automatically so the shell can verify combo and result handling.'}
           </p>
         </div>
+        <div className="player-run-panel__sync">
+          <div className="player-run-panel__sync-meta">
+            <span className={`player-pill${clickTrackEnabled && audioSupported ? ' is-live' : ''}`}>
+              {audioSupported ? (clickTrackEnabled ? 'Click Track On' : 'Click Track Off') : 'Audio Pending'}
+            </span>
+            <span className="player-run-panel__sync-label">{audioSyncLabel}</span>
+          </div>
+          <div className="player-run-panel__meter" aria-label="Beat meter">
+            {Array.from({ length: 4 }, (_, beatOffset) => {
+              const beat = beatOffset + 1;
+              const isActive = activeBeatInBar === beat;
+              const isDownbeat = beat === 1;
+
+              return (
+                <span
+                  key={beat}
+                  className={`player-run-panel__meter-step${isActive ? ' is-active' : ''}${isDownbeat ? ' is-downbeat' : ''}`}
+                >
+                  {beat}
+                </span>
+              );
+            })}
+          </div>
+        </div>
         <div className="player-run-panel__mode-switch" role="tablist" aria-label="Play mode">
           {PLAY_MODES.map((mode) => (
             <button
@@ -182,6 +260,10 @@ export default function PlayerRunPanel({
             type="button"
             disabled={runState.status === 'running'}
             onClick={() => {
+              if (audioSupported) {
+                metronomeDriver?.prime?.();
+              }
+
               setRunState((previousState) => {
                 if (previousState.status === 'complete') {
                   return {
@@ -198,6 +280,16 @@ export default function PlayerRunPanel({
             }}
           >
             {runState.status === 'idle' ? 'Start Run' : runState.status === 'paused' ? 'Resume Run' : 'Replay Run'}
+          </button>
+          <button
+            className="player-button player-button--secondary"
+            type="button"
+            disabled={!audioSupported}
+            onClick={() => {
+              setClickTrackEnabled((enabled) => !enabled);
+            }}
+          >
+            {clickTrackEnabled ? 'Mute Click Track' : 'Enable Click Track'}
           </button>
           <button
             className="player-button player-button--secondary"
@@ -258,8 +350,11 @@ export default function PlayerRunPanel({
         <span>Perfect {runState.judgments.perfect}</span>
         <span>Good {runState.judgments.good}</span>
         <span>Miss {runState.judgments.miss}</span>
-        <span>{runState.lastJudgment || 'Waiting for input'}</span>
+        <span>{runState.lastJudgment || audioSyncLabel}</span>
       </div>
+      <p className="player-run-panel__timing-note">
+        {playMode === 'manual' ? `Timing bias: ${averageOffsetLabel}` : 'Timing bias: Auto mode resolves notes without human timing.'}
+      </p>
 
       <div className="player-run-panel__lanes" aria-label="Chart lanes">
         {Array.from({ length: laneCount }, (_, laneOffset) => {
@@ -289,7 +384,7 @@ export default function PlayerRunPanel({
                 type="button"
                 disabled={playMode !== 'manual' || runState.status !== 'running'}
                 onClick={() => {
-                  setRunState((previousState) => resolveManualLaneHit(previousState, laneIndex, notes, totalBeats));
+                  setRunState((previousState) => resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo));
                 }}
               >
                 Hit {laneKey}
@@ -343,6 +438,8 @@ function createEmptyRunState() {
       good: 0,
       miss: 0,
     },
+    timedHitCount: 0,
+    timingOffsetTotalMs: 0,
     processedNoteIds: [],
     lastJudgment: '',
   };
@@ -424,7 +521,7 @@ function advanceManualRunState(previousState, notes, totalBeats) {
   };
 }
 
-function resolveManualLaneHit(previousState, laneIndex, notes, totalBeats) {
+function resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo = 120) {
   if (previousState.status !== 'running') {
     return previousState;
   }
@@ -450,6 +547,8 @@ function resolveManualLaneHit(previousState, laneIndex, notes, totalBeats) {
   processedNoteIds.add(candidate.note.noteId);
 
   const judgment = candidate.distance <= PERFECT_WINDOW ? 'perfect' : 'good';
+  const beatDurationMs = 60000 / Math.max(1, tempo);
+  const signedOffsetMs = Math.round((previousState.currentBeat - candidate.note.beatOffset) * beatDurationMs);
   const scoreDelta = judgment === 'perfect'
     ? scoreNote(candidate.note)
     : Math.round(scoreNote(candidate.note) * 0.7);
@@ -470,7 +569,9 @@ function resolveManualLaneHit(previousState, laneIndex, notes, totalBeats) {
       ...previousState.judgments,
       [judgment]: previousState.judgments[judgment] + 1,
     },
-    lastJudgment: `${judgment === 'perfect' ? 'Perfect' : 'Good'} on lane ${laneIndex}`,
+    timedHitCount: previousState.timedHitCount + 1,
+    timingOffsetTotalMs: previousState.timingOffsetTotalMs + signedOffsetMs,
+    lastJudgment: `${judgment === 'perfect' ? 'Perfect' : 'Good'} ${formatSignedOffsetLabel(signedOffsetMs)} on lane ${laneIndex}`,
   };
 }
 
@@ -521,6 +622,34 @@ function getRunStatusLabel(status) {
   }
 
   return 'Ready to play';
+}
+
+function formatAverageOffsetLabel(offsetMs) {
+  const roundedOffsetMs = Math.round(offsetMs);
+
+  if (Math.abs(roundedOffsetMs) <= 8) {
+    return 'Centered';
+  }
+
+  if (roundedOffsetMs < 0) {
+    return `Avg early ${Math.abs(roundedOffsetMs)}ms`;
+  }
+
+  return `Avg late ${roundedOffsetMs}ms`;
+}
+
+function formatSignedOffsetLabel(offsetMs) {
+  const roundedOffsetMs = Math.round(offsetMs);
+
+  if (Math.abs(roundedOffsetMs) <= 8) {
+    return 'on time';
+  }
+
+  if (roundedOffsetMs < 0) {
+    return `early ${Math.abs(roundedOffsetMs)}ms`;
+  }
+
+  return `late ${roundedOffsetMs}ms`;
 }
 
 function clamp(value, min = 0, max = 1) {

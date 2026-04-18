@@ -110,6 +110,7 @@ targeted_tests:
 - `player/tests/musicIntentMapper.test.mjs`
 - `player/tests/chartMapper.test.mjs`
 - `player/tests/gitReplayAdapter.test.mjs`
+- `player/tests/metronomeEngine.test.mjs`
 - `player/tests/publicRepoAdapter.test.mjs`
 - `player/tests/accountRepoAdapter.test.mjs`
 - `player/tests/playerHarness.test.mjs`
@@ -126,6 +127,7 @@ runtime_signals:
 - `merge`는 accent/cadence lane으로 귀결됨
 - 이벤트가 몰려도 density cap이 유지됨
 - public repo URL을 등록하면 replay source가 생성됨
+- click track과 beat meter가 현재 run beat를 따라간다
 
 ### 3-5. Guardrails
 
