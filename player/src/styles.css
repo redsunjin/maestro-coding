@@ -642,6 +642,53 @@ textarea {
   line-height: 1.5;
 }
 
+.score-history-panel,
+.score-history-panel__list {
+  display: grid;
+  gap: 16px;
+}
+
+.score-history-panel__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.score-history-panel__item {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid rgba(71, 85, 105, 0.48);
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.38);
+}
+
+.score-history-panel__item-header,
+.score-history-panel__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.score-history-panel__item-header strong {
+  color: var(--player-text);
+}
+
+.score-history-panel__meta {
+  color: var(--player-text-dim);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.score-history-panel__detail {
+  margin: 0;
+  color: var(--player-text-muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
 @media (max-width: 960px) {
   .player-grid {
     grid-template-columns: 1fr;

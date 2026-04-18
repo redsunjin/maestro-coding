@@ -22,6 +22,7 @@ test('player harness keeps required docs and source files in sync', () => {
     '../src/lib/collaborationOverlayAdapter.js',
     '../src/lib/gitReplayAdapter.js',
     '../src/lib/localRepoBridge.js',
+    '../src/lib/performanceHistoryStore.js',
     '../src/lib/sourceRegistry.js',
     '../src/lib/publicRepoAdapter.js',
     '../src/lib/musicIntentMapper.js',
@@ -29,6 +30,7 @@ test('player harness keeps required docs and source files in sync', () => {
     '../src/lib/motifCatalog.js',
     '../src/lib/harmonyEngine.js',
     '../src/components/PlayerRunPanel.jsx',
+    '../src/components/ScoreHistoryPanel.jsx',
     '../server/localReplayBridgePlugin.js',
   ];
 
@@ -84,12 +86,12 @@ test('player harness can ingest live git history from the current worktree with 
 
 test('player harness can register a public repository replay source from a github url', () => {
   const source = createPublicRepoSource({
-    url: 'https://github.com/openai/maestro-player',
+    url: 'https://github.com/openai/openai-python',
   });
 
   assert.equal(source.sourceType, 'git-public-url');
   assert.equal(source.visibility, 'public');
-  assert.equal(source.repoSlug, 'openai/maestro-player');
+  assert.equal(source.repoSlug, 'openai/openai-python');
 });
 
 test('player harness can register a connected account repository replay source', () => {

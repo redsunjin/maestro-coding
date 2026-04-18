@@ -6,6 +6,7 @@ import {
   renderPlayerApp,
   teardownPlayerAppUiEnvironment,
 } from './test/appUiHarness.js';
+import { getPerformanceHistoryStorageKey } from './lib/performanceHistoryStore.js';
 
 let App = null;
 
@@ -21,6 +22,7 @@ const describeIfApp = App ? describe : describe.skip;
 
 afterEach(() => {
   cleanup();
+  globalThis.localStorage?.clear();
   teardownPlayerAppUiEnvironment();
 });
 
@@ -127,6 +129,82 @@ describeIfApp('Player Shell UI', () => {
       maxCommits: 12,
       sourceLabel: fixtures.localRepoPath,
     });
+  });
+
+  test('loads persisted score history for the active source', async () => {
+    const storedHistory = [
+      {
+        runId: 'run-public-1',
+        chartId: 'chart-public-1',
+        sourceKey: `git-public-url:github:${'openai/maestro-player'}:${'feature/cadence'}`,
+        sourceLabel: 'openai/maestro-player',
+        sourceType: 'git-public-url',
+        branchName: 'feature/cadence',
+        playMode: 'manual',
+        provider: 'github',
+        visibility: 'public',
+        score: 9870,
+        maxCombo: 18,
+        accuracy: 96.4,
+        notesHit: 18,
+        totalNotes: 19,
+        tempo: 122,
+        laneCount: 4,
+        judgments: {
+          perfect: 16,
+          good: 2,
+          miss: 1,
+        },
+        finishedAt: '2026-04-18T11:00:00Z',
+      },
+      {
+        runId: 'run-other-1',
+        chartId: 'chart-other-1',
+        sourceKey: 'git-public-url:github:someone/else:main',
+        sourceLabel: 'someone/else',
+        sourceType: 'git-public-url',
+        branchName: 'main',
+        playMode: 'auto',
+        provider: 'github',
+        visibility: 'public',
+        score: 1111,
+        maxCombo: 4,
+        accuracy: 100,
+        notesHit: 4,
+        totalNotes: 4,
+        tempo: 120,
+        laneCount: 4,
+        judgments: {
+          perfect: 4,
+          good: 0,
+          miss: 0,
+        },
+        finishedAt: '2026-04-17T11:00:00Z',
+      },
+    ];
+
+    globalThis.localStorage.setItem(
+      getPerformanceHistoryStorageKey(),
+      JSON.stringify(storedHistory),
+    );
+
+    const { fixtures, user } = renderPlayerApp(App);
+
+    await user.click(getSourceModeControl('Public Repo URL'));
+    await user.clear(screen.getByLabelText('Public Repository URL'));
+    await user.type(screen.getByLabelText('Public Repository URL'), fixtures.publicRepoUrl);
+    await user.clear(screen.getByLabelText('Branch'));
+    await user.type(screen.getByLabelText('Branch'), fixtures.publicBranch);
+    await user.click(screen.getByRole('button', { name: 'Load Replay' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Recent score history' })).toBeVisible();
+      expect(screen.getByText('9,870 pts')).toBeVisible();
+      expect(screen.getByText('18 max combo')).toBeVisible();
+      expect(screen.getByText(/18 \/ 19 notes, 1 misses/i)).toBeVisible();
+    });
+
+    expect(screen.queryByText('1,111 pts')).not.toBeInTheDocument();
   });
 });
 

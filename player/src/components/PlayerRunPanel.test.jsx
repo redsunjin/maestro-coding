@@ -22,10 +22,12 @@ describe('PlayerRunPanel', () => {
 
   test('supports autoplay preview completion and retry', () => {
     vi.useFakeTimers();
+    const onRunComplete = vi.fn();
 
     render(
       <PlayerRunPanel
         tempo={120}
+        onRunComplete={onRunComplete}
         chart={{
           laneCount: 4,
           notes: [
@@ -46,6 +48,14 @@ describe('PlayerRunPanel', () => {
     expect(screen.getByText('Run complete')).toBeVisible();
     expect(screen.getByText(/Completed autoplay preview with 2 \/ 2 notes resolved/i)).toBeVisible();
     expect(screen.getByText('240')).toBeVisible();
+    expect(onRunComplete).toHaveBeenCalledTimes(1);
+    expect(onRunComplete).toHaveBeenCalledWith(expect.objectContaining({
+      playMode: 'auto',
+      score: 240,
+      maxCombo: 2,
+      notesHit: 2,
+      totalNotes: 2,
+    }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry Run' }));
 
@@ -54,10 +64,12 @@ describe('PlayerRunPanel', () => {
 
   test('supports manual judgment with lane buttons and renders chart lanes', () => {
     vi.useFakeTimers();
+    const onRunComplete = vi.fn();
 
     render(
       <PlayerRunPanel
         tempo={120}
+        onRunComplete={onRunComplete}
         chart={{
           laneCount: 4,
           notes: [
@@ -90,5 +102,11 @@ describe('PlayerRunPanel', () => {
 
     expect(screen.getByText('Perfect 2')).toBeVisible();
     expect(screen.getByText(/Completed manual play with 2 \/ 2 notes resolved/i)).toBeVisible();
+    expect(onRunComplete).toHaveBeenCalledTimes(1);
+    expect(onRunComplete).toHaveBeenCalledWith(expect.objectContaining({
+      playMode: 'manual',
+      notesHit: 2,
+      totalNotes: 2,
+    }));
   });
 });

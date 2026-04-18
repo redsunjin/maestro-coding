@@ -1,0 +1,9 @@
+Original prompt: 좋아 계속 작업을 진행해보자
+
+2026-04-18
+- Started result persistence and score history work for Maestro Player.
+- Plan: lift run completion out of `PlayerRunPanel`, persist recent `PerformanceRecord` entries, and render a score history panel in the shell.
+- Implemented local `PerformanceRecord` persistence and a `Recent score history` panel in the player shell.
+- `npm run qa` passed after adding store tests, run completion callbacks, and UI coverage for persisted history.
+- Playwright smoke exposed a real 404 on the default public URL example, so the default public repo seed was changed to `https://github.com/openai/openai-python`.
+- Headless browser smoke still reports one generic 404 resource request, but replay load and the new history panel render correctly in the captured UI.

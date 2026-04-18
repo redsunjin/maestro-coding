@@ -22,7 +22,8 @@
 4. 이벤트를 레인/타이밍/난이도로 변환해 차트를 만든다.
 5. 사용자가 차트를 플레이한다.
 6. 기본 플레이어는 play/pause/retry와 manual input 또는 autoplay preview를 지원한다.
-6. 결과를 점수, 콤보, 악보, 리플레이 요약으로 본다.
+7. 결과를 점수, 콤보, 악보, 리플레이 요약으로 본다.
+8. 완료된 run은 로컬 `PerformanceRecord` history로 저장해 다시 본다.
 
 ## 4. 입력 접근 모델
 
@@ -130,6 +131,9 @@
 - `maxCombo`
 - `accuracy`
 - `finishedAt`
+- `sourceKey`
+- `sourceLabel`
+- `playMode`
 
 ## 7. MVP 포함 범위
 
@@ -141,6 +145,7 @@
 - 레인/노트 시각화
 - manual input 또는 autoplay preview 기반 run loop
 - 점수/콤보/판정
+- 로컬 score history persistence
 - 악보 또는 score history 뷰
 - replay summary
 
@@ -165,6 +170,7 @@
 - 사용자가 연결된 Git 계정에서 레포를 선택해 replay를 만들 수 있다.
 - GitHub PR/review overlay가 있으면 commit 흐름 위에 review 긴장/해결 패턴이 추가된다.
 - 플레이 결과를 점수와 악보로 다시 확인할 수 있다.
+- 최근 플레이 결과를 로컬 score history에서 다시 확인할 수 있다.
 - 기존 `MaestroWorks` 업무 경로를 전혀 건드리지 않는다.
 - 앱 전체가 read-only 모드로 동작한다.
 

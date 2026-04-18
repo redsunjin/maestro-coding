@@ -70,6 +70,7 @@
 - manual lane input
 - lane/note visualization
 - score/combo/result 화면
+- local score history persistence
 
 성공 기준:
 
@@ -77,6 +78,7 @@
 - manual lane input으로 기본 판정과 combo 증가를 확인할 수 있다.
 - 공개 레포 URL 등록 후 chart 생성 흐름이 직관적이다.
 - 플레이 종료 후 결과 화면이 표시됨
+- 플레이 종료 후 최근 score history가 다시 표시됨
 
 ### E. Safety Guard
 

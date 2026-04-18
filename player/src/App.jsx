@@ -1,6 +1,7 @@
 import React, { startTransition, useMemo, useState } from 'react';
 import PlayerRunPanel from './components/PlayerRunPanel.jsx';
 import ReplayEventTimeline from './components/ReplayEventTimeline.jsx';
+import ScoreHistoryPanel from './components/ScoreHistoryPanel.jsx';
 import SourceModeTabs from './components/SourceModeTabs.jsx';
 import SourceInputPanel from './components/SourceInputPanel.jsx';
 import SourceModeGuide from './components/SourceModeGuide.jsx';
@@ -9,6 +10,7 @@ import { createConnectedAccountRepoSource, listConnectedGithubRepositories, load
 import { createChartFromMusicPlan } from './lib/chartMapper.js';
 import { loadCollaborationOverlayEvents } from './lib/collaborationOverlayAdapter.js';
 import { hasLocalRepoBridge, loadLocalRepoReplayEvents } from './lib/localRepoBridge.js';
+import { appendPerformanceRecord, loadPerformanceHistory } from './lib/performanceHistoryStore.js';
 import { loadPublicRepoReplayEvents, createPublicRepoSource } from './lib/publicRepoAdapter.js';
 import { buildMusicPlan } from './lib/musicIntentMapper.js';
 import { registerLocalRepoSource } from './lib/sourceRegistry.js';
@@ -26,7 +28,7 @@ const INITIAL_DRAFTS = {
     branch: 'main',
   },
   public: {
-    url: 'https://github.com/openai/maestro-player',
+    url: 'https://github.com/openai/openai-python',
     branch: 'main',
   },
   account: {
@@ -47,6 +49,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRepoListLoading, setIsRepoListLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [performanceHistory, setPerformanceHistory] = useState(() => loadPerformanceHistory(globalThis));
   const localBridgeAvailable = hasLocalRepoBridge(globalThis);
 
   const latestEvents = useMemo(
@@ -89,6 +92,30 @@ export default function App() {
     accountRepositories,
     localBridgeAvailable,
   }), [activeSource, replaySummary, drafts, accountRepositories, localBridgeAvailable]);
+
+  const activeSourceKey = useMemo(
+    () => buildPerformanceSourceKey(activeSource),
+    [activeSource],
+  );
+
+  const activeChartId = useMemo(
+    () => buildPerformanceChartId(activeSourceKey, chart, loadedEvents, musicPlan),
+    [activeSourceKey, chart, loadedEvents, musicPlan],
+  );
+
+  const visiblePerformanceHistory = useMemo(() => {
+    if (!performanceHistory.length) {
+      return [];
+    }
+
+    if (!activeSourceKey) {
+      return performanceHistory.slice(0, 6);
+    }
+
+    return performanceHistory
+      .filter((record) => record.sourceKey === activeSourceKey)
+      .slice(0, 6);
+  }, [activeSourceKey, performanceHistory]);
 
   const handleDraftChange = (mode, field, value) => {
     setDrafts((currentDrafts) => ({
@@ -251,6 +278,37 @@ export default function App() {
     });
   };
 
+  const handleRunComplete = (runResult) => {
+    if (!activeSource) {
+      return;
+    }
+
+    const nextRecord = {
+      runId: `${activeChartId || 'chart'}:${runResult.runToken}`,
+      chartId: activeChartId || 'unknown-chart',
+      sourceKey: activeSourceKey || 'unknown-source',
+      sourceLabel: activeSource.sourceLabel || activeSource.repoSlug || activeSource.targetPathOrId || 'Unknown source',
+      sourceType: activeSource.sourceType || 'unknown',
+      branchName: activeSource.branchName || 'main',
+      provider: activeSource.provider || 'unknown',
+      visibility: activeSource.visibility || 'unknown',
+      playMode: runResult.playMode,
+      score: runResult.score,
+      maxCombo: runResult.maxCombo,
+      accuracy: runResult.accuracy,
+      notesHit: runResult.notesHit,
+      totalNotes: runResult.totalNotes,
+      laneCount: runResult.laneCount,
+      tempo: runResult.tempo,
+      judgments: runResult.judgments,
+      finishedAt: runResult.finishedAt,
+    };
+
+    startTransition(() => {
+      setPerformanceHistory(appendPerformanceRecord(nextRecord, globalThis));
+    });
+  };
+
   return (
     <div className="player-shell">
       <div className="player-shell__inner">
@@ -307,6 +365,11 @@ export default function App() {
             <PlayerRunPanel
               chart={chart}
               tempo={musicPlan[0]?.tempo || 120}
+              onRunComplete={handleRunComplete}
+            />
+            <ScoreHistoryPanel
+              activeSource={activeSource}
+              records={visiblePerformanceHistory}
             />
             <ReplayEventTimeline
               events={latestEvents}
@@ -460,4 +523,31 @@ function compareReplayEvents(left, right) {
   }
 
   return String(left?.eventId || '').localeCompare(String(right?.eventId || ''));
+}
+
+function buildPerformanceSourceKey(activeSource) {
+  if (!activeSource) {
+    return '';
+  }
+
+  return [
+    activeSource.sourceType || 'unknown',
+    activeSource.provider || 'unknown',
+    activeSource.repoSlug || activeSource.targetPathOrId || activeSource.sourceLabel || 'unknown',
+    activeSource.branchName || 'main',
+  ].join(':');
+}
+
+function buildPerformanceChartId(sourceKey, chart, loadedEvents, musicPlan) {
+  if (!sourceKey || !chart) {
+    return '';
+  }
+
+  return [
+    sourceKey,
+    chart.laneCount || 4,
+    chart.notes?.length || 0,
+    loadedEvents.length,
+    musicPlan[0]?.tempo || 0,
+  ].join(':');
 }

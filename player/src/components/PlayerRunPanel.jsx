@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const TICK_MS = 160;
 const BEAT_STEP = 0.5;
@@ -22,6 +22,7 @@ const LANE_KEYS = Object.freeze(['A', 'S', 'D', 'F', 'J', 'K']);
 export default function PlayerRunPanel({
   chart = null,
   tempo = 120,
+  onRunComplete = null,
 }) {
   const notes = useMemo(
     () => [...(chart?.notes || [])].sort((left, right) => left.beatOffset - right.beatOffset),
@@ -34,6 +35,7 @@ export default function PlayerRunPanel({
   );
   const [playMode, setPlayMode] = useState('manual');
   const [runState, setRunState] = useState(createEmptyRunState());
+  const lastReportedRunTokenRef = useRef('');
 
   useEffect(() => {
     setRunState(createEmptyRunState());
@@ -77,6 +79,31 @@ export default function PlayerRunPanel({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [laneCount, notes, playMode, runState.status, totalBeats]);
+
+  useEffect(() => {
+    if (runState.status !== 'complete' || !onRunComplete) {
+      return;
+    }
+
+    if (lastReportedRunTokenRef.current === runState.runToken) {
+      return;
+    }
+
+    lastReportedRunTokenRef.current = runState.runToken;
+    onRunComplete({
+      runToken: runState.runToken,
+      playMode,
+      score: runState.score,
+      maxCombo: runState.maxCombo,
+      accuracy: notes.length ? (runState.notesHit / notes.length) * 100 : 0,
+      notesHit: runState.notesHit,
+      totalNotes: notes.length,
+      laneCount,
+      tempo,
+      judgments: runState.judgments,
+      finishedAt: new Date().toISOString(),
+    });
+  }, [laneCount, notes.length, onRunComplete, playMode, runState, tempo]);
 
   const processedNoteIds = runState.processedNoteIds;
   const progressPercent = totalBeats > 0
@@ -304,6 +331,7 @@ export default function PlayerRunPanel({
 
 function createEmptyRunState() {
   return {
+    runToken: createRunToken(),
     status: 'idle',
     currentBeat: 0,
     score: 0,
@@ -318,6 +346,13 @@ function createEmptyRunState() {
     processedNoteIds: [],
     lastJudgment: '',
   };
+}
+
+let runTokenCounter = 0;
+
+function createRunToken() {
+  runTokenCounter += 1;
+  return `run-${runTokenCounter}`;
 }
 
 function advanceAutoRunState(previousState, notes, totalBeats) {
