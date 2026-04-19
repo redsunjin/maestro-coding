@@ -134,43 +134,124 @@ export const GITLAB_MERGE_REQUEST_LIST_FIXTURE = [
   },
 ];
 
-export const GITLAB_MERGE_REQUEST_NOTE_FIXTURES = {
+export const GITLAB_MERGE_REQUEST_DISCUSSION_FIXTURES = {
   11: [
     {
-      id: 601,
-      body: 'Please smooth out the cadence handoff.',
-      created_at: '2026-04-17T09:11:00Z',
-      system: false,
-      author: {
-        username: 'gitlab-reviewer-a',
-        name: 'GitLab Reviewer A',
-      },
+      id: 'gl-discussion-601',
+      individual_note: false,
+      notes: [
+        {
+          id: 601,
+          body: 'Please smooth out the cadence handoff.',
+          created_at: '2026-04-17T09:11:00Z',
+          updated_at: '2026-04-17T09:11:00Z',
+          system: false,
+          resolvable: true,
+          resolved: false,
+          resolved_by: null,
+          resolved_at: null,
+          position: {
+            new_path: 'src/audio/gitlab-bridge.js',
+          },
+          author: {
+            username: 'gitlab-reviewer-a',
+            name: 'GitLab Reviewer A',
+          },
+        },
+        {
+          id: 602,
+          body: 'Share a quick before/after clip when you update this.',
+          created_at: '2026-04-17T09:12:00Z',
+          updated_at: '2026-04-17T09:12:00Z',
+          system: false,
+          resolvable: false,
+          resolved: false,
+          resolved_by: null,
+          resolved_at: null,
+          author: {
+            username: 'gitlab-reviewer-a',
+            name: 'GitLab Reviewer A',
+          },
+        },
+      ],
     },
     {
-      id: 602,
-      body: 'mentioned in commit 123',
-      created_at: '2026-04-17T09:12:00Z',
-      system: true,
-      author: {
-        username: 'gitlab-system',
-        name: 'GitLab System',
-      },
+      id: 'gl-discussion-603',
+      individual_note: false,
+      notes: [
+        {
+          id: 603,
+          body: 'Consider tightening the synth release.',
+          created_at: '2026-04-17T09:13:00Z',
+          updated_at: '2026-04-17T09:16:00Z',
+          system: false,
+          resolvable: true,
+          resolved: true,
+          resolved_by: {
+            username: 'gitlab-reviewer-b',
+            name: 'GitLab Reviewer B',
+          },
+          resolved_at: '2026-04-17T09:16:00Z',
+          position: {
+            new_path: 'src/audio/gitlab-bridge.js',
+          },
+          author: {
+            username: 'gitlab-reviewer-b',
+            name: 'GitLab Reviewer B',
+          },
+        },
+      ],
     },
     {
-      id: 603,
-      body: 'Consider tightening the synth release.',
-      created_at: '2026-04-17T09:13:00Z',
-      system: false,
-      resolvable: true,
-      position: {
-        new_path: 'src/audio/gitlab-bridge.js',
-      },
-      author: {
-        username: 'gitlab-reviewer-b',
-        name: 'GitLab Reviewer B',
-      },
+      id: 'gl-discussion-605',
+      individual_note: false,
+      notes: [
+        {
+          id: 605,
+          body: 'The loop point still clicks after the patch.',
+          created_at: '2026-04-17T09:17:00Z',
+          updated_at: '2026-04-17T09:18:00Z',
+          system: false,
+          resolvable: true,
+          resolved: true,
+          resolved_by: {
+            username: 'gitlab-reviewer-c',
+            name: 'GitLab Reviewer C',
+          },
+          resolved_at: '2026-04-17T09:18:00Z',
+          position: {
+            new_path: 'src/audio/gitlab-loop.js',
+          },
+          author: {
+            username: 'gitlab-reviewer-c',
+            name: 'GitLab Reviewer C',
+          },
+        },
+        {
+          id: 606,
+          body: 'Reopening after retest because the click is still audible.',
+          created_at: '2026-04-17T09:19:00Z',
+          updated_at: '2026-04-17T09:19:00Z',
+          system: false,
+          resolvable: true,
+          resolved: false,
+          resolved_by: null,
+          resolved_at: null,
+          position: {
+            new_path: 'src/audio/gitlab-loop.js',
+          },
+          author: {
+            username: 'gitlab-reviewer-c',
+            name: 'GitLab Reviewer C',
+          },
+        },
+      ],
     },
   ],
+};
+
+export const GITLAB_MERGE_REQUEST_NOTE_FIXTURES = {
+  11: GITLAB_MERGE_REQUEST_DISCUSSION_FIXTURES[11].flatMap((discussion) => discussion.notes),
 };
 
 export const GITLAB_MERGE_REQUEST_APPROVAL_FIXTURES = {

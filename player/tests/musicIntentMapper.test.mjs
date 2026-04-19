@@ -30,6 +30,24 @@ function buildFeatureEvents() {
     },
     {
       eventId: 'c3',
+      eventType: 'review-resolve',
+      repoId: 'maestro-demo',
+      branchName: 'feature/audio-theme',
+      timestamp: '2026-04-17T09:12:00.000Z',
+      message: 'resolved after patch review',
+      changedFiles: ['src/audio/motif.js'],
+    },
+    {
+      eventId: 'c4',
+      eventType: 'review-reopen',
+      repoId: 'maestro-demo',
+      branchName: 'feature/audio-theme',
+      timestamp: '2026-04-17T09:14:00.000Z',
+      message: 'reopened after retest',
+      changedFiles: ['src/audio/motif.js'],
+    },
+    {
+      eventId: 'c5',
       eventType: 'review-approve',
       repoId: 'maestro-demo',
       branchName: 'feature/audio-theme',
@@ -39,7 +57,7 @@ function buildFeatureEvents() {
       changedFiles: ['src/audio/motif.js'],
     },
     {
-      eventId: 'c4',
+      eventId: 'c6',
       eventType: 'merge',
       repoId: 'maestro-demo',
       branchName: 'feature/audio-theme',
@@ -86,6 +104,23 @@ test('review request changes maps to a high-tension syncopated intent', () => {
   assert.equal(reviewIntent.rhythmPattern, 'syncopated');
   assert.ok(reviewIntent.tension >= 0.55);
   assert.equal(reviewIntent.harmonyAction, 'suspend');
+});
+
+test('review resolve and reopen map to distinct cadence and bridge intents', () => {
+  const plan = buildMusicPlan(buildFeatureEvents(), { laneCount: 4 });
+  const resolveIntent = plan[0].intents.find((intent) => intent.eventType === 'review-resolve');
+  const reopenIntent = plan[0].intents.find((intent) => intent.eventType === 'review-reopen');
+
+  assert.ok(resolveIntent);
+  assert.equal(resolveIntent.structuralRole, 'cadence');
+  assert.equal(resolveIntent.harmonyAction, 'resolve');
+  assert.equal(resolveIntent.rhythmPattern, 'steady');
+
+  assert.ok(reopenIntent);
+  assert.equal(reopenIntent.structuralRole, 'bridge');
+  assert.equal(reopenIntent.harmonyAction, 'suspend');
+  assert.equal(reopenIntent.rhythmPattern, 'syncopated');
+  assert.ok(reopenIntent.tension > resolveIntent.tension);
 });
 
 test('git-only replay still forms a valid music plan without collaboration overlay events', () => {

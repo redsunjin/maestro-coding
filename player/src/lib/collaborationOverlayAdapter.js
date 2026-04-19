@@ -81,6 +81,14 @@ export function mapReviewCommentToOverlayEvent(comment, pullRequest, source) {
   return mapGitHubReviewCommentToOverlayEvent(comment, pullRequest, source);
 }
 
+export function mapDiscussionToOverlayEvents(discussion, pullRequest, source) {
+  if (source.provider === 'gitlab') {
+    return mapGitLabDiscussionToOverlayEvents(discussion, pullRequest, source);
+  }
+
+  return [];
+}
+
 async function loadGitHubCollaborationOverlayEvents(source, input, fetchImpl) {
   const maxPullRequests = toPositiveInteger(input.maxPullRequests, 10);
   const apiBaseUrl = source.metadata.apiBaseUrl || `${GITHUB_API_BASE_URL}/repos/${source.repoSlug}`;
@@ -142,11 +150,11 @@ async function loadGitLabCollaborationOverlayEvents(source, input, fetchImpl) {
 
   const eventGroups = await Promise.all(
     matchingMergeRequests.map(async (mergeRequest) => {
-      const notePromise = fetchJson(
+      const discussionPromise = fetchJson(
         fetchImpl,
-        `${apiBaseUrl}/merge_requests/${mergeRequest.iid}/notes?sort=asc&order_by=created_at&per_page=${toPositiveInteger(input.maxIssueCommentsPerPullRequest, 100)}`,
+        `${apiBaseUrl}/merge_requests/${mergeRequest.iid}/discussions?per_page=${toPositiveInteger(input.maxIssueCommentsPerPullRequest, 100)}`,
         headers,
-        `collaboration overlay notes failed for mr ${mergeRequest.iid}`,
+        `collaboration overlay discussions failed for mr ${mergeRequest.iid}`,
       );
       const approvalPromise = input.accessToken
         ? fetchJson(
@@ -156,12 +164,12 @@ async function loadGitLabCollaborationOverlayEvents(source, input, fetchImpl) {
           `collaboration overlay approvals failed for mr ${mergeRequest.iid}`,
         ).catch(() => ({ approved_by: [] }))
         : Promise.resolve({ approved_by: [] });
-      const [notes, approvals] = await Promise.all([notePromise, approvalPromise]);
+      const [discussions, approvals] = await Promise.all([discussionPromise, approvalPromise]);
 
       return [
         mapGitLabMergeRequestToOverlayEvent(mergeRequest, source),
-        ...notes
-          .map((note) => mapGitLabNoteToOverlayEvent(note, mergeRequest, source))
+        ...discussions
+          .flatMap((discussion) => mapGitLabDiscussionToOverlayEvents(discussion, mergeRequest, source))
           .filter(Boolean),
         ...normalizeGitLabApprovedBy(approvals)
           .map((approval, index) => mapGitLabApprovalToOverlayEvent(approval, mergeRequest, source, index))
@@ -350,6 +358,108 @@ function mapGitLabNoteToOverlayEvent(note, mergeRequest, source) {
   };
 }
 
+function mapGitLabDiscussionToOverlayEvents(discussion, mergeRequest, source) {
+  const visibleNotes = coerceNotes(discussion?.notes)
+    .filter((note) => note && !note.system)
+    .sort(compareByCreatedAtAsc);
+
+  if (visibleNotes.length === 0) {
+    return [];
+  }
+
+  const resolvableNotes = visibleNotes.filter((note) => note.resolvable);
+  if (resolvableNotes.length === 0) {
+    return visibleNotes
+      .map((note) => mapGitLabNoteToOverlayEvent(note, mergeRequest, source))
+      .filter(Boolean);
+  }
+
+  const firstResolvable = resolvableNotes[0];
+  const events = [
+    createGitLabDiscussionStateEvent(firstResolvable, mergeRequest, source, 'review-request-changes'),
+  ];
+
+  visibleNotes.forEach((note) => {
+    if (!note.resolvable && note.id !== firstResolvable.id) {
+      const commentEvent = mapGitLabNoteToOverlayEvent(note, mergeRequest, source);
+      if (commentEvent) {
+        events.push(commentEvent);
+      }
+    }
+  });
+
+  let currentResolved = false;
+  resolvableNotes.forEach((note, index) => {
+    const nextResolved = Boolean(note.resolved);
+
+    if (index === 0) {
+      if (nextResolved) {
+        events.push(createGitLabDiscussionStateEvent(note, mergeRequest, source, 'review-resolve'));
+      }
+      currentResolved = nextResolved;
+      return;
+    }
+
+    if (!currentResolved && nextResolved) {
+      events.push(createGitLabDiscussionStateEvent(note, mergeRequest, source, 'review-resolve'));
+    } else if (currentResolved && !nextResolved) {
+      events.push(createGitLabDiscussionStateEvent(note, mergeRequest, source, 'review-reopen'));
+    }
+
+    currentResolved = nextResolved;
+  });
+
+  return events
+    .filter(Boolean)
+    .sort(compareOverlayEvents);
+}
+
+function createGitLabDiscussionStateEvent(note, mergeRequest, source, eventType) {
+  const changedFiles = note?.position?.new_path ? [note.position.new_path] : [];
+  const isResolve = eventType === 'review-resolve';
+  const timestamp = normalizeTimestamp(
+    isResolve
+      ? note?.resolved_at || note?.updated_at || note?.created_at
+      : note?.created_at || note?.updated_at,
+  );
+  const actor = isResolve
+    ? note?.resolved_by?.username || note?.resolved_by?.name || note?.author?.username || note?.author?.name || 'unknown'
+    : note?.author?.username || note?.author?.name || 'unknown';
+  const weight = eventType === 'review-request-changes'
+    ? 1.12
+    : eventType === 'review-reopen'
+      ? 1.09
+      : 1.15;
+  const reviewDecision = eventType === 'review-resolve'
+    ? 'RESOLVED'
+    : eventType === 'review-reopen'
+      ? 'REOPENED'
+      : 'CHANGES_REQUESTED';
+
+  return {
+    eventId: `gitlab:${eventType}:${note?.id || hashDiscussionEventId(note, mergeRequest, eventType)}`,
+    sourceType: 'forge-collaboration',
+    repoId: source.repoSlug,
+    sourceLabel: source.sourceLabel,
+    eventType,
+    timestamp,
+    actor,
+    branchName: mergeRequest.source_branch || source.branchName,
+    prNumber: mergeRequest.iid,
+    title: mergeRequest.title || `Merge request !${mergeRequest.iid}`,
+    message: String(note?.body || '').trim() || defaultDiscussionMessage(eventType),
+    changedFiles,
+    filesChanged: changedFiles.length,
+    linesAdded: 0,
+    linesDeleted: 0,
+    provider: source.provider,
+    visibility: source.visibility,
+    sourceUrl: `${source.canonicalUrl}/-/merge_requests/${mergeRequest.iid}#note_${note?.id}`,
+    reviewDecision,
+    weight,
+  };
+}
+
 function mapGitLabApprovalToOverlayEvent(approval, mergeRequest, source, fallbackIndex = 0) {
   const approvedBy = approval?.user || approval;
   const timestamp = normalizeTimestamp(approval?.approved_at || approval?.created_at, fallbackIndex);
@@ -435,6 +545,10 @@ function compareByCreatedAtDesc(left, right) {
   return new Date(right.created_at || 0).getTime() - new Date(left.created_at || 0).getTime();
 }
 
+function compareByCreatedAtAsc(left, right) {
+  return new Date(left.created_at || 0).getTime() - new Date(right.created_at || 0).getTime();
+}
+
 function compareOverlayEvents(left, right) {
   const timestampDelta = new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
   if (timestampDelta !== 0) {
@@ -451,6 +565,30 @@ function toPositiveInteger(value, fallback) {
 function normalizeGitLabApprovedBy(approvalsPayload) {
   const approvedBy = approvalsPayload?.approved_by;
   return Array.isArray(approvedBy) ? approvedBy : [];
+}
+
+function coerceNotes(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function hashDiscussionEventId(note, mergeRequest, eventType) {
+  return [
+    mergeRequest?.iid || 'mr',
+    note?.discussion_id || note?.id || 'note',
+    eventType,
+  ].join(':');
+}
+
+function defaultDiscussionMessage(eventType) {
+  if (eventType === 'review-resolve') {
+    return 'Resolved discussion thread';
+  }
+
+  if (eventType === 'review-reopen') {
+    return 'Reopened discussion thread';
+  }
+
+  return 'Discussion requires changes';
 }
 
 function buildCanonicalUrl(provider, repoSlug) {

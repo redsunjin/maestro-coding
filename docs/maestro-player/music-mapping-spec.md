@@ -35,6 +35,8 @@
 - `pr-update`
 - `review-comment`
 - `review-request-changes`
+- `review-resolve`
+- `review-reopen`
 - `review-approve`
 
 원칙:
@@ -163,6 +165,7 @@ noveltyScore =
 입력:
 
 - `review-request-changes` 여부
+- `review-reopen` 여부
 - `revert` 여부
 - 삭제 비율
 - 짧은 시간 안의 반복 수정
@@ -188,6 +191,7 @@ tensionScore =
 입력:
 
 - `review-approve`
+- `review-resolve`
 - `merge`
 - `successful-checks` 같은 선택적 협업 신호
 
@@ -286,6 +290,16 @@ commit 메시지와 메타데이터를 먼저 분류해야 한다.
 
 - 가장 명확한 긴장 신호
 - 일시적 불협, syncopation, 하행 패턴, 짧은 break 사용
+
+#### `review-resolve`
+
+- discussion thread가 해소된 상태
+- `review-approve`보다 약하지만 분명한 cadence/resolve 신호
+
+#### `review-reopen`
+
+- 한 번 풀렸던 긴장이 다시 열린 상태
+- `review-request-changes`보다 짧고 날카로운 재긴장으로 다룬다.
 
 #### `review-approve`
 

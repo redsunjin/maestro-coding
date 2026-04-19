@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   createCollaborationOverlaySource,
   loadCollaborationOverlayEvents,
+  mapDiscussionToOverlayEvents,
   mapPullRequestToOverlayEvent,
   mapReviewCommentToOverlayEvent,
   mapReviewToOverlayEvent,
@@ -14,6 +15,7 @@ import {
   GITHUB_PULL_REQUEST_REVIEW_COMMENT_FIXTURES,
   GITHUB_PULL_REQUEST_REVIEW_FIXTURES,
   GITLAB_MERGE_REQUEST_APPROVAL_FIXTURES,
+  GITLAB_MERGE_REQUEST_DISCUSSION_FIXTURES,
   GITLAB_MERGE_REQUEST_LIST_FIXTURE,
   GITLAB_MERGE_REQUEST_NOTE_FIXTURES,
 } from './fixtures/collaborationOverlayFixture.mjs';
@@ -150,6 +152,35 @@ test('mapReviewCommentToOverlayEvent maps gitlab notes and preserves file contex
   assert.equal(event.filesChanged, 1);
 });
 
+test('mapDiscussionToOverlayEvents derives request-change, resolve, and reopen events from gitlab discussions', () => {
+  const source = createCollaborationOverlaySource({
+    provider: 'gitlab',
+    owner: 'openai',
+    repo: 'maestro-player',
+    branchName: 'feature/cadence',
+  });
+  const mergeRequest = GITLAB_MERGE_REQUEST_LIST_FIXTURE[1];
+
+  const events = GITLAB_MERGE_REQUEST_DISCUSSION_FIXTURES[11]
+    .flatMap((discussion) => mapDiscussionToOverlayEvents(discussion, mergeRequest, source));
+
+  assert.deepEqual(
+    events.map((event) => event.eventType),
+    [
+      'review-request-changes',
+      'review-comment',
+      'review-request-changes',
+      'review-resolve',
+      'review-request-changes',
+      'review-resolve',
+      'review-reopen',
+    ],
+  );
+  assert.equal(events[0].message, 'Please smooth out the cadence handoff.');
+  assert.equal(events[3].actor, 'gitlab-reviewer-b');
+  assert.equal(events.at(-1).actor, 'gitlab-reviewer-c');
+});
+
 test('loadCollaborationOverlayEvents loads deterministic branch-scoped collaboration events without auth', async () => {
   const capturedRequests = [];
   const fetchImpl = async (url, options) => {
@@ -212,7 +243,7 @@ test('loadCollaborationOverlayEvents loads deterministic branch-scoped collabora
   assert.ok(events.every((event) => event.branchName === 'feature/cadence'));
 });
 
-test('loadCollaborationOverlayEvents loads gitlab merge request notes without auth', async () => {
+test('loadCollaborationOverlayEvents loads gitlab merge request discussions without auth', async () => {
   const capturedRequests = [];
   const fetchImpl = async (url, options) => {
     capturedRequests.push({ url, options });
@@ -224,10 +255,10 @@ test('loadCollaborationOverlayEvents loads gitlab merge request notes without au
       };
     }
 
-    if (String(url).includes('/merge_requests/11/notes')) {
+    if (String(url).includes('/merge_requests/11/discussions')) {
       return {
         ok: true,
-        json: async () => GITLAB_MERGE_REQUEST_NOTE_FIXTURES[11],
+        json: async () => GITLAB_MERGE_REQUEST_DISCUSSION_FIXTURES[11],
       };
     }
 
@@ -244,14 +275,28 @@ test('loadCollaborationOverlayEvents loads gitlab merge request notes without au
 
   assert.deepEqual(
     events.map((event) => event.eventType),
-    ['pr-open', 'review-comment', 'review-comment'],
+    [
+      'pr-open',
+      'review-request-changes',
+      'review-comment',
+      'review-request-changes',
+      'review-resolve',
+      'review-request-changes',
+      'review-resolve',
+      'review-reopen',
+    ],
   );
   assert.deepEqual(
     events.map((event) => event.timestamp),
     [
       '2026-04-17T09:00:00.000Z',
       '2026-04-17T09:11:00.000Z',
+      '2026-04-17T09:12:00.000Z',
       '2026-04-17T09:13:00.000Z',
+      '2026-04-17T09:16:00.000Z',
+      '2026-04-17T09:17:00.000Z',
+      '2026-04-17T09:18:00.000Z',
+      '2026-04-17T09:19:00.000Z',
     ],
   );
   assert.ok(capturedRequests[0].url.includes('source_branch=feature%2Fcadence'));
@@ -302,10 +347,10 @@ test('loadCollaborationOverlayEvents loads gitlab approvals with private token a
       };
     }
 
-    if (String(url).includes('/merge_requests/11/notes')) {
+    if (String(url).includes('/merge_requests/11/discussions')) {
       return {
         ok: true,
-        json: async () => GITLAB_MERGE_REQUEST_NOTE_FIXTURES[11],
+        json: async () => GITLAB_MERGE_REQUEST_DISCUSSION_FIXTURES[11],
       };
     }
 
@@ -330,8 +375,19 @@ test('loadCollaborationOverlayEvents loads gitlab approvals with private token a
 
   assert.deepEqual(
     events.map((event) => event.eventType),
-    ['pr-open', 'review-comment', 'review-comment', 'review-approve'],
+    [
+      'pr-open',
+      'review-request-changes',
+      'review-comment',
+      'review-request-changes',
+      'review-approve',
+      'review-resolve',
+      'review-request-changes',
+      'review-resolve',
+      'review-reopen',
+    ],
   );
   assert.equal(events.at(-1).visibility, 'private');
+  assert.equal(events.find((event) => event.eventType === 'review-approve')?.actor, 'gitlab-approver');
   assert.ok(capturedRequests.every((request) => request.options.headers['PRIVATE-TOKEN'] === 'gitlab-secret'));
 });

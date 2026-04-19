@@ -24,3 +24,11 @@ Original prompt: 좋아 계속 작업을 진행해보자
 - Added GitLab fixtures across adapter tests and extended the UI harness to mock GitLab API routes alongside existing GitHub routes.
 - Added public GitLab and connected GitLab account UI coverage, plus harness assertions for GitLab source registration.
 - `npm run qa` passed after the GitLab pass with adapter, UI, and harness regressions green.
+
+2026-04-20
+- Started the next GitLab-specific roadmap step: move from flat MR note playback to discussion-aware semantics with unresolved, resolved, and reopened thread states.
+- Switched the GitLab collaboration overlay loader from merge request notes to the Discussions API shape so thread `resolvable`, `resolved`, `resolved_by`, and `resolved_at` state can drive replay events.
+- Added `review-resolve` and `review-reopen` overlay events and taught `musicIntentMapper`, `chartMapper`, and the replay timeline labels how to distinguish them from `review-request-changes` and `review-approve`.
+- Expanded GitLab fixtures and UI harness routes to use discussion payloads, including a reopen scenario, and updated QA expectations around latest-event ordering.
+- `npm run qa` passed after the discussion semantics pass.
+- Live Playwright smoke against the Vite shell rendered correctly, but console logs still showed one 404 and one 403 in this environment, so live forge fetch verification remains partially constrained by local network/runtime conditions.

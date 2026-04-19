@@ -3,6 +3,11 @@ import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 
+import {
+  createCollaborationOverlaySource,
+  mapDiscussionToOverlayEvents,
+  mapReviewToOverlayEvent,
+} from '../lib/collaborationOverlayAdapter.js';
 import { GITHUB_ACCOUNT_REPOS_FIXTURE } from '../../tests/fixtures/githubAccountFixture.mjs';
 import { GITLAB_ACCOUNT_REPOS_FIXTURE } from '../../tests/fixtures/gitlabAccountFixture.mjs';
 import {
@@ -11,8 +16,8 @@ import {
   GITHUB_PULL_REQUEST_REVIEW_COMMENT_FIXTURES,
   GITHUB_PULL_REQUEST_REVIEW_FIXTURES,
   GITLAB_MERGE_REQUEST_APPROVAL_FIXTURES,
+  GITLAB_MERGE_REQUEST_DISCUSSION_FIXTURES,
   GITLAB_MERGE_REQUEST_LIST_FIXTURE,
-  GITLAB_MERGE_REQUEST_NOTE_FIXTURES,
 } from '../../tests/fixtures/collaborationOverlayFixture.mjs';
 import {
   GITHUB_COMMIT_DETAIL_FIXTURES,
@@ -166,9 +171,9 @@ function matchGitlabProjectRoute(url) {
     };
   }
 
-  if (pathSegments.length === 7 && pathSegments[4] === 'merge_requests' && pathSegments[6] === 'notes') {
+  if (pathSegments.length === 7 && pathSegments[4] === 'merge_requests' && pathSegments[6] === 'discussions') {
     return {
-      type: 'merge-request-notes',
+      type: 'merge-request-discussions',
       repoSlug: projectPath,
       mergeRequestIid: Number(pathSegments[5]),
     };
@@ -207,7 +212,7 @@ export function createPlayerAppUiHarness(options = {}) {
     pullRequestIssueComments: cloneFixture(options.pullRequestIssueComments || GITHUB_PULL_REQUEST_ISSUE_COMMENT_FIXTURES),
     pullRequestReviewComments: cloneFixture(options.pullRequestReviewComments || GITHUB_PULL_REQUEST_REVIEW_COMMENT_FIXTURES),
     gitlabMergeRequests: cloneFixture(options.gitlabMergeRequests || GITLAB_MERGE_REQUEST_LIST_FIXTURE),
-    gitlabMergeRequestNotes: cloneFixture(options.gitlabMergeRequestNotes || GITLAB_MERGE_REQUEST_NOTE_FIXTURES),
+    gitlabMergeRequestDiscussions: cloneFixture(options.gitlabMergeRequestDiscussions || GITLAB_MERGE_REQUEST_DISCUSSION_FIXTURES),
     gitlabMergeRequestApprovals: cloneFixture(options.gitlabMergeRequestApprovals || GITLAB_MERGE_REQUEST_APPROVAL_FIXTURES),
     localRepoPath: options.localRepoPath || '/Users/Agent/projects/local-player',
     localBranch: options.localBranch || 'feature/local-bridge',
@@ -388,8 +393,8 @@ export function createPlayerAppUiHarness(options = {}) {
         return createFetchJsonResponse(selectGitlabMergeRequestsForRoute(projectRoute, fixtures));
       }
 
-      if (projectRoute.type === 'merge-request-notes') {
-        return createFetchJsonResponse(fixtures.gitlabMergeRequestNotes[projectRoute.mergeRequestIid] || []);
+      if (projectRoute.type === 'merge-request-discussions') {
+        return createFetchJsonResponse(fixtures.gitlabMergeRequestDiscussions[projectRoute.mergeRequestIid] || []);
       }
 
       if (projectRoute.type === 'merge-request-approvals') {
@@ -486,11 +491,20 @@ function countGitlabOverlayEventsForBranch(repoSlug, branchName, fixtures, inclu
   ));
 
   return matchingMergeRequests.reduce((count, mergeRequest) => {
-    const notes = (fixtures.gitlabMergeRequestNotes[mergeRequest.iid] || []).filter((note) => !note.system);
-    const approvals = includeApprovals
-      ? (fixtures.gitlabMergeRequestApprovals[mergeRequest.iid]?.approved_by || []).length
-      : 0;
+    const source = createCollaborationOverlaySource({
+      provider: 'gitlab',
+      owner: repoSlug.split('/').slice(0, -1).join('/'),
+      repo: repoSlug.split('/').at(-1),
+      branchName,
+    });
+    const discussionEvents = (fixtures.gitlabMergeRequestDiscussions[mergeRequest.iid] || [])
+      .flatMap((discussion) => mapDiscussionToOverlayEvents(discussion, mergeRequest, source));
+    const approvalEvents = includeApprovals
+      ? (fixtures.gitlabMergeRequestApprovals[mergeRequest.iid]?.approved_by || [])
+        .map((approval) => mapReviewToOverlayEvent(approval, mergeRequest, source))
+        .filter(Boolean)
+      : [];
 
-    return count + 1 + notes.length + approvals;
+    return count + 1 + discussionEvents.length + approvalEvents.length;
   }, 0);
 }

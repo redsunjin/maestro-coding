@@ -66,7 +66,7 @@
 ### C. Collaboration Overlay Source
 
 - GitHub/GitLab 같은 forge 이벤트 export 또는 API
-- `pr-open`, `review-comment`, `review-request-changes`, `review-approve`, `push`, `pull`
+- `pr-open`, `review-comment`, `review-request-changes`, `review-resolve`, `review-reopen`, `review-approve`, `push`, `pull`
 - 없으면 곡은 Git Core Layer만으로도 성립해야 한다
 
 ## 6. MVP 핵심 엔티티
@@ -87,7 +87,7 @@
 - `actor`
 - `branchName`
 - `commitSha`
-- `eventType`: `commit` | `merge` | `revert` | `pr-open` | `review-comment` | `review-request-changes` | `review-approve` | `history-approved`
+- `eventType`: `commit` | `merge` | `revert` | `pr-open` | `review-comment` | `review-request-changes` | `review-resolve` | `review-reopen` | `review-approve` | `history-approved`
 - `weight`
 
 ### `ReplayChart`
@@ -172,6 +172,7 @@
 - 사용자가 공개 퍼블릭 레포 URL만으로도 replay를 시작할 수 있다.
 - 사용자가 연결된 Git 계정에서 레포를 선택해 replay를 만들 수 있다.
 - GitHub/GitLab collaboration overlay가 있으면 commit 흐름 위에 review 긴장/해결 패턴이 추가된다.
+- GitLab discussion resolve/reopen 상태가 있으면 unresolved tension과 resolved cadence를 별도 이벤트로 반영할 수 있다.
 - 플레이 결과를 점수와 악보로 다시 확인할 수 있다.
 - 최근 플레이 결과를 로컬 score history에서 다시 확인할 수 있다.
 - 기존 `MaestroWorks` 업무 경로를 전혀 건드리지 않는다.

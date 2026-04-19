@@ -18,6 +18,10 @@ const EVENT_TYPE_ALIASES = Object.freeze({
   request_changes: 'review-request-changes',
   'request-changes': 'review-request-changes',
   review_requested_changes: 'review-request-changes',
+  resolved: 'review-resolve',
+  resolve: 'review-resolve',
+  reopened: 'review-reopen',
+  reopen: 'review-reopen',
   rollback: 'revert',
   history_approved: 'history-approved',
   pr_open: 'pr-open',
@@ -133,7 +137,9 @@ export function extractMetrics(event, session, eventIndex) {
   const newFileCount = toNumber(event.newFileCount, event.changedFiles.filter((path) => path.startsWith('new:')).length);
   const newDirectoryCount = toNumber(event.newDirectoryCount, countNewDirectories(event.changedFiles));
   const requestChangesFlag = event.eventType === 'review-request-changes' ? 1 : 0;
+  const reopenFlag = event.eventType === 'review-reopen' ? 1 : 0;
   const revertFlag = event.eventType === 'revert' ? 1 : 0;
+  const resolveFlag = event.eventType === 'review-resolve' ? 1 : 0;
   const approveFlag = event.eventType === 'review-approve' || event.eventType === 'history-approved' ? 1 : 0;
   const mergeFlag = event.eventType === 'merge' ? 1 : 0;
   const reworkBurstScore = clamp(
@@ -160,6 +166,7 @@ export function extractMetrics(event, session, eventIndex) {
   );
   const tensionScore = clamp(
     (requestChangesFlag * 0.45)
+    + (reopenFlag * 0.35)
     + (revertFlag * 0.35)
     + (deleteRatio * 0.2)
     + (reworkBurstScore * 0.25),
@@ -168,6 +175,7 @@ export function extractMetrics(event, session, eventIndex) {
   );
   const resolutionScore = clamp(
     (approveFlag * 0.45)
+    + (resolveFlag * 0.28)
     + (mergeFlag * 0.8)
     + (checksPassedScore * 0.15),
     0,
@@ -201,6 +209,7 @@ export function mapEventToMusicIntent(event, session, eventIndex, options = {}) 
     + (metrics.sizeScore * 0.38)
     + (metrics.activityScore * 0.28)
     + (metrics.resolutionScore * 0.14)
+    + (event.eventType === 'review-resolve' ? 0.08 : 0)
     + (event.eventType === 'merge' ? 0.18 : 0),
     0,
     1,
@@ -208,6 +217,7 @@ export function mapEventToMusicIntent(event, session, eventIndex, options = {}) 
   const tension = clamp(
     (metrics.tensionScore * 0.85)
     + (event.eventType === 'review-request-changes' ? 0.25 : 0)
+    + (event.eventType === 'review-reopen' ? 0.22 : 0)
     - (metrics.resolutionScore * 0.2),
     0,
     1,
@@ -234,6 +244,7 @@ export function mapEventToMusicIntent(event, session, eventIndex, options = {}) 
     + (metrics.resolutionScore * 0.35)
     + (metrics.tensionScore * 0.16)
     + (event.eventType === 'merge' ? 0.42 : 0)
+    + (event.eventType === 'review-resolve' ? 0.1 : 0)
     + (event.eventType === 'review-approve' ? 0.16 : 0),
     0,
     1,
@@ -396,11 +407,15 @@ function pickStructuralRole(event, session, eventIndex, metrics) {
     return 'outro';
   }
 
-  if (event.eventType === 'review-approve' || event.eventType === 'history-approved') {
+  if (
+    event.eventType === 'review-approve'
+    || event.eventType === 'review-resolve'
+    || event.eventType === 'history-approved'
+  ) {
     return 'cadence';
   }
 
-  if (event.eventType === 'review-request-changes') {
+  if (event.eventType === 'review-request-changes' || event.eventType === 'review-reopen') {
     return 'bridge';
   }
 
@@ -432,8 +447,12 @@ function pickRhythmPattern(event, commitClass, metrics) {
     return 'staccato';
   }
 
-  if (event.eventType === 'review-request-changes') {
+  if (event.eventType === 'review-request-changes' || event.eventType === 'review-reopen') {
     return 'syncopated';
+  }
+
+  if (event.eventType === 'review-resolve') {
+    return 'steady';
   }
 
   if (event.eventType === 'pull' || event.eventType === 'sync') {
@@ -456,11 +475,16 @@ function pickRhythmPattern(event, commitClass, metrics) {
 }
 
 function pickHarmonyAction(event, commitClass, metrics) {
-  if (event.eventType === 'merge' || event.eventType === 'review-approve' || event.eventType === 'history-approved') {
+  if (
+    event.eventType === 'merge'
+    || event.eventType === 'review-approve'
+    || event.eventType === 'review-resolve'
+    || event.eventType === 'history-approved'
+  ) {
     return 'resolve';
   }
 
-  if (event.eventType === 'review-request-changes') {
+  if (event.eventType === 'review-request-changes' || event.eventType === 'review-reopen') {
     return 'suspend';
   }
 
@@ -509,11 +533,21 @@ function pickOrchestrationHint(event, commitClass) {
 
 function pickLaneBias(event, commitClass, dominantPathGroup, laneCount) {
   if (laneCount <= 4) {
-    if (event.eventType === 'merge' || event.eventType === 'review-approve' || event.eventType === 'history-approved') {
+    if (
+      event.eventType === 'merge'
+      || event.eventType === 'review-approve'
+      || event.eventType === 'review-resolve'
+      || event.eventType === 'history-approved'
+    ) {
       return 4;
     }
 
-    if (event.eventType === 'review-request-changes' || commitClass === 'fix' || commitClass === 'refactor') {
+    if (
+      event.eventType === 'review-request-changes'
+      || event.eventType === 'review-reopen'
+      || commitClass === 'fix'
+      || commitClass === 'refactor'
+    ) {
       return 3;
     }
 
@@ -528,11 +562,16 @@ function pickLaneBias(event, commitClass, dominantPathGroup, laneCount) {
     return 6;
   }
 
-  if (event.eventType === 'review-approve' || event.eventType === 'history-approved' || event.eventType === 'push') {
+  if (
+    event.eventType === 'review-approve'
+    || event.eventType === 'review-resolve'
+    || event.eventType === 'history-approved'
+    || event.eventType === 'push'
+  ) {
     return 5;
   }
 
-  if (event.eventType === 'review-request-changes' || commitClass === 'refactor') {
+  if (event.eventType === 'review-request-changes' || event.eventType === 'review-reopen' || commitClass === 'refactor') {
     return 4;
   }
 

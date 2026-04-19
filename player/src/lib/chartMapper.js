@@ -106,7 +106,11 @@ function getNoteBudget(intent, maxNotesPerBeat) {
 }
 
 function pickLaneOffset(intent, noteSeed, noteIndex, laneCount) {
-  if (intent.eventType === 'merge' || intent.eventType === 'review-approve') {
+  if (
+    intent.eventType === 'merge'
+    || intent.eventType === 'review-approve'
+    || intent.eventType === 'review-resolve'
+  ) {
     return 0;
   }
 
@@ -131,7 +135,11 @@ function pickLaneOffset(intent, noteSeed, noteIndex, laneCount) {
 }
 
 function pickNoteType(intent, noteIndex) {
-  if (intent.eventType === 'merge' || (noteIndex === 0 && intent.accentLevel >= 0.78)) {
+  if (
+    intent.eventType === 'merge'
+    || intent.eventType === 'review-resolve'
+    || (noteIndex === 0 && intent.accentLevel >= 0.78)
+  ) {
     return 'accent';
   }
 

@@ -95,7 +95,7 @@ describeIfApp('Player Shell UI', () => {
       expect(findSourceSummaryText([fixtures.publicRepoUrl, fixtures.gitlabPublicRepoSlug])).toBeVisible();
       expect(findEventCountSummary(fixtures.gitlabPublicEventCount)).toBeVisible();
       expect(screen.getByText('feat: add merge request groove')).toBeVisible();
-      expect(screen.getByText('Please smooth out the cadence handoff.')).toBeVisible();
+      expect(screen.getByText('Reopening after retest because the click is still audible.')).toBeVisible();
     });
   });
 

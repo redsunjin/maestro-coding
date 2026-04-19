@@ -127,6 +127,8 @@ runtime_signals:
 
 - 같은 fixture에서 motif/key/tempo가 다시 실행해도 동일함
 - `review-request-changes`는 긴장 패턴으로 반영됨
+- `review-resolve`는 approve보다 약한 cadence/resolve 패턴으로 반영됨
+- `review-reopen`은 discussion 재개에 맞는 재긴장 패턴으로 반영됨
 - `merge`는 accent/cadence lane으로 귀결됨
 - 이벤트가 몰려도 density cap이 유지됨
 - public repo URL을 등록하면 replay source가 생성됨

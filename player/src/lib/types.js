@@ -9,6 +9,8 @@ export const EVENT_TYPES = Object.freeze([
   'pr-update',
   'review-comment',
   'review-request-changes',
+  'review-resolve',
+  'review-reopen',
   'review-approve',
   'history-approved',
 ]);

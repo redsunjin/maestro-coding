@@ -43,12 +43,18 @@ describe('ReplayEventTimeline', () => {
         message: 'pull latest main',
         branchName: 'main',
       },
+      {
+        eventId: 'event-resolve-1',
+        eventType: 'review-resolve',
+        message: 'resolved after retest',
+        branchName: 'feature/song',
+      },
     ];
 
     render(<ReplayEventTimeline events={events} />);
 
     const items = screen.getAllByRole('listitem');
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(4);
 
     expect(within(items[0]).getByText('Merge')).toBeVisible();
     expect(within(items[0]).getByText('Merge pull request #81 from feature/song')).toBeVisible();
@@ -64,5 +70,9 @@ describe('ReplayEventTimeline', () => {
     expect(within(items[2]).getByText('pull latest main')).toBeVisible();
     expect(within(items[2]).getByText('Branch main')).toBeVisible();
     expect(within(items[2]).queryByText(/files|\+\d|-\d/)).not.toBeInTheDocument();
+
+    expect(within(items[3]).getByText('Resolve Thread')).toBeVisible();
+    expect(within(items[3]).getByText('resolved after retest')).toBeVisible();
+    expect(within(items[3]).getByText('Branch feature/song')).toBeVisible();
   });
 });

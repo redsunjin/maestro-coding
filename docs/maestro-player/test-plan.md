@@ -29,6 +29,7 @@
 - GitHub/GitLab provider를 바꿔도 replay source shape가 안정적으로 유지된다.
 - local bridge가 없어도 안전하게 실패하고, 있으면 deterministic payload를 준다.
 - collaboration overlay가 있으면 review 이벤트가 branch 기준으로 안정적으로 정렬된다.
+- GitLab discussion payload가 있으면 unresolved/resolved/reopened 전이가 deterministic하게 event stream으로 변환된다.
 
 ### B. Chart Mapper
 
@@ -50,6 +51,8 @@
 - 같은 branch/PR이 항상 같은 motif를 낳는지
 - `merge`가 종결 패턴으로 귀결되는지
 - `review-request-changes`가 긴장 패턴으로 반영되는지
+- `review-resolve`가 cadence/resolve 패턴으로 반영되는지
+- `review-reopen`이 재긴장 패턴으로 반영되는지
 - overlay 이벤트가 없을 때도 Git-only 곡이 성립하는지
 
 성공 기준:

@@ -11,6 +11,8 @@ const EVENT_LABELS = {
   'pr-update': 'PR Update',
   'review-comment': 'Review Comment',
   'review-request-changes': 'Request Changes',
+  'review-resolve': 'Resolve Thread',
+  'review-reopen': 'Reopen Thread',
   'review-approve': 'Approve',
   'history-approved': 'History Approved',
 };
