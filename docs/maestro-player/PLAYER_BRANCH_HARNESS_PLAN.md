@@ -65,6 +65,7 @@ in:
 - density cap
 - Git-only fallback
 - public repo URL replay 입력
+- GitHub/GitLab provider dispatch
 - fixture 기반 harness 회귀 테스트
 
 out:
@@ -81,7 +82,8 @@ assumptions:
 - overlay 이벤트가 없어도 Git-only 곡은 성립해야 한다.
 - 플레이어는 본체와 시각 언어를 공유할 수 있지만 write-path는 공유하지 않는다.
 - public repo는 계정 연결 없이도 접근 가능해야 한다.
-- connected account mode는 private/public repo 선택 UX를 위한 후속 확장이다.
+- public repo URL은 GitHub와 GitLab 둘 다 지원해야 한다.
+- connected account mode는 GitHub/GitLab private/public repo 선택 UX를 포함한다.
 
 ### 3-3. Record System
 
@@ -128,6 +130,7 @@ runtime_signals:
 - `merge`는 accent/cadence lane으로 귀결됨
 - 이벤트가 몰려도 density cap이 유지됨
 - public repo URL을 등록하면 replay source가 생성됨
+- provider를 GitHub/GitLab로 바꿔도 replay source shape가 유지됨
 - click track과 beat meter가 현재 run beat를 따라간다
 - chart cue가 BGM layer로 재생되며 mute/unmute가 독립 동작한다
 - 수동 플레이에서 timing distance가 `perfect/great/good/miss`로 일관되게 분류된다

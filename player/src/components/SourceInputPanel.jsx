@@ -51,12 +51,14 @@ export default function SourceInputPanel({
   repoPath = '',
   publicUrl = '',
   branchName = '',
+  accountProvider = 'github',
   accountToken = '',
   repositories = [],
   selectedRepo = '',
   onRepoPathChange,
   onPublicUrlChange,
   onBranchNameChange,
+  onAccountProviderChange,
   onAccountTokenChange,
   onSelectedRepoChange,
   onRefreshRepositories,
@@ -77,8 +79,8 @@ export default function SourceInputPanel({
         </div>
         <p className="player-card__meta">
           {mode === 'local' && '로컬 Git 저장소와 브랜치를 읽습니다.'}
-          {mode === 'public' && '공개 저장소 URL만으로 플레이 소스를 만듭니다.'}
-          {mode === 'account' && '계정을 연결하고 저장소를 선택합니다.'}
+          {mode === 'public' && '공개 GitHub 또는 GitLab 저장소 URL만으로 플레이 소스를 만듭니다.'}
+          {mode === 'account' && 'GitHub 또는 GitLab 계정을 연결하고 저장소를 선택합니다.'}
         </p>
       </div>
 
@@ -115,7 +117,7 @@ export default function SourceInputPanel({
               label: 'Public Repository URL',
               value: publicUrl,
               onChange: onPublicUrlChange,
-              placeholder: 'https://github.com/openai/maestro-player',
+              placeholder: 'https://github.com/openai/maestro-player 또는 https://gitlab.com/group/maestro-player',
               type: 'url',
             })}
             {renderField({
@@ -131,12 +133,24 @@ export default function SourceInputPanel({
         {mode === 'account' && (
           <div className="player-stack">
             <div className="player-field-grid">
+              <label className="player-field" htmlFor="player-account-provider">
+                <span className="player-label">Provider</span>
+                <select
+                  id="player-account-provider"
+                  className="player-select"
+                  value={accountProvider}
+                  onChange={(event) => onAccountProviderChange?.(event.target.value)}
+                >
+                  <option value="github">GitHub</option>
+                  <option value="gitlab">GitLab</option>
+                </select>
+              </label>
               {renderField({
                 id: 'player-account-token',
                 label: 'Account Token',
                 value: accountToken,
                 onChange: onAccountTokenChange,
-                placeholder: 'ghp_...',
+                placeholder: accountProvider === 'gitlab' ? 'glpat-...' : 'ghp_...',
                 type: 'password',
                 autoComplete: 'current-password',
               })}

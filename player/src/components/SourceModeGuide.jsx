@@ -24,11 +24,11 @@ const MODE_GUIDES = {
     label: 'Public Repo URL',
     readiness: 'Ready now',
     readinessTone: 'ready',
-    summary: 'Load a public GitHub repository by URL and build a replay from commit history.',
+    summary: 'Load a public GitHub or GitLab repository by URL and build a replay from commit history.',
     bestFor: 'Open-source repos, demos, and frictionless share links.',
     cue: 'Best default for immediate play because no account connection is required.',
     capabilities: [
-      'Start from a URL without signing in.',
+      'Start from a GitHub or GitLab URL without signing in.',
       'Works well for public repository discovery and quick challenge sharing.',
       'Keeps replay generation deterministic from forge history.',
     ],
@@ -42,7 +42,7 @@ const MODE_GUIDES = {
     label: 'Connected Account',
     readiness: 'Ready now',
     readinessTone: 'ready',
-    summary: 'Connect an account token, browse repositories, and load private or public history.',
+    summary: 'Connect a GitHub or GitLab token, browse repositories, and load private or public history.',
     bestFor: 'Private repositories, curated repo pickers, and repeat personal sessions.',
     cue: 'Requires a token first, then a repository refresh before replay can load.',
     capabilities: [
@@ -68,7 +68,7 @@ export default function SourceModeGuide({ mode = 'public', sourceState = {} }) {
           <h2 id="source-mode-guide-title" className="player-section-title">Choose the right input path</h2>
         </div>
         <p className="player-card__meta">
-          Public and account modes are ready in the shell now. Local mode stays staged until a bridge can read machine repositories safely.
+          Public and account modes are ready in the shell now for GitHub and GitLab. Local mode stays staged until a bridge can read machine repositories safely.
         </p>
       </div>
 

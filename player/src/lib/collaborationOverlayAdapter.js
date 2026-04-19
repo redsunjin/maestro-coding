@@ -2,6 +2,7 @@ import { createReplaySource } from './sourceRegistry.js';
 import { normalizeTimestamp } from './types.js';
 
 const GITHUB_API_BASE_URL = 'https://api.github.com';
+const GITLAB_API_BASE_URL = 'https://gitlab.com/api/v4';
 
 export function createCollaborationOverlaySource(input) {
   const provider = input.provider || 'github';
@@ -24,11 +25,11 @@ export function createCollaborationOverlaySource(input) {
     repo,
     repoSlug,
     branchName,
-    canonicalUrl: input.canonicalUrl || `https://github.com/${repoSlug}`,
+    canonicalUrl: input.canonicalUrl || buildCanonicalUrl(provider, repoSlug),
     sourceLabel: input.sourceLabel || repoSlug,
     targetPathOrId: input.targetPathOrId || repoSlug,
     metadata: {
-      apiBaseUrl: input.apiBaseUrl || `${GITHUB_API_BASE_URL}/repos/${repoSlug}`,
+      apiBaseUrl: input.apiBaseUrl || buildOverlayApiBaseUrl(provider, repoSlug),
       defaultBranch: input.defaultBranch || branchName,
     },
   });
@@ -41,6 +42,46 @@ export async function loadCollaborationOverlayEvents(input) {
   }
 
   const source = createCollaborationOverlaySource(input);
+  if (source.provider === 'gitlab') {
+    return loadGitLabCollaborationOverlayEvents(source, input, fetchImpl);
+  }
+
+  return loadGitHubCollaborationOverlayEvents(source, input, fetchImpl);
+}
+
+export function mapPullRequestToOverlayEvent(pullRequest, source) {
+  if (source.provider === 'gitlab') {
+    return mapGitLabMergeRequestToOverlayEvent(pullRequest, source);
+  }
+
+  return mapGitHubPullRequestToOverlayEvent(pullRequest, source);
+}
+
+export function mapReviewToOverlayEvent(review, pullRequest, source) {
+  if (source.provider === 'gitlab') {
+    return mapGitLabApprovalToOverlayEvent(review, pullRequest, source);
+  }
+
+  return mapGitHubReviewToOverlayEvent(review, pullRequest, source);
+}
+
+export function mapIssueCommentToOverlayEvent(comment, pullRequest, source) {
+  if (source.provider === 'gitlab') {
+    return mapGitLabNoteToOverlayEvent(comment, pullRequest, source);
+  }
+
+  return mapGitHubIssueCommentToOverlayEvent(comment, pullRequest, source);
+}
+
+export function mapReviewCommentToOverlayEvent(comment, pullRequest, source) {
+  if (source.provider === 'gitlab') {
+    return mapGitLabNoteToOverlayEvent(comment, pullRequest, source);
+  }
+
+  return mapGitHubReviewCommentToOverlayEvent(comment, pullRequest, source);
+}
+
+async function loadGitHubCollaborationOverlayEvents(source, input, fetchImpl) {
   const maxPullRequests = toPositiveInteger(input.maxPullRequests, 10);
   const apiBaseUrl = source.metadata.apiBaseUrl || `${GITHUB_API_BASE_URL}/repos/${source.repoSlug}`;
   const headers = buildHeaders(input.accessToken);
@@ -88,7 +129,53 @@ export async function loadCollaborationOverlayEvents(input) {
     .sort(compareOverlayEvents);
 }
 
-export function mapPullRequestToOverlayEvent(pullRequest, source) {
+async function loadGitLabCollaborationOverlayEvents(source, input, fetchImpl) {
+  const maxPullRequests = toPositiveInteger(input.maxPullRequests, 10);
+  const apiBaseUrl = source.metadata.apiBaseUrl || `${GITLAB_API_BASE_URL}/projects/${encodeURIComponent(source.repoSlug)}`;
+  const headers = buildHeaders(input.accessToken, source.provider);
+  const mergeRequestsUrl = `${apiBaseUrl}/merge_requests?state=all&source_branch=${encodeURIComponent(source.branchName)}&per_page=${maxPullRequests}&order_by=created_at&sort=desc`;
+  const mergeRequests = await fetchJson(fetchImpl, mergeRequestsUrl, headers, 'collaboration overlay merge request listing failed');
+
+  const matchingMergeRequests = mergeRequests
+    .filter((mergeRequest) => isMatchingGitLabMergeRequest(mergeRequest, source))
+    .sort(compareByCreatedAtDesc);
+
+  const eventGroups = await Promise.all(
+    matchingMergeRequests.map(async (mergeRequest) => {
+      const notePromise = fetchJson(
+        fetchImpl,
+        `${apiBaseUrl}/merge_requests/${mergeRequest.iid}/notes?sort=asc&order_by=created_at&per_page=${toPositiveInteger(input.maxIssueCommentsPerPullRequest, 100)}`,
+        headers,
+        `collaboration overlay notes failed for mr ${mergeRequest.iid}`,
+      );
+      const approvalPromise = input.accessToken
+        ? fetchJson(
+          fetchImpl,
+          `${apiBaseUrl}/merge_requests/${mergeRequest.iid}/approvals`,
+          headers,
+          `collaboration overlay approvals failed for mr ${mergeRequest.iid}`,
+        ).catch(() => ({ approved_by: [] }))
+        : Promise.resolve({ approved_by: [] });
+      const [notes, approvals] = await Promise.all([notePromise, approvalPromise]);
+
+      return [
+        mapGitLabMergeRequestToOverlayEvent(mergeRequest, source),
+        ...notes
+          .map((note) => mapGitLabNoteToOverlayEvent(note, mergeRequest, source))
+          .filter(Boolean),
+        ...normalizeGitLabApprovedBy(approvals)
+          .map((approval, index) => mapGitLabApprovalToOverlayEvent(approval, mergeRequest, source, index))
+          .filter(Boolean),
+      ];
+    }),
+  );
+
+  return eventGroups
+    .flat()
+    .sort(compareOverlayEvents);
+}
+
+function mapGitHubPullRequestToOverlayEvent(pullRequest, source) {
   const timestamp = normalizeTimestamp(pullRequest.created_at);
   return {
     eventId: `github:pr-open:${pullRequest.id || pullRequest.number}`,
@@ -114,7 +201,7 @@ export function mapPullRequestToOverlayEvent(pullRequest, source) {
   };
 }
 
-export function mapReviewToOverlayEvent(review, pullRequest, source) {
+function mapGitHubReviewToOverlayEvent(review, pullRequest, source) {
   const eventType = mapGitHubReviewState(review.state);
   if (!eventType) {
     return null;
@@ -147,7 +234,7 @@ export function mapReviewToOverlayEvent(review, pullRequest, source) {
   };
 }
 
-export function mapIssueCommentToOverlayEvent(comment, pullRequest, source) {
+function mapGitHubIssueCommentToOverlayEvent(comment, pullRequest, source) {
   const timestamp = normalizeTimestamp(comment.created_at || comment.updated_at);
   const message = String(comment.body || '').trim() || 'comment';
 
@@ -175,7 +262,7 @@ export function mapIssueCommentToOverlayEvent(comment, pullRequest, source) {
   };
 }
 
-export function mapReviewCommentToOverlayEvent(comment, pullRequest, source) {
+function mapGitHubReviewCommentToOverlayEvent(comment, pullRequest, source) {
   const timestamp = normalizeTimestamp(comment.created_at || comment.updated_at);
   const message = String(comment.body || '').trim() || 'comment';
   const changedFiles = comment.path ? [comment.path] : [];
@@ -204,13 +291,104 @@ export function mapReviewCommentToOverlayEvent(comment, pullRequest, source) {
   };
 }
 
-function buildHeaders(accessToken) {
-  const headers = {
-    accept: 'application/vnd.github+json',
+function mapGitLabMergeRequestToOverlayEvent(mergeRequest, source) {
+  const timestamp = normalizeTimestamp(mergeRequest.created_at);
+  return {
+    eventId: `gitlab:pr-open:${mergeRequest.id || mergeRequest.iid}`,
+    sourceType: 'forge-collaboration',
+    repoId: source.repoSlug,
+    sourceLabel: source.sourceLabel,
+    eventType: 'pr-open',
+    timestamp,
+    actor: mergeRequest.author?.username || mergeRequest.author?.name || 'unknown',
+    branchName: mergeRequest.source_branch || source.branchName,
+    prNumber: mergeRequest.iid,
+    title: mergeRequest.title || `Merge request !${mergeRequest.iid}`,
+    message: mergeRequest.description || mergeRequest.title || `Merge request !${mergeRequest.iid}`,
+    changedFiles: [],
+    filesChanged: 0,
+    linesAdded: 0,
+    linesDeleted: 0,
+    provider: source.provider,
+    visibility: source.visibility,
+    sourceUrl: mergeRequest.web_url || `${source.canonicalUrl}/-/merge_requests/${mergeRequest.iid}`,
+    reviewDecision: mergeRequest.state || null,
+    weight: 1.25,
   };
+}
+
+function mapGitLabNoteToOverlayEvent(note, mergeRequest, source) {
+  if (!note || note.system) {
+    return null;
+  }
+
+  const timestamp = normalizeTimestamp(note.created_at || note.updated_at);
+  const message = String(note.body || '').trim() || 'comment';
+  const changedFiles = note.position?.new_path ? [note.position.new_path] : [];
+
+  return {
+    eventId: `gitlab:review-comment:${note.id}`,
+    sourceType: 'forge-collaboration',
+    repoId: source.repoSlug,
+    sourceLabel: source.sourceLabel,
+    eventType: 'review-comment',
+    timestamp,
+    actor: note.author?.username || note.author?.name || 'unknown',
+    branchName: mergeRequest.source_branch || source.branchName,
+    prNumber: mergeRequest.iid,
+    title: mergeRequest.title || `Merge request !${mergeRequest.iid}`,
+    message,
+    changedFiles,
+    filesChanged: changedFiles.length,
+    linesAdded: 0,
+    linesDeleted: 0,
+    provider: source.provider,
+    visibility: source.visibility,
+    sourceUrl: `${source.canonicalUrl}/-/merge_requests/${mergeRequest.iid}#note_${note.id}`,
+    reviewDecision: null,
+    weight: changedFiles.length ? 1.05 : 1,
+  };
+}
+
+function mapGitLabApprovalToOverlayEvent(approval, mergeRequest, source, fallbackIndex = 0) {
+  const approvedBy = approval?.user || approval;
+  const timestamp = normalizeTimestamp(approval?.approved_at || approval?.created_at, fallbackIndex);
+
+  return {
+    eventId: `gitlab:review-approve:${approval?.id || approvedBy?.id || approvedBy?.username || fallbackIndex}`,
+    sourceType: 'forge-collaboration',
+    repoId: source.repoSlug,
+    sourceLabel: source.sourceLabel,
+    eventType: 'review-approve',
+    timestamp,
+    actor: approvedBy?.username || approvedBy?.name || 'unknown',
+    branchName: mergeRequest.source_branch || source.branchName,
+    prNumber: mergeRequest.iid,
+    title: mergeRequest.title || `Merge request !${mergeRequest.iid}`,
+    message: approval?.body || 'Approved merge request',
+    changedFiles: [],
+    filesChanged: 0,
+    linesAdded: 0,
+    linesDeleted: 0,
+    provider: source.provider,
+    visibility: source.visibility,
+    sourceUrl: approvedBy?.web_url || `${source.canonicalUrl}/-/merge_requests/${mergeRequest.iid}`,
+    reviewDecision: 'APPROVED',
+    weight: 1.2,
+  };
+}
+
+function buildHeaders(accessToken, provider = 'github') {
+  const headers = provider === 'gitlab'
+    ? {}
+    : { accept: 'application/vnd.github+json' };
 
   if (accessToken) {
-    headers.authorization = `Bearer ${accessToken}`;
+    if (provider === 'gitlab') {
+      headers['PRIVATE-TOKEN'] = accessToken;
+    } else {
+      headers.authorization = `Bearer ${accessToken}`;
+    }
   }
 
   return headers;
@@ -228,6 +406,11 @@ async function fetchJson(fetchImpl, url, headers, errorPrefix) {
 function isMatchingPullRequest(pullRequest, source) {
   return pullRequest?.head?.ref === source.branchName
     && pullRequest?.head?.repo?.full_name === source.repoSlug;
+}
+
+function isMatchingGitLabMergeRequest(mergeRequest, source) {
+  return mergeRequest?.source_branch === source.branchName
+    && String(mergeRequest?.web_url || '').startsWith(`${source.canonicalUrl}/-/merge_requests/`);
 }
 
 function mapGitHubReviewState(state) {
@@ -263,4 +446,25 @@ function compareOverlayEvents(left, right) {
 
 function toPositiveInteger(value, fallback) {
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+
+function normalizeGitLabApprovedBy(approvalsPayload) {
+  const approvedBy = approvalsPayload?.approved_by;
+  return Array.isArray(approvedBy) ? approvedBy : [];
+}
+
+function buildCanonicalUrl(provider, repoSlug) {
+  if (provider === 'gitlab') {
+    return `https://gitlab.com/${repoSlug}`;
+  }
+
+  return `https://github.com/${repoSlug}`;
+}
+
+function buildOverlayApiBaseUrl(provider, repoSlug) {
+  if (provider === 'gitlab') {
+    return `${GITLAB_API_BASE_URL}/projects/${encodeURIComponent(repoSlug)}`;
+  }
+
+  return `${GITHUB_API_BASE_URL}/repos/${repoSlug}`;
 }

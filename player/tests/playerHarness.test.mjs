@@ -96,6 +96,18 @@ test('player harness can register a public repository replay source from a githu
   assert.equal(source.repoSlug, 'openai/openai-python');
 });
 
+test('player harness can register a public repository replay source from a gitlab url', () => {
+  const source = createPublicRepoSource({
+    url: 'https://gitlab.com/openai/platform/maestro-player/-/tree/feature/cadence',
+  });
+
+  assert.equal(source.sourceType, 'git-public-url');
+  assert.equal(source.provider, 'gitlab');
+  assert.equal(source.visibility, 'public');
+  assert.equal(source.repoSlug, 'openai/platform/maestro-player');
+  assert.equal(source.branchName, 'feature/cadence');
+});
+
 test('player harness can register a connected account repository replay source', () => {
   const source = createConnectedAccountRepoSource({
     owner: 'agent',
@@ -108,4 +120,20 @@ test('player harness can register a connected account repository replay source',
   assert.equal(source.sourceType, 'git-account');
   assert.equal(source.visibility, 'private');
   assert.equal(source.repoSlug, 'agent/private-player-repo');
+});
+
+test('player harness can register a connected gitlab account repository replay source', () => {
+  const source = createConnectedAccountRepoSource({
+    provider: 'gitlab',
+    owner: 'agent/platform',
+    repo: 'group-player-repo',
+    accountId: 'gitlab-user-1',
+    defaultBranch: 'develop',
+    visibility: 'internal',
+  });
+
+  assert.equal(source.sourceType, 'git-account');
+  assert.equal(source.provider, 'gitlab');
+  assert.equal(source.visibility, 'internal');
+  assert.equal(source.repoSlug, 'agent/platform/group-player-repo');
 });

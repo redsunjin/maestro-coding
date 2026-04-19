@@ -44,6 +44,7 @@
 
 - 사용자가 공개 퍼블릭 레포 URL을 직접 등록한다.
 - 예: `https://github.com/owner/repo`
+- 예: `https://gitlab.com/group/project`
 - 계정 연결 없이도 공개 이력을 읽어 replay를 만들 수 있어야 한다.
 - 이 모드는 플레이어의 공유/데모/바이럴 진입점으로 중요하다.
 
@@ -170,7 +171,7 @@
 - 로컬 모드에서 bridge가 연결되면 read-only replay를 실제 차트로 변환할 수 있다.
 - 사용자가 공개 퍼블릭 레포 URL만으로도 replay를 시작할 수 있다.
 - 사용자가 연결된 Git 계정에서 레포를 선택해 replay를 만들 수 있다.
-- GitHub PR/review overlay가 있으면 commit 흐름 위에 review 긴장/해결 패턴이 추가된다.
+- GitHub/GitLab collaboration overlay가 있으면 commit 흐름 위에 review 긴장/해결 패턴이 추가된다.
 - 플레이 결과를 점수와 악보로 다시 확인할 수 있다.
 - 최근 플레이 결과를 로컬 score history에서 다시 확인할 수 있다.
 - 기존 `MaestroWorks` 업무 경로를 전혀 건드리지 않는다.

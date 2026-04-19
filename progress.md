@@ -16,3 +16,11 @@ Original prompt: 좋아 계속 작업을 진행해보자
 - Added independent BGM mute/unmute, live cue summary text, and kept click-track plus beat-meter as separate controls.
 - `npm run qa` stayed green after the BGM pass.
 - Started judgment window refinement so manual play can expose a clearer `perfect / great / good / miss` rhythm skill curve.
+
+2026-04-19
+- Started GitLab provider expansion so Maestro Player is no longer implicitly GitHub-only in public URL, account, and collaboration overlay flows.
+- Refactored `publicRepoAdapter`, `accountRepoAdapter`, and `collaborationOverlayAdapter` to dispatch on `provider` and added GitLab commit, project, merge request, note, and approval mapping.
+- Expanded the shell UI so public mode explicitly accepts GitHub or GitLab URLs and connected account mode can switch between GitHub and GitLab providers.
+- Added GitLab fixtures across adapter tests and extended the UI harness to mock GitLab API routes alongside existing GitHub routes.
+- Added public GitLab and connected GitLab account UI coverage, plus harness assertions for GitLab source registration.
+- `npm run qa` passed after the GitLab pass with adapter, UI, and harness regressions green.

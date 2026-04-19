@@ -98,3 +98,95 @@ export const GITHUB_PULL_REQUEST_REVIEW_COMMENT_FIXTURES = {
     },
   ],
 };
+
+export const GITLAB_MERGE_REQUEST_LIST_FIXTURE = [
+  {
+    id: 1202,
+    iid: 12,
+    title: 'Older GitLab branch',
+    description: 'Older branch work.',
+    web_url: 'https://gitlab.com/openai/maestro-player/-/merge_requests/12',
+    created_at: '2026-04-16T08:00:00Z',
+    source_branch: 'feature/other-branch',
+    references: {
+      full: 'openai/maestro-player!12',
+    },
+    author: {
+      username: 'other-gitlab-contributor',
+      name: 'Other Contributor',
+    },
+  },
+  {
+    id: 1201,
+    iid: 11,
+    title: 'GitLab cadence polish',
+    description: 'Improves merge request cadence transitions.',
+    web_url: 'https://gitlab.com/openai/maestro-player/-/merge_requests/11',
+    created_at: '2026-04-17T09:00:00Z',
+    source_branch: 'feature/cadence',
+    references: {
+      full: 'openai/maestro-player!11',
+    },
+    author: {
+      username: 'gitlab-contributor',
+      name: 'GitLab Contributor',
+    },
+  },
+];
+
+export const GITLAB_MERGE_REQUEST_NOTE_FIXTURES = {
+  11: [
+    {
+      id: 601,
+      body: 'Please smooth out the cadence handoff.',
+      created_at: '2026-04-17T09:11:00Z',
+      system: false,
+      author: {
+        username: 'gitlab-reviewer-a',
+        name: 'GitLab Reviewer A',
+      },
+    },
+    {
+      id: 602,
+      body: 'mentioned in commit 123',
+      created_at: '2026-04-17T09:12:00Z',
+      system: true,
+      author: {
+        username: 'gitlab-system',
+        name: 'GitLab System',
+      },
+    },
+    {
+      id: 603,
+      body: 'Consider tightening the synth release.',
+      created_at: '2026-04-17T09:13:00Z',
+      system: false,
+      resolvable: true,
+      position: {
+        new_path: 'src/audio/gitlab-bridge.js',
+      },
+      author: {
+        username: 'gitlab-reviewer-b',
+        name: 'GitLab Reviewer B',
+      },
+    },
+  ],
+};
+
+export const GITLAB_MERGE_REQUEST_APPROVAL_FIXTURES = {
+  11: {
+    id: 1201,
+    iid: 11,
+    approved_by: [
+      {
+        user: {
+          id: 701,
+          username: 'gitlab-approver',
+          name: 'GitLab Approver',
+          web_url: 'https://gitlab.com/gitlab-approver',
+        },
+        approved_at: '2026-04-17T09:16:00Z',
+      },
+    ],
+  },
+};

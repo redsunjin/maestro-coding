@@ -1,5 +1,18 @@
 import { registerConnectedAccountSource } from './sourceRegistry.js';
-import { mapGitHubCommitToReplayEvent } from './publicRepoAdapter.js';
+import { mapGitHubCommitToReplayEvent, mapGitLabCommitToReplayEvent } from './publicRepoAdapter.js';
+
+const GITHUB_API_BASE_URL = 'https://api.github.com';
+const GITLAB_API_BASE_URL = 'https://gitlab.com/api/v4';
+
+export async function listConnectedRepositories(input) {
+  const provider = input.provider || 'github';
+
+  if (provider === 'gitlab') {
+    return listConnectedGitlabRepositories(input);
+  }
+
+  return listConnectedGithubRepositories(input);
+}
 
 export async function listConnectedGithubRepositories(input) {
   const fetchImpl = input.fetchImpl || globalThis.fetch;
@@ -29,9 +42,35 @@ export async function listConnectedGithubRepositories(input) {
   return repositories.map((repository) => normalizeGithubRepository(repository));
 }
 
+export async function listConnectedGitlabRepositories(input) {
+  const fetchImpl = input.fetchImpl || globalThis.fetch;
+  if (typeof fetchImpl !== 'function') {
+    throw new Error('account repo adapter requires a fetch implementation');
+  }
+
+  if (!input.accessToken) {
+    throw new Error('gitlab account listing requires an access token');
+  }
+
+  const perPage = Number.isFinite(input.perPage) && input.perPage > 0 ? Math.floor(input.perPage) : 50;
+  const url = `${GITLAB_API_BASE_URL}/projects?membership=true&simple=true&order_by=last_activity_at&sort=desc&per_page=${perPage}`;
+  const response = await fetchImpl(url, {
+    headers: {
+      'PRIVATE-TOKEN': input.accessToken,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`gitlab account repo listing failed: ${response.status}`);
+  }
+
+  const repositories = await response.json();
+  return repositories.map((repository) => normalizeGitlabRepository(repository));
+}
+
 export function createConnectedAccountRepoSource(input) {
   return registerConnectedAccountSource({
-    provider: 'github',
+    provider: input.provider || 'github',
     owner: input.owner,
     repo: input.repo,
     sourceLabel: input.sourceLabel || `${input.owner}/${input.repo}`,
@@ -56,9 +95,47 @@ export async function loadConnectedAccountReplayEvents(input) {
 
   const source = createConnectedAccountRepoSource(input);
   const maxCommits = Number.isFinite(input.maxCommits) && input.maxCommits > 0 ? Math.floor(input.maxCommits) : 20;
-  const apiBaseUrl = `https://api.github.com/repos/${source.repoSlug}`;
+
+  if (source.provider === 'gitlab') {
+    return loadGitlabConnectedAccountReplayEvents(source, input.accessToken, fetchImpl, maxCommits);
+  }
+
+  return loadGithubConnectedAccountReplayEvents(source, input.accessToken, fetchImpl, maxCommits);
+}
+
+function normalizeGithubRepository(repository) {
+  return {
+    provider: 'github',
+    repoId: repository.id,
+    owner: repository.owner?.login,
+    repo: repository.name,
+    repoSlug: repository.full_name,
+    visibility: repository.private ? 'private' : 'public',
+    defaultBranch: repository.default_branch || 'main',
+    htmlUrl: repository.html_url,
+  };
+}
+
+function normalizeGitlabRepository(repository) {
+  const repoSlug = repository.path_with_namespace;
+  const slugSegments = String(repoSlug || '').split('/').filter(Boolean);
+
+  return {
+    provider: 'gitlab',
+    repoId: repository.id,
+    owner: repository.namespace?.full_path || slugSegments.slice(0, -1).join('/'),
+    repo: repository.path || slugSegments.at(-1),
+    repoSlug,
+    visibility: repository.visibility || 'private',
+    defaultBranch: repository.default_branch || 'main',
+    htmlUrl: repository.web_url,
+  };
+}
+
+async function loadGithubConnectedAccountReplayEvents(source, accessToken, fetchImpl, maxCommits) {
+  const apiBaseUrl = `${GITHUB_API_BASE_URL}/repos/${source.repoSlug}`;
   const headers = {
-    authorization: `Bearer ${input.accessToken}`,
+    authorization: `Bearer ${accessToken}`,
     accept: 'application/vnd.github+json',
   };
   const commitListResponse = await fetchImpl(
@@ -96,15 +173,57 @@ export async function loadConnectedAccountReplayEvents(input) {
   }));
 }
 
-function normalizeGithubRepository(repository) {
-  return {
-    provider: 'github',
-    repoId: repository.id,
-    owner: repository.owner?.login,
-    repo: repository.name,
-    repoSlug: repository.full_name,
-    visibility: repository.private ? 'private' : 'public',
-    defaultBranch: repository.default_branch || 'main',
-    htmlUrl: repository.html_url,
+async function loadGitlabConnectedAccountReplayEvents(source, accessToken, fetchImpl, maxCommits) {
+  const apiBaseUrl = `${GITLAB_API_BASE_URL}/projects/${encodeURIComponent(source.repoSlug)}`;
+  const headers = {
+    'PRIVATE-TOKEN': accessToken,
   };
+  const commitListResponse = await fetchImpl(
+    `${apiBaseUrl}/repository/commits?ref_name=${encodeURIComponent(source.branchName || 'main')}&per_page=${maxCommits}`,
+    { headers },
+  );
+
+  if (!commitListResponse.ok) {
+    throw new Error(`gitlab account replay loading failed: ${commitListResponse.status}`);
+  }
+
+  const commitList = await commitListResponse.json();
+  const replayEvents = await Promise.all(
+    commitList.map(async (commit) => {
+      const commitSha = commit.id || commit.sha;
+      const [detailResponse, diffResponse] = await Promise.all([
+        fetchImpl(`${apiBaseUrl}/repository/commits/${commitSha}?stats=true`, { headers }),
+        fetchImpl(`${apiBaseUrl}/repository/commits/${commitSha}/diff`, { headers }),
+      ]);
+
+      if (!detailResponse.ok) {
+        throw new Error(`gitlab account commit detail failed: ${detailResponse.status}`);
+      }
+
+      if (!diffResponse.ok) {
+        throw new Error(`gitlab account commit diff failed: ${diffResponse.status}`);
+      }
+
+      const [detail, diffEntries] = await Promise.all([
+        detailResponse.json(),
+        diffResponse.json(),
+      ]);
+
+      return mapGitLabCommitToReplayEvent(detail, diffEntries, {
+        ...source,
+        sourceType: 'git-account',
+        visibility: source.visibility,
+        metadata: {
+          ...source.metadata,
+          apiBaseUrl,
+        },
+      });
+    }),
+  );
+
+  return replayEvents.map((event) => ({
+    ...event,
+    sourceType: 'git-account',
+    visibility: source.visibility,
+  }));
 }

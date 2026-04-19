@@ -6,7 +6,7 @@ import SourceModeTabs from './components/SourceModeTabs.jsx';
 import SourceInputPanel from './components/SourceInputPanel.jsx';
 import SourceModeGuide from './components/SourceModeGuide.jsx';
 import ReplayStatusPanel from './components/ReplayStatusPanel.jsx';
-import { createConnectedAccountRepoSource, listConnectedGithubRepositories, loadConnectedAccountReplayEvents } from './lib/accountRepoAdapter.js';
+import { createConnectedAccountRepoSource, listConnectedRepositories, loadConnectedAccountReplayEvents } from './lib/accountRepoAdapter.js';
 import { createChartFromMusicPlan } from './lib/chartMapper.js';
 import { loadCollaborationOverlayEvents } from './lib/collaborationOverlayAdapter.js';
 import { hasLocalRepoBridge, loadLocalRepoReplayEvents } from './lib/localRepoBridge.js';
@@ -32,6 +32,7 @@ const INITIAL_DRAFTS = {
     branch: 'main',
   },
   account: {
+    provider: 'github',
     token: '',
     repoSlug: '',
     branch: 'main',
@@ -187,6 +188,7 @@ export default function App() {
           canonicalUrl: source.canonicalUrl,
           sourceLabel: source.repoSlug || source.sourceLabel,
           visibility: source.visibility,
+          provider: source.provider,
         });
         applyReplayResult(source, mergeReplayEvents(replayEvents, overlayEvents));
         return;
@@ -202,12 +204,13 @@ export default function App() {
 
       const source = createConnectedAccountRepoSource({
         ...selectedRepository,
-        accountId: 'connected-github-account',
+        accountId: `connected-${drafts.account.provider}-account`,
         branchName: drafts.account.branch || selectedRepository.defaultBranch || 'main',
         sourceLabel: `${selectedRepository.repo} (connected account)`,
       });
       const replayEvents = await loadConnectedAccountReplayEvents({
         ...selectedRepository,
+        provider: drafts.account.provider,
         accessToken: drafts.account.token,
         branchName: drafts.account.branch || selectedRepository.defaultBranch || 'main',
         fetchImpl: globalThis.fetch,
@@ -222,6 +225,7 @@ export default function App() {
         canonicalUrl: selectedRepository.htmlUrl,
         sourceLabel: selectedRepository.repoSlug,
         visibility: selectedRepository.visibility,
+        provider: drafts.account.provider,
       });
       applyReplayResult(source, mergeReplayEvents(replayEvents, overlayEvents));
     } catch (error) {
@@ -236,7 +240,8 @@ export default function App() {
     setIsRepoListLoading(true);
 
     try {
-      const repositories = await listConnectedGithubRepositories({
+      const repositories = await listConnectedRepositories({
+        provider: drafts.account.provider,
         accessToken: drafts.account.token,
         fetchImpl: globalThis.fetch,
       });
@@ -316,7 +321,7 @@ export default function App() {
           <p className="player-eyebrow">Maestro Player</p>
           <h1 className="player-title">Turn repository history into a <span>playable score</span>.</h1>
           <p className="player-subtitle">
-            Load a local repo, a public GitHub URL, or a connected account repository and translate commit flow into a rhythm chart.
+            Load a local repo, a public GitHub or GitLab URL, or a connected forge repository and translate commit flow into a rhythm chart.
           </p>
           <div className="player-hero__meta">
           <span>Read-only replay</span>
@@ -341,12 +346,25 @@ export default function App() {
               repoPath={drafts.local.repoPath}
               publicUrl={drafts.public.url}
               branchName={drafts[sourceMode].branch}
+              accountProvider={drafts.account.provider}
               accountToken={drafts.account.token}
               selectedRepo={drafts.account.repoSlug}
               repositories={accountRepositories}
               onRepoPathChange={(value) => handleDraftChange('local', 'repoPath', value)}
               onPublicUrlChange={(value) => handleDraftChange('public', 'url', value)}
               onBranchNameChange={(value) => handleDraftChange(sourceMode, 'branch', value)}
+              onAccountProviderChange={(value) => {
+                setAccountRepositories([]);
+                setDrafts((currentDrafts) => ({
+                  ...currentDrafts,
+                  account: {
+                    ...currentDrafts.account,
+                    provider: value,
+                    repoSlug: '',
+                    branch: 'main',
+                  },
+                }));
+              }}
               onAccountTokenChange={(value) => handleDraftChange('account', 'token', value)}
               onSelectedRepoChange={(value) => handleDraftChange('account', 'repoSlug', value)}
               onRefreshRepositories={handleRefreshRepositories}
@@ -442,7 +460,7 @@ function buildPublicGuideState(publicDraft, activeSource, replaySummary) {
       readiness: 'Loaded',
       readinessTone: 'ready',
       cue: `Replay mapped from the selected public source: ${replaySummary?.eventCount || 0} events${reviewSuffix}.`,
-      summary: `Loaded ${activeSource.branchName || branchName} from the selected public repository.`,
+      summary: `Loaded ${activeSource.branchName || branchName} from the selected ${activeSource.provider || 'public'} repository.`,
     };
   }
 
@@ -457,6 +475,7 @@ function buildPublicGuideState(publicDraft, activeSource, replaySummary) {
 
 function buildAccountGuideState(accountDraft, accountRepositories, activeSource, replaySummary) {
   const branchName = accountDraft.branch || 'main';
+  const providerLabel = accountDraft.provider === 'gitlab' ? 'GitLab' : 'GitHub';
 
   if (activeSource?.sourceType === 'git-account') {
     const reviewSuffix = replaySummary?.reviewCount ? `, including ${replaySummary.reviewCount} review events` : '';
@@ -464,7 +483,7 @@ function buildAccountGuideState(accountDraft, accountRepositories, activeSource,
       readiness: 'Loaded',
       readinessTone: 'ready',
       cue: `Replay mapped from the connected repository: ${replaySummary?.eventCount || 0} events${reviewSuffix}.`,
-      summary: `Connected replay loaded on ${activeSource.branchName || branchName}.`,
+      summary: `${activeSource.provider || providerLabel} replay loaded on ${activeSource.branchName || branchName}.`,
     };
   }
 
@@ -472,7 +491,7 @@ function buildAccountGuideState(accountDraft, accountRepositories, activeSource,
     return {
       readiness: 'Connected',
       readinessTone: 'ready',
-      cue: `${accountRepositories.length} repositories available. Select one and load replay.`,
+      cue: `${accountRepositories.length} ${providerLabel} repositories available. Select one and load replay.`,
     };
   }
 
@@ -480,13 +499,13 @@ function buildAccountGuideState(accountDraft, accountRepositories, activeSource,
     return {
       readiness: 'Connected',
       readinessTone: 'ready',
-      cue: 'Token added. Refresh repositories to populate the picker.',
+      cue: `${providerLabel} token added. Refresh repositories to populate the picker.`,
     };
   }
 
   return {
     readiness: 'Token needed',
-    cue: 'Add a token to list repositories and unlock private replay.',
+    cue: `Add a ${providerLabel} token to list repositories and unlock private replay.`,
   };
 }
 

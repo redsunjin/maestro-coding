@@ -77,6 +77,28 @@ describeIfApp('Player Shell UI', () => {
     });
   });
 
+  test('loading a public gitlab repo shows the selected source and gitlab event count', async () => {
+    const { fixtures, user } = renderPlayerApp(App, {
+      publicProvider: 'gitlab',
+      gitlabPublicRepoSlug: 'openai/maestro-player',
+      publicRepoUrl: 'https://gitlab.com/openai/maestro-player',
+    });
+
+    await user.click(getSourceModeControl('Public Repo URL'));
+    await user.clear(screen.getByLabelText('Public Repository URL'));
+    await user.type(screen.getByLabelText('Public Repository URL'), fixtures.publicRepoUrl);
+    await user.clear(screen.getByLabelText('Branch'));
+    await user.type(screen.getByLabelText('Branch'), fixtures.gitlabPublicBranch);
+    await user.click(screen.getByRole('button', { name: 'Load Replay' }));
+
+    await waitFor(() => {
+      expect(findSourceSummaryText([fixtures.publicRepoUrl, fixtures.gitlabPublicRepoSlug])).toBeVisible();
+      expect(findEventCountSummary(fixtures.gitlabPublicEventCount)).toBeVisible();
+      expect(screen.getByText('feat: add merge request groove')).toBeVisible();
+      expect(screen.getByText('Please smooth out the cadence handoff.')).toBeVisible();
+    });
+  });
+
   test('loading connected account repos populates the select and then shows replay summary', async () => {
     const { fixtures, requestLog, user } = renderPlayerApp(App);
 
@@ -102,6 +124,38 @@ describeIfApp('Player Shell UI', () => {
       requestLog.some(({ init, url }) => (
         url.includes('/user/repos')
         && readAuthorizationHeader(init) === `Bearer ${fixtures.accountToken}`
+      )),
+    ).toBe(true);
+  });
+
+  test('loading connected gitlab account repos populates the select and then shows replay summary', async () => {
+    const { fixtures, requestLog, user } = renderPlayerApp(App, {
+      accountProvider: 'gitlab',
+    });
+
+    await user.click(getSourceModeControl('Connected Account'));
+    await user.selectOptions(screen.getByLabelText('Provider'), 'gitlab');
+    await user.type(screen.getByLabelText('Account Token'), fixtures.gitlabAccountToken);
+    await user.click(screen.getByRole('button', { name: 'Refresh Repositories' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: new RegExp(fixtures.gitlabAccountRepoSlug) })).toBeInTheDocument();
+    });
+
+    await user.selectOptions(screen.getByLabelText('Repository'), fixtures.gitlabAccountRepoSlug);
+    await user.clear(screen.getByLabelText('Branch'));
+    await user.type(screen.getByLabelText('Branch'), fixtures.gitlabAccountBranch);
+    await user.click(screen.getByRole('button', { name: 'Load Replay' }));
+
+    await waitFor(() => {
+      expect(findSourceSummaryText([fixtures.gitlabAccountRepoSlug])).toBeVisible();
+      expect(findEventCountSummary(fixtures.gitlabAccountEventCount)).toBeVisible();
+    });
+
+    expect(
+      requestLog.some(({ init, url }) => (
+        url.includes('/api/v4/projects')
+        && readAuthorizationHeader(init, 'PRIVATE-TOKEN') === fixtures.gitlabAccountToken
       )),
     ).toBe(true);
   });
@@ -241,22 +295,23 @@ function isMissingPlayerAppModule(error) {
   );
 }
 
-function readAuthorizationHeader(init) {
+function readAuthorizationHeader(init, headerName = 'authorization') {
   const headers = init?.headers;
+  const normalizedHeaderName = headerName.toLowerCase();
 
   if (!headers) {
     return null;
   }
 
   if (typeof headers.get === 'function') {
-    return headers.get('authorization') ?? headers.get('Authorization');
+    return headers.get(headerName) ?? headers.get(normalizedHeaderName);
   }
 
   if (Array.isArray(headers)) {
-    const matched = headers.find(([name]) => String(name).toLowerCase() === 'authorization');
+    const matched = headers.find(([name]) => String(name).toLowerCase() === normalizedHeaderName);
     return matched ? matched[1] : null;
   }
 
-  const matched = Object.entries(headers).find(([name]) => name.toLowerCase() === 'authorization');
+  const matched = Object.entries(headers).find(([name]) => name.toLowerCase() === normalizedHeaderName);
   return matched ? matched[1] : null;
 }

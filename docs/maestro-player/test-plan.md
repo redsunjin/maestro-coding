@@ -17,7 +17,7 @@
 - Maestro history를 `ReplayEvent`로 변환
 - 공개 퍼블릭 레포 URL을 replay source로 변환
 - 연결된 계정의 레포 선택 결과를 replay source로 변환
-- GitHub PR/review overlay를 `ReplayEvent`로 변환
+- GitHub/GitLab collaboration overlay를 `ReplayEvent`로 변환
 - 필수 필드 누락 시 안전하게 실패
 
 성공 기준:
@@ -26,6 +26,7 @@
 - `commitSha`, `timestamp`, `eventType`가 안정적으로 채워진다.
 - public repo URL만으로도 최소 1개 replay source를 만들 수 있다.
 - 계정 연결 모드에서 repo/project별 선택 결과가 source registry에 안정적으로 반영된다.
+- GitHub/GitLab provider를 바꿔도 replay source shape가 안정적으로 유지된다.
 - local bridge가 없어도 안전하게 실패하고, 있으면 deterministic payload를 준다.
 - collaboration overlay가 있으면 review 이벤트가 branch 기준으로 안정적으로 정렬된다.
 
@@ -64,6 +65,7 @@
 - source 선택
 - public repo URL 등록
 - connected account repo 선택
+- provider 전환 (`GitHub` / `GitLab`)
 - chart load
 - local bridge replay load
 - play/pause/retry
