@@ -27,6 +27,22 @@ afterEach(() => {
 });
 
 describeIfApp('Player Shell UI', () => {
+  test('language toggle switches the shell copy between English and Korean', async () => {
+    const { user } = renderPlayerApp(App);
+
+    expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: '한국어' }));
+
+    expect(screen.getByRole('heading', { name: '맞는 입력 경로 선택' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '리플레이 불러오기' })).toBeVisible();
+    expect(screen.getByText('읽기 전용 리플레이')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'English' }));
+
+    expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
+  });
+
   test('switching source modes updates the visible form controls', async () => {
     const { user } = renderPlayerApp(App);
 

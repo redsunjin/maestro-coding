@@ -1,21 +1,5 @@
 import React from 'react';
-
-const EVENT_LABELS = {
-  commit: 'Commit',
-  merge: 'Merge',
-  revert: 'Revert',
-  push: 'Push',
-  pull: 'Pull',
-  sync: 'Sync',
-  'pr-open': 'PR Open',
-  'pr-update': 'PR Update',
-  'review-comment': 'Review Comment',
-  'review-request-changes': 'Request Changes',
-  'review-resolve': 'Resolve Thread',
-  'review-reopen': 'Reopen Thread',
-  'review-approve': 'Approve',
-  'history-approved': 'History Approved',
-};
+import { getPlayerCopy, getReplayEventLabel } from '../lib/playerI18n.js';
 
 const containerStyle = {
   display: 'grid',
@@ -81,24 +65,12 @@ const statLineStyle = {
   lineHeight: 1.45,
 };
 
-function getEventLabel(eventType) {
-  if (EVENT_LABELS[eventType]) {
-    return EVENT_LABELS[eventType];
-  }
-
-  return String(eventType || 'unknown')
-    .split('-')
-    .filter(Boolean)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(' ');
-}
-
-function getEventMessage(event) {
+function getEventMessage(event, untitledLabel) {
   if (String(event?.eventType || '').startsWith('review')) {
-    return event?.message || event?.title || event?.commitSha || event?.eventId || 'Untitled event';
+    return event?.message || event?.title || event?.commitSha || event?.eventId || untitledLabel;
   }
 
-  return event?.title || event?.message || event?.commitSha || event?.eventId || 'Untitled event';
+  return event?.title || event?.message || event?.commitSha || event?.eventId || untitledLabel;
 }
 
 function getFilesChanged(event) {
@@ -113,14 +85,15 @@ function getFilesChanged(event) {
   return null;
 }
 
-function formatStatLine(event) {
+function formatStatLine(event, language = 'en') {
+  const copy = getPlayerCopy(language);
   const filesChanged = getFilesChanged(event);
   const hasAdded = Number.isFinite(event?.linesAdded);
   const hasDeleted = Number.isFinite(event?.linesDeleted);
   const segments = [];
 
   if (filesChanged !== null) {
-    segments.push(`${filesChanged} ${filesChanged === 1 ? 'file' : 'files'}`);
+    segments.push(copy.timeline.fileCount(filesChanged));
   }
 
   if (hasAdded && event.linesAdded > 0) {
@@ -140,40 +113,44 @@ function formatStatLine(event) {
 
 export default function ReplayEventTimeline({
   events = [],
-  title = 'Recent events',
-  emptyMessage = 'No replay events loaded yet.',
+  title = null,
+  emptyMessage = null,
   maxItems = 8,
+  language = 'en',
 }) {
+  const copy = getPlayerCopy(language);
   const normalizedEvents = Array.isArray(events) ? events.slice(0, maxItems) : [];
+  const resolvedTitle = title || copy.timeline.defaultTitle;
+  const resolvedEmptyMessage = emptyMessage || copy.timeline.empty;
 
   return (
     <section className="player-card" aria-labelledby="replay-event-timeline-title">
       <div className="player-card__header">
         <div>
-          <p className="player-kicker">Replay Events</p>
-          <h2 id="replay-event-timeline-title" className="player-section-title">{title}</h2>
+          <p className="player-kicker">{copy.timeline.kicker}</p>
+          <h2 id="replay-event-timeline-title" className="player-section-title">{resolvedTitle}</h2>
         </div>
         <span className={`player-pill${normalizedEvents.length > 0 ? ' is-live' : ''}`}>
-          {normalizedEvents.length} events
+          {copy.timeline.eventsCount(normalizedEvents.length)}
         </span>
       </div>
 
       {normalizedEvents.length === 0 ? (
-        <p className="status-empty">{emptyMessage}</p>
+        <p className="status-empty">{resolvedEmptyMessage}</p>
       ) : (
         <div style={containerStyle}>
-          <ol style={listStyle} aria-label="Replay event timeline">
+          <ol style={listStyle} aria-label={copy.timeline.ariaLabel}>
             {normalizedEvents.map((event, index) => {
-              const statLine = formatStatLine(event);
+              const statLine = formatStatLine(event, language);
               const eventKey = event?.eventId || `${event?.eventType || 'event'}-${index}`;
 
               return (
                 <li key={eventKey} style={itemStyle}>
                   <div style={topRowStyle}>
-                    <span style={eventTypeStyle}>{getEventLabel(event?.eventType)}</span>
-                    <span style={branchStyle}>Branch {event?.branchName || 'unknown'}</span>
+                    <span style={eventTypeStyle}>{getReplayEventLabel(event?.eventType, language)}</span>
+                    <span style={branchStyle}>{copy.timeline.branchLabel(event?.branchName || copy.common.unknown)}</span>
                   </div>
-                  <p style={messageStyle}>{getEventMessage(event)}</p>
+                  <p style={messageStyle}>{getEventMessage(event, copy.timeline.untitled)}</p>
                   {statLine ? <span style={statLineStyle}>{statLine}</span> : null}
                 </li>
               );

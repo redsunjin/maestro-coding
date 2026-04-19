@@ -1,9 +1,12 @@
 import React, { useMemo } from 'react';
+import { formatPlayerNumber, formatPlayerTimestamp, getPlayerCopy } from '../lib/playerI18n.js';
 
 export default function ScoreHistoryPanel({
   records = [],
   activeSource = null,
+  language = 'en',
 }) {
+  const copy = getPlayerCopy(language);
   const bestScore = useMemo(
     () => (records.length ? Math.max(...records.map((record) => record.score || 0)) : 0),
     [records],
@@ -14,11 +17,11 @@ export default function ScoreHistoryPanel({
     <section className="player-card score-history-panel" aria-labelledby="score-history-panel-title">
       <div className="player-card__header">
         <div>
-          <p className="player-kicker">Performance History</p>
-          <h2 id="score-history-panel-title" className="player-section-title">Recent score history</h2>
+          <p className="player-kicker">{copy.scoreHistory.kicker}</p>
+          <h2 id="score-history-panel-title" className="player-section-title">{copy.scoreHistory.title}</h2>
         </div>
         <span className={`player-pill${records.length ? ' is-live' : ''}`}>
-          {records.length ? `${records.length} saved run${records.length > 1 ? 's' : ''}` : 'No runs saved'}
+          {copy.scoreHistory.savedRuns(records.length)}
         </span>
       </div>
 
@@ -26,20 +29,20 @@ export default function ScoreHistoryPanel({
         <>
           <div className="status-metrics">
             <article className="status-metric">
-              <span className="status-metric__label">Best score</span>
-              <strong>{formatNumber(bestScore)}</strong>
+              <span className="status-metric__label">{copy.scoreHistory.labels.bestScore}</span>
+              <strong>{formatPlayerNumber(bestScore, language)}</strong>
             </article>
             <article className="status-metric">
-              <span className="status-metric__label">Latest accuracy</span>
+              <span className="status-metric__label">{copy.scoreHistory.labels.latestAccuracy}</span>
               <strong>{formatAccuracy(latestAccuracy)}</strong>
             </article>
             <article className="status-metric">
-              <span className="status-metric__label">Current source</span>
-              <strong>{activeSource ? 'Filtered' : 'All runs'}</strong>
+              <span className="status-metric__label">{copy.scoreHistory.labels.currentSource}</span>
+              <strong>{activeSource ? copy.scoreHistory.currentSourceFiltered : copy.scoreHistory.currentSourceAll}</strong>
             </article>
             <article className="status-metric">
-              <span className="status-metric__label">Latest mode</span>
-              <strong>{formatPlayMode(records[0]?.playMode)}</strong>
+              <span className="status-metric__label">{copy.scoreHistory.labels.latestMode}</span>
+              <strong>{formatPlayMode(records[0]?.playMode, language)}</strong>
             </article>
           </div>
 
@@ -48,16 +51,21 @@ export default function ScoreHistoryPanel({
               <li key={record.runId} className="score-history-panel__item">
                 <div className="score-history-panel__item-header">
                   <strong>{record.sourceLabel}</strong>
-                  <span>{formatNumber(record.score)} pts</span>
+                  <span>{copy.scoreHistory.points(formatPlayerNumber(record.score, language))}</span>
                 </div>
                 <div className="score-history-panel__meta">
                   <span>{record.branchName}</span>
-                  <span>{formatPlayMode(record.playMode)}</span>
+                  <span>{formatPlayMode(record.playMode, language)}</span>
                   <span>{formatAccuracy(record.accuracy)}</span>
-                  <span>{record.maxCombo} max combo</span>
+                  <span>{copy.scoreHistory.maxCombo(record.maxCombo)}</span>
                 </div>
                 <p className="score-history-panel__detail">
-                  {record.notesHit} / {record.totalNotes} notes, {record.judgments.miss} misses, saved {formatTimestamp(record.finishedAt)}.
+                  {copy.scoreHistory.detail({
+                    notesHit: record.notesHit,
+                    totalNotes: record.totalNotes,
+                    misses: record.judgments.miss,
+                    timestamp: formatPlayerTimestamp(record.finishedAt, language),
+                  })}
                 </p>
               </li>
             ))}
@@ -66,8 +74,8 @@ export default function ScoreHistoryPanel({
       ) : (
         <p className="status-empty">
           {activeSource
-            ? 'Complete a run on the active replay source to save score history for this chart.'
-            : 'Load a replay source and finish a run to start building score history.'}
+            ? copy.scoreHistory.emptyActive
+            : copy.scoreHistory.emptyGeneric}
         </p>
       )}
     </section>
@@ -78,24 +86,11 @@ function formatAccuracy(value) {
   return `${Math.round((Number(value) || 0) * 10) / 10}%`;
 }
 
-function formatNumber(value) {
-  return new Intl.NumberFormat().format(Number(value) || 0);
-}
-
-function formatPlayMode(value) {
+function formatPlayMode(value, language = 'en') {
+  const copy = getPlayerCopy(language);
   if (value === 'auto') {
-    return 'Auto Preview';
+    return copy.scoreHistory.playModes.auto;
   }
 
-  return 'Manual Play';
-}
-
-function formatTimestamp(value) {
-  const timestamp = new Date(value);
-
-  if (Number.isNaN(timestamp.getTime())) {
-    return String(value);
-  }
-
-  return timestamp.toLocaleString();
+  return copy.scoreHistory.playModes.manual;
 }

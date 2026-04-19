@@ -69,6 +69,17 @@ textarea {
   box-shadow: var(--player-shadow);
 }
 
+.player-hero__content {
+  display: grid;
+  gap: 10px;
+}
+
+.player-hero__controls {
+  display: grid;
+  gap: 10px;
+  justify-items: end;
+}
+
 .player-kicker {
   margin: 0 0 8px;
   color: var(--player-cyan);
@@ -101,6 +112,42 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.player-language-switch__label {
+  color: var(--player-text-dim);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.player-language-switch {
+  display: inline-flex;
+  padding: 4px;
+  border: 1px solid rgba(71, 85, 105, 0.7);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.4);
+  gap: 4px;
+}
+
+.player-language-switch__button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem;
+  background: transparent;
+  color: var(--player-text-dim);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.player-language-switch__button:hover {
+  color: var(--player-text);
+}
+
+.player-language-switch__button.is-active {
+  background: rgba(103, 232, 249, 0.16);
+  color: var(--player-text);
 }
 
 .player-pill {
@@ -752,6 +799,10 @@ textarea {
   .player-card__meta {
     max-width: none;
     text-align: left;
+  }
+
+  .player-hero__controls {
+    justify-items: start;
   }
 
   .status-metrics {

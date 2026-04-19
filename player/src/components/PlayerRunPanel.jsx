@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createBrowserMetronomeDriver, createPulseDescriptor } from '../lib/metronomeEngine.js';
 import { createBrowserReplayAudioDriver, createReplayCuePlan } from '../lib/replayAudioEngine.js';
+import { getPlayerCopy } from '../lib/playerI18n.js';
 
 const TICK_MS = 160;
 const BEAT_STEP = 0.5;
@@ -22,8 +23,8 @@ const JUDGMENT_MULTIPLIERS = Object.freeze({
 });
 
 const PLAY_MODES = Object.freeze([
-  { id: 'manual', label: 'Manual Play' },
-  { id: 'auto', label: 'Auto Preview' },
+  { id: 'manual' },
+  { id: 'auto' },
 ]);
 
 const LANE_KEYS = Object.freeze(['A', 'S', 'D', 'F', 'J', 'K']);
@@ -34,7 +35,9 @@ export default function PlayerRunPanel({
   onRunComplete = null,
   audioDriver = null,
   bgmDriver = null,
+  language = 'en',
 }) {
+  const copy = getPlayerCopy(language);
   const notes = useMemo(
     () => [...(chart?.notes || [])].sort((left, right) => left.beatOffset - right.beatOffset),
     [chart],
@@ -88,8 +91,8 @@ export default function PlayerRunPanel({
     const timerId = window.setInterval(() => {
       setRunState((previousState) => (
         playMode === 'auto'
-          ? advanceAutoRunState(previousState, notes, totalBeats)
-          : advanceManualRunState(previousState, notes, totalBeats)
+          ? advanceAutoRunState(previousState, notes, totalBeats, language)
+          : advanceManualRunState(previousState, notes, totalBeats, language)
       ));
     }, TICK_MS);
 
@@ -110,7 +113,7 @@ export default function PlayerRunPanel({
       }
 
       event.preventDefault();
-      setRunState((previousState) => resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo));
+      setRunState((previousState) => resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo, language));
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -221,36 +224,36 @@ export default function PlayerRunPanel({
     ? `${Math.round((runState.notesHit / notes.length) * 100)}%`
     : '0%';
   const averageOffsetLabel = runState.timedHitCount
-    ? formatAverageOffsetLabel(runState.timingOffsetTotalMs / runState.timedHitCount)
-    : 'No timing data';
+    ? formatAverageOffsetLabel(runState.timingOffsetTotalMs / runState.timedHitCount, language)
+    : copy.runPanel.noTimingData;
   const activeBeatInBar = pulseIndicator?.beatInBar || ((Math.floor(runState.currentBeat) % 4) + 1);
   const audioSyncLabel = !audioSupported
-    ? 'Audio unavailable'
+    ? copy.runPanel.sync.audioUnavailable
     : clickTrackEnabled
       ? pulseIndicator?.isDownbeat
-        ? `Downbeat on beat ${pulseIndicator.beatInBar}`
+        ? copy.runPanel.sync.downbeat(pulseIndicator.beatInBar)
         : pulseIndicator
-          ? `Beat ${pulseIndicator.beatInBar}${pulseIndicator.isSubdivision ? ' subdivision' : ''}`
-          : 'Click track armed'
-      : 'Click track muted';
+          ? copy.runPanel.sync.beat(pulseIndicator.beatInBar, pulseIndicator.isSubdivision)
+          : copy.runPanel.sync.clickArmed
+      : copy.runPanel.sync.clickMuted;
   const bgmStatusLabel = !bgmSupported
-    ? 'BGM unavailable'
+    ? copy.runPanel.sync.bgmUnavailable
     : bgmEnabled
-      ? activeCueSummary || 'BGM armed'
-      : 'BGM muted';
+      ? activeCueSummary || copy.runPanel.sync.bgmArmed
+      : copy.runPanel.sync.bgmMuted;
 
   if (!chart || notes.length === 0) {
     return (
       <section className="player-card" aria-labelledby="player-run-panel-title">
         <div className="player-card__header">
           <div>
-            <p className="player-kicker">Run Session</p>
-            <h2 id="player-run-panel-title" className="player-section-title">Play the chart</h2>
+            <p className="player-kicker">{copy.runPanel.kicker}</p>
+            <h2 id="player-run-panel-title" className="player-section-title">{copy.runPanel.title}</h2>
           </div>
-          <span className="player-pill">No chart loaded</span>
+          <span className="player-pill">{copy.runPanel.noChart}</span>
         </div>
         <p className="status-empty">
-          Load a replay source to generate a playable chart. The run panel will then expose play, pause, retry, lane input, and result summary.
+          {copy.runPanel.noChartMessage}
         </p>
       </section>
     );
@@ -260,40 +263,40 @@ export default function PlayerRunPanel({
     <section className="player-card player-run-panel" aria-labelledby="player-run-panel-title">
       <div className="player-card__header">
         <div>
-          <p className="player-kicker">Run Session</p>
-          <h2 id="player-run-panel-title" className="player-section-title">Play the chart</h2>
+          <p className="player-kicker">{copy.runPanel.kicker}</p>
+          <h2 id="player-run-panel-title" className="player-section-title">{copy.runPanel.title}</h2>
         </div>
         <div className="player-run-panel__header-pills">
-          <span className="player-pill">{PLAY_MODES.find((mode) => mode.id === playMode)?.label}</span>
+          <span className="player-pill">{copy.runPanel.playModes[playMode]}</span>
           <span className={`player-pill${runState.status === 'complete' ? ' is-live' : ''}`}>
-            {getRunStatusLabel(runState.status)}
+            {getRunStatusLabel(runState.status, language)}
           </span>
         </div>
       </div>
 
       <div className="player-run-panel__hero">
         <div>
-          <p className="player-run-panel__tempo">{tempo} BPM {playMode === 'manual' ? 'manual run' : 'autoplay preview'}</p>
+          <p className="player-run-panel__tempo">{playMode === 'manual' ? copy.runPanel.tempoManual(tempo) : copy.runPanel.tempoAuto(tempo)}</p>
           <p className="player-run-panel__subtitle">
             {playMode === 'manual'
-              ? 'Use the lane buttons or A/S/D/F to hit notes inside the timing window.'
-              : 'Auto mode resolves notes automatically so the shell can verify combo and result handling.'}
+              ? copy.runPanel.subtitles.manual
+              : copy.runPanel.subtitles.auto}
           </p>
         </div>
         <div className="player-run-panel__sync">
           <div className="player-run-panel__sync-meta">
             <span className={`player-pill${clickTrackEnabled && audioSupported ? ' is-live' : ''}`}>
-              {audioSupported ? (clickTrackEnabled ? 'Click Track On' : 'Click Track Off') : 'Audio Pending'}
+              {audioSupported ? (clickTrackEnabled ? copy.runPanel.sync.clickOn : copy.runPanel.sync.clickOff) : copy.runPanel.sync.clickPending}
             </span>
             <span className="player-run-panel__sync-label">{audioSyncLabel}</span>
           </div>
           <div className="player-run-panel__sync-meta">
             <span className={`player-pill${bgmEnabled && bgmSupported ? ' is-live' : ''}`}>
-              {bgmSupported ? (bgmEnabled ? 'BGM Layer On' : 'BGM Layer Off') : 'BGM Pending'}
+              {bgmSupported ? (bgmEnabled ? copy.runPanel.sync.bgmOn : copy.runPanel.sync.bgmOff) : copy.runPanel.sync.bgmPending}
             </span>
             <span className="player-run-panel__sync-label">{bgmStatusLabel}</span>
           </div>
-          <div className="player-run-panel__meter" aria-label="Beat meter">
+          <div className="player-run-panel__meter" aria-label={language === 'ko' ? '비트 미터' : 'Beat meter'}>
             {Array.from({ length: 4 }, (_, beatOffset) => {
               const beat = beatOffset + 1;
               const isActive = activeBeatInBar === beat;
@@ -310,7 +313,7 @@ export default function PlayerRunPanel({
             })}
           </div>
         </div>
-        <div className="player-run-panel__mode-switch" role="tablist" aria-label="Play mode">
+        <div className="player-run-panel__mode-switch" role="tablist" aria-label={language === 'ko' ? '플레이 모드' : 'Play mode'}>
           {PLAY_MODES.map((mode) => (
             <button
               key={mode.id}
@@ -320,7 +323,7 @@ export default function PlayerRunPanel({
               aria-selected={playMode === mode.id}
               onClick={() => setPlayMode(mode.id)}
             >
-              <span className="source-mode-tab__label">{mode.label}</span>
+              <span className="source-mode-tab__label">{copy.runPanel.playModes[mode.id]}</span>
               <span className="source-mode-tab__description" />
             </button>
           ))}
@@ -353,7 +356,7 @@ export default function PlayerRunPanel({
               });
             }}
           >
-            {runState.status === 'idle' ? 'Start Run' : runState.status === 'paused' ? 'Resume Run' : 'Replay Run'}
+            {runState.status === 'idle' ? copy.runPanel.controls.start : runState.status === 'paused' ? copy.runPanel.controls.resume : copy.runPanel.controls.replay}
           </button>
           <button
             className="player-button player-button--secondary"
@@ -363,7 +366,7 @@ export default function PlayerRunPanel({
               setClickTrackEnabled((enabled) => !enabled);
             }}
           >
-            {clickTrackEnabled ? 'Mute Click Track' : 'Enable Click Track'}
+            {clickTrackEnabled ? copy.runPanel.controls.muteClick : copy.runPanel.controls.enableClick}
           </button>
           <button
             className="player-button player-button--secondary"
@@ -373,7 +376,7 @@ export default function PlayerRunPanel({
               setBgmEnabled((enabled) => !enabled);
             }}
           >
-            {bgmEnabled ? 'Mute BGM Layer' : 'Enable BGM Layer'}
+            {bgmEnabled ? copy.runPanel.controls.muteBgm : copy.runPanel.controls.enableBgm}
           </button>
           <button
             className="player-button player-button--secondary"
@@ -386,7 +389,7 @@ export default function PlayerRunPanel({
               }));
             }}
           >
-            Pause Run
+            {copy.runPanel.controls.pause}
           </button>
           <button
             className="player-button player-button--secondary"
@@ -397,14 +400,14 @@ export default function PlayerRunPanel({
               setActiveCueSummary('');
             }}
           >
-            Retry Run
+            {copy.runPanel.controls.retry}
           </button>
         </div>
       </div>
 
       <div className="player-run-panel__progress">
         <div className="player-run-panel__progress-meta">
-          <span>Beat {runState.currentBeat.toFixed(1)} / {totalBeats.toFixed(1)}</span>
+          <span>{copy.runPanel.beatProgress(runState.currentBeat.toFixed(1), totalBeats.toFixed(1))}</span>
           <span>{progressPercent}%</span>
         </div>
         <div className="player-run-panel__progress-bar" aria-hidden="true">
@@ -414,36 +417,36 @@ export default function PlayerRunPanel({
 
       <div className="status-metrics">
         <article className="status-metric">
-          <span className="status-metric__label">Score</span>
+          <span className="status-metric__label">{copy.runPanel.metrics.score}</span>
           <strong>{runState.score}</strong>
         </article>
         <article className="status-metric">
-          <span className="status-metric__label">Combo</span>
+          <span className="status-metric__label">{copy.runPanel.metrics.combo}</span>
           <strong>{runState.combo}</strong>
         </article>
         <article className="status-metric">
-          <span className="status-metric__label">Max Combo</span>
+          <span className="status-metric__label">{copy.runPanel.metrics.maxCombo}</span>
           <strong>{runState.maxCombo}</strong>
         </article>
         <article className="status-metric">
-          <span className="status-metric__label">Accuracy</span>
+          <span className="status-metric__label">{copy.runPanel.metrics.accuracy}</span>
           <strong>{accuracyLabel}</strong>
         </article>
       </div>
 
       <div className="player-run-panel__judgment-row">
-        <span>Perfect {runState.judgments.perfect}</span>
-        <span>Great {runState.judgments.great}</span>
-        <span>Good {runState.judgments.good}</span>
-        <span>Miss {runState.judgments.miss}</span>
+        <span>{`${copy.runPanel.judgments.perfect} ${runState.judgments.perfect}`}</span>
+        <span>{`${copy.runPanel.judgments.great} ${runState.judgments.great}`}</span>
+        <span>{`${copy.runPanel.judgments.good} ${runState.judgments.good}`}</span>
+        <span>{`${copy.runPanel.judgments.miss} ${runState.judgments.miss}`}</span>
         <span>{runState.lastJudgment || audioSyncLabel}</span>
       </div>
       <p className="player-run-panel__timing-note">
-        {playMode === 'manual' ? `Timing bias: ${averageOffsetLabel}` : 'Timing bias: Auto mode resolves notes without human timing.'}
+        {playMode === 'manual' ? copy.runPanel.timingBias(averageOffsetLabel) : copy.runPanel.autoTimingBias}
       </p>
-      <p className="player-run-panel__timing-note">{`BGM state: ${bgmStatusLabel}`}</p>
+      <p className="player-run-panel__timing-note">{copy.runPanel.bgmState(bgmStatusLabel)}</p>
 
-      <div className="player-run-panel__lanes" aria-label="Chart lanes">
+      <div className="player-run-panel__lanes" aria-label={language === 'ko' ? '차트 레인' : 'Chart lanes'}>
         {Array.from({ length: laneCount }, (_, laneOffset) => {
           const laneIndex = laneOffset + 1;
           const laneNotes = visibleNotes.filter((note) => note.laneIndex === laneIndex);
@@ -452,7 +455,7 @@ export default function PlayerRunPanel({
           return (
             <div key={laneIndex} className="player-run-panel__lane">
               <div className="player-run-panel__lane-label">
-                <span>Lane {laneIndex}</span>
+                <span>{copy.runPanel.laneLabel(laneIndex)}</span>
                 <kbd>{laneKey}</kbd>
               </div>
               <div className="player-run-panel__lane-track">
@@ -471,10 +474,10 @@ export default function PlayerRunPanel({
                 type="button"
                 disabled={playMode !== 'manual' || runState.status !== 'running'}
                 onClick={() => {
-                  setRunState((previousState) => resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo));
+                  setRunState((previousState) => resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo, language));
                 }}
               >
-                Hit {laneKey}
+                {copy.runPanel.controls.hit(laneKey)}
               </button>
             </div>
           );
@@ -482,28 +485,41 @@ export default function PlayerRunPanel({
       </div>
 
       <div className="player-run-panel__queue">
-        <div className="status-section__title">Upcoming Notes</div>
+        <div className="status-section__title">{copy.runPanel.upcomingTitle}</div>
         {upcomingNotes.length > 0 ? (
           <ol className="player-run-panel__queue-list">
             {upcomingNotes.map((note) => (
               <li key={note.noteId} className="player-run-panel__queue-item">
-                <span className="player-run-panel__queue-lane">Lane {note.laneIndex}</span>
+                <span className="player-run-panel__queue-lane">{copy.runPanel.laneLabel(note.laneIndex)}</span>
                 <span>{note.noteType}</span>
-                <span>@ {note.beatOffset.toFixed(2)} beat</span>
+                <span>{copy.runPanel.queueNoteBeat(note.beatOffset.toFixed(2))}</span>
               </li>
             ))}
           </ol>
         ) : (
-          <p className="status-empty">No queued notes remain in this run.</p>
+          <p className="status-empty">{copy.runPanel.queueEmpty}</p>
         )}
       </div>
 
       {runState.status === 'complete' ? (
         <div className="status-item status-item--wide">
-          <dt>Run result</dt>
+          <dt>{language === 'ko' ? '런 결과' : 'Run result'}</dt>
           <dd>
-            Completed {playMode === 'manual' ? 'manual play' : 'autoplay preview'} with {runState.notesHit} / {notes.length}
-            {' '}notes resolved, {runState.maxCombo} max combo, {runState.judgments.miss} misses, and {runState.score} score.
+            {playMode === 'manual'
+              ? copy.runPanel.resultManual({
+                notesHit: runState.notesHit,
+                totalNotes: notes.length,
+                maxCombo: runState.maxCombo,
+                misses: runState.judgments.miss,
+                score: runState.score,
+              })
+              : copy.runPanel.resultAuto({
+                notesHit: runState.notesHit,
+                totalNotes: notes.length,
+                maxCombo: runState.maxCombo,
+                misses: runState.judgments.miss,
+                score: runState.score,
+              })}
           </dd>
         </div>
       ) : null}
@@ -540,7 +556,8 @@ function createRunToken() {
   return `run-${runTokenCounter}`;
 }
 
-function advanceAutoRunState(previousState, notes, totalBeats) {
+function advanceAutoRunState(previousState, notes, totalBeats, language = 'en') {
+  const copy = getPlayerCopy(language);
   if (previousState.status !== 'running') {
     return previousState;
   }
@@ -574,11 +591,12 @@ function advanceAutoRunState(previousState, notes, totalBeats) {
       ...previousState.judgments,
       perfect: previousState.judgments.perfect + resolvedNotes.length,
     },
-    lastJudgment: resolvedNotes.length ? `Auto resolved ${resolvedNotes.length} note${resolvedNotes.length > 1 ? 's' : ''}` : previousState.lastJudgment,
+    lastJudgment: resolvedNotes.length ? copy.runPanel.autoResolved(resolvedNotes.length) : previousState.lastJudgment,
   };
 }
 
-function advanceManualRunState(previousState, notes, totalBeats) {
+function advanceManualRunState(previousState, notes, totalBeats, language = 'en') {
+  const copy = getPlayerCopy(language);
   if (previousState.status !== 'running') {
     return previousState;
   }
@@ -605,11 +623,12 @@ function advanceManualRunState(previousState, notes, totalBeats) {
       ...previousState.judgments,
       miss: previousState.judgments.miss + missedNotes.length,
     },
-    lastJudgment: missedNotes.length ? `Missed ${missedNotes.length} note${missedNotes.length > 1 ? 's' : ''}` : previousState.lastJudgment,
+    lastJudgment: missedNotes.length ? copy.runPanel.missedNotes(missedNotes.length) : previousState.lastJudgment,
   };
 }
 
-function resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo = 120) {
+function resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo = 120, language = 'en') {
+  const copy = getPlayerCopy(language);
   if (previousState.status !== 'running') {
     return previousState;
   }
@@ -628,7 +647,7 @@ function resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo
     return {
       ...previousState,
       combo: 0,
-      lastJudgment: `Lane ${laneIndex} miss`,
+      lastJudgment: copy.runPanel.laneMiss(laneIndex),
     };
   }
 
@@ -661,7 +680,7 @@ function resolveManualLaneHit(previousState, laneIndex, notes, totalBeats, tempo
     },
     timedHitCount: previousState.timedHitCount + 1,
     timingOffsetTotalMs: previousState.timingOffsetTotalMs + signedOffsetMs,
-    lastJudgment: `${formatJudgmentLabel(judgment)} ${formatSignedOffsetLabel(signedOffsetMs)} on lane ${laneIndex}`,
+    lastJudgment: `${formatJudgmentLabel(judgment, language)} ${formatSignedOffsetLabel(signedOffsetMs, language)} ${copy.runPanel.laneLabel(laneIndex)}`,
   };
 }
 
@@ -698,60 +717,64 @@ function scoreNote(note) {
   return SCORE_BY_NOTE_TYPE[note.noteType] || SCORE_BY_NOTE_TYPE.tap;
 }
 
-function getRunStatusLabel(status) {
+function getRunStatusLabel(status, language = 'en') {
+  const copy = getPlayerCopy(language);
   if (status === 'running') {
-    return 'Run active';
+    return copy.runPanel.statuses.running;
   }
 
   if (status === 'paused') {
-    return 'Run paused';
+    return copy.runPanel.statuses.paused;
   }
 
   if (status === 'complete') {
-    return 'Run complete';
+    return copy.runPanel.statuses.complete;
   }
 
-  return 'Ready to play';
+  return copy.runPanel.statuses.idle;
 }
 
-function formatAverageOffsetLabel(offsetMs) {
+function formatAverageOffsetLabel(offsetMs, language = 'en') {
+  const copy = getPlayerCopy(language);
   const roundedOffsetMs = Math.round(offsetMs);
 
   if (Math.abs(roundedOffsetMs) <= 8) {
-    return 'Centered';
+    return copy.runPanel.centered;
   }
 
   if (roundedOffsetMs < 0) {
-    return `Avg early ${Math.abs(roundedOffsetMs)}ms`;
+    return copy.runPanel.avgEarly(Math.abs(roundedOffsetMs));
   }
 
-  return `Avg late ${roundedOffsetMs}ms`;
+  return copy.runPanel.avgLate(roundedOffsetMs);
 }
 
-function formatSignedOffsetLabel(offsetMs) {
+function formatSignedOffsetLabel(offsetMs, language = 'en') {
+  const copy = getPlayerCopy(language);
   const roundedOffsetMs = Math.round(offsetMs);
 
   if (Math.abs(roundedOffsetMs) <= 8) {
-    return 'on time';
+    return copy.runPanel.onTime;
   }
 
   if (roundedOffsetMs < 0) {
-    return `early ${Math.abs(roundedOffsetMs)}ms`;
+    return copy.runPanel.early(Math.abs(roundedOffsetMs));
   }
 
-  return `late ${roundedOffsetMs}ms`;
+  return copy.runPanel.late(roundedOffsetMs);
 }
 
-function formatJudgmentLabel(judgment) {
+function formatJudgmentLabel(judgment, language = 'en') {
+  const copy = getPlayerCopy(language);
   if (judgment === 'perfect') {
-    return 'Perfect';
+    return copy.runPanel.judgments.perfect;
   }
 
   if (judgment === 'great') {
-    return 'Great';
+    return copy.runPanel.judgments.great;
   }
 
-  return 'Good';
+  return copy.runPanel.judgments.good;
 }
 
 function clamp(value, min = 0, max = 1) {

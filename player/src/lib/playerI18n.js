@@ -1,0 +1,671 @@
+const PLAYER_COPY = {
+  en: {
+    locale: 'en-US',
+    languageLabel: 'Language',
+    languages: {
+      ko: '한국어',
+      en: 'English',
+    },
+    modeDefinitions: [
+      {
+        id: 'local',
+        label: 'Local Repo',
+        description: 'Read a repository directly from this machine.',
+      },
+      {
+        id: 'public',
+        label: 'Public Repo URL',
+        description: 'Open replay from a public repository URL.',
+      },
+      {
+        id: 'account',
+        label: 'Connected Account',
+        description: 'Pick a repository from a connected account.',
+      },
+    ],
+    hero: {
+      eyebrow: 'Maestro Player',
+      titleLead: 'Turn repository history into a',
+      titleAccent: 'playable score',
+      subtitle: 'Load a local repo, a public GitHub or GitLab URL, or a connected forge repository and translate commit flow into a rhythm chart.',
+      meta: ['Read-only replay', 'Git + PR semantics', 'Deterministic motifs'],
+    },
+    common: {
+      pending: 'Pending',
+      unknown: 'unknown',
+      defaultBranch: 'default',
+      notLoaded: 'Not loaded',
+      activeMode: 'Active mode',
+      selectRepository: 'Select repository',
+    },
+    app: {
+      errors: {
+        localBridgeNeeded: 'Local Repo Mode is staged in the shell. Live replay loading still needs a desktop or server bridge.',
+        selectRepositoryFirst: 'Select a repository from the connected account list before loading replay.',
+        loadReplayFailed: 'Failed to load replay source.',
+        refreshRepositoriesFailed: 'Failed to refresh connected account repositories.',
+      },
+      sourceLabelFallback: 'Unknown source',
+      latestEventsTitle: 'Latest mapped events',
+      latestEventsEmpty: 'Load a replay source to preview the incoming event stream.',
+      beats: (value) => `${value} beats`,
+      density: (value) => `${value}/beat`,
+    },
+    sourceInput: {
+      kicker: 'Replay Source',
+      title: 'Choose input',
+      meta: {
+        local: 'Read a local Git repository and branch.',
+        public: 'Build a play source from only a public GitHub or GitLab URL.',
+        account: 'Connect GitHub or GitLab and choose a repository.',
+      },
+      labels: {
+        repoPath: 'Repository Path',
+        branch: 'Branch',
+        publicUrl: 'Public Repository URL',
+        provider: 'Provider',
+        token: 'Account Token',
+        repository: 'Repository',
+      },
+      placeholders: {
+        repoPath: '/Users/agent/projects/maestro',
+        branch: 'main',
+        publicUrl: 'https://github.com/openai/maestro-player or https://gitlab.com/group/maestro-player',
+        tokenGithub: 'ghp_...',
+        tokenGitlab: 'glpat-...',
+        selectRepository: 'Select repository',
+      },
+      buttons: {
+        submit: 'Load Replay',
+        submitting: 'Loading…',
+        refresh: 'Refresh Repositories',
+        refreshing: 'Refreshing…',
+      },
+    },
+    sourceGuide: {
+      kicker: 'Source Modes',
+      title: 'Choose the right input path',
+      meta: 'Public and account modes are ready in the shell now for GitHub and GitLab. Local mode stays staged until a bridge can read machine repositories safely.',
+      labels: {
+        bestFor: 'Best for',
+        currentCue: 'Current cue',
+        capabilities: 'Capabilities',
+        risks: 'Risks',
+      },
+      modes: {
+        local: {
+          label: 'Local Repo',
+          readiness: 'Staged',
+          summary: 'Read a repository already present on this machine.',
+          bestFor: 'Private experiments, offline replay prep, and desktop-first workflows.',
+          cue: 'Live replay loading still needs a desktop or server bridge.',
+          capabilities: [
+            'Can target private local history without publishing it.',
+            'Avoids network round-trips once a local bridge exists.',
+            'Fits future desktop capture and practice workflows.',
+          ],
+          risks: [
+            'Not fully wired for live loading in the current shell.',
+            'Path access and machine-specific setup can block replay.',
+          ],
+        },
+        public: {
+          label: 'Public Repo URL',
+          readiness: 'Ready now',
+          summary: 'Load a public GitHub or GitLab repository by URL and build a replay from commit history.',
+          bestFor: 'Open-source repos, demos, and frictionless share links.',
+          cue: 'Best default for immediate play because no account connection is required.',
+          capabilities: [
+            'Start from a GitHub or GitLab URL without signing in.',
+            'Works well for public repository discovery and quick challenge sharing.',
+            'Keeps replay generation deterministic from forge history.',
+          ],
+          risks: [
+            'Limited to public history exposed by the forge API.',
+            'Rate limits or missing metadata can reduce replay depth.',
+          ],
+        },
+        account: {
+          label: 'Connected Account',
+          readiness: 'Ready now',
+          summary: 'Connect a GitHub or GitLab token, browse repositories, and load private or public history.',
+          bestFor: 'Private repositories, curated repo pickers, and repeat personal sessions.',
+          cue: 'Requires a token first, then a repository refresh before replay can load.',
+          capabilities: [
+            'Can unlock private repository history.',
+            'Lets the UI offer a repository picker instead of manual URLs.',
+            'Leaves room for richer collaboration overlays later.',
+          ],
+          risks: [
+            'Depends on token validity and correct scopes.',
+            'Account and API limits can affect repository listing or replay load speed.',
+          ],
+        },
+      },
+    },
+    replayStatus: {
+      kicker: 'Replay Status',
+      title: 'Current session',
+      sourceReady: 'Source ready',
+      noSource: 'No source loaded',
+      sections: {
+        activeSource: 'Active source',
+        replayLoad: 'Replay load',
+        chartSummary: 'Chart summary',
+      },
+      fields: {
+        label: 'Label',
+        mode: 'Mode',
+        provider: 'Provider',
+        branch: 'Branch',
+        visibility: 'Visibility',
+        events: 'Events',
+        commits: 'Commits',
+        merges: 'Merges',
+        reviews: 'Reviews',
+        lastLoaded: 'Last loaded',
+        notes: 'Notes',
+        phrases: 'Phrases',
+        lanes: 'Lanes',
+        duration: 'Duration',
+        tempo: 'Tempo',
+        maxDensity: 'Max density',
+        latestError: 'Latest error',
+      },
+      emptySource: 'Choose a local repo, public URL, or connected account repository to see the session summary here.',
+      emptyChart: 'Load replay and build a chart to summarize note count, phrase count, and lane layout.',
+    },
+    timeline: {
+      kicker: 'Replay Events',
+      defaultTitle: 'Recent events',
+      empty: 'No replay events loaded yet.',
+      eventsCount: (count) => `${count} events`,
+      ariaLabel: 'Replay event timeline',
+      branchLabel: (branchName) => `Branch ${branchName}`,
+      fileCount: (count) => `${count} ${count === 1 ? 'file' : 'files'}`,
+      untitled: 'Untitled event',
+    },
+    scoreHistory: {
+      kicker: 'Performance History',
+      title: 'Recent score history',
+      savedRuns: (count) => (count ? `${count} saved run${count > 1 ? 's' : ''}` : 'No runs saved'),
+      labels: {
+        bestScore: 'Best score',
+        latestAccuracy: 'Latest accuracy',
+        currentSource: 'Current source',
+        latestMode: 'Latest mode',
+      },
+      currentSourceFiltered: 'Filtered',
+      currentSourceAll: 'All runs',
+      points: (score) => `${score} pts`,
+      maxCombo: (combo) => `${combo} max combo`,
+      detail: ({ notesHit, totalNotes, misses, timestamp }) => `${notesHit} / ${totalNotes} notes, ${misses} misses, saved ${timestamp}.`,
+      emptyActive: 'Complete a run on the active replay source to save score history for this chart.',
+      emptyGeneric: 'Load a replay source and finish a run to start building score history.',
+      playModes: {
+        auto: 'Auto Preview',
+        manual: 'Manual Play',
+      },
+    },
+    runPanel: {
+      kicker: 'Run Session',
+      title: 'Play the chart',
+      noChart: 'No chart loaded',
+      noChartMessage: 'Load a replay source to generate a playable chart. The run panel will then expose play, pause, retry, lane input, and result summary.',
+      playModes: {
+        manual: 'Manual Play',
+        auto: 'Auto Preview',
+      },
+      statuses: {
+        running: 'Run active',
+        paused: 'Run paused',
+        complete: 'Run complete',
+        idle: 'Ready to play',
+      },
+      tempoManual: (tempo) => `${tempo} BPM manual run`,
+      tempoAuto: (tempo) => `${tempo} BPM autoplay preview`,
+      subtitles: {
+        manual: 'Use the lane buttons or A/S/D/F to hit notes inside the timing window.',
+        auto: 'Auto mode resolves notes automatically so the shell can verify combo and result handling.',
+      },
+      sync: {
+        clickOn: 'Click Track On',
+        clickOff: 'Click Track Off',
+        clickPending: 'Audio Pending',
+        bgmOn: 'BGM Layer On',
+        bgmOff: 'BGM Layer Off',
+        bgmPending: 'BGM Pending',
+        audioUnavailable: 'Audio unavailable',
+        clickArmed: 'Click track armed',
+        clickMuted: 'Click track muted',
+        downbeat: (beat) => `Downbeat on beat ${beat}`,
+        beat: (beat, isSubdivision) => `Beat ${beat}${isSubdivision ? ' subdivision' : ''}`,
+        bgmUnavailable: 'BGM unavailable',
+        bgmArmed: 'BGM armed',
+        bgmMuted: 'BGM muted',
+      },
+      controls: {
+        start: 'Start Run',
+        resume: 'Resume Run',
+        replay: 'Replay Run',
+        muteClick: 'Mute Click Track',
+        enableClick: 'Enable Click Track',
+        muteBgm: 'Mute BGM Layer',
+        enableBgm: 'Enable BGM Layer',
+        pause: 'Pause Run',
+        retry: 'Retry Run',
+        hit: (laneKey) => `Hit ${laneKey}`,
+      },
+      metrics: {
+        score: 'Score',
+        combo: 'Combo',
+        maxCombo: 'Max Combo',
+        accuracy: 'Accuracy',
+      },
+      judgments: {
+        perfect: 'Perfect',
+        great: 'Great',
+        good: 'Good',
+        miss: 'Miss',
+      },
+      timingBias: (label) => `Timing bias: ${label}`,
+      autoTimingBias: 'Timing bias: Auto mode resolves notes without human timing.',
+      bgmState: (label) => `BGM state: ${label}`,
+      beatProgress: (currentBeat, totalBeats) => `Beat ${currentBeat} / ${totalBeats}`,
+      laneLabel: (laneIndex) => `Lane ${laneIndex}`,
+      upcomingTitle: 'Upcoming Notes',
+      queueNoteBeat: (beat) => `@ ${beat} beat`,
+      queueEmpty: 'No queued notes remain in this run.',
+      resultManual: ({ notesHit, totalNotes, maxCombo, misses, score }) => `Completed manual play with ${notesHit} / ${totalNotes} notes resolved, ${maxCombo} max combo, ${misses} misses, and ${score} score.`,
+      resultAuto: ({ notesHit, totalNotes, maxCombo, misses, score }) => `Completed autoplay preview with ${notesHit} / ${totalNotes} notes resolved, ${maxCombo} max combo, ${misses} misses, and ${score} score.`,
+      noTimingData: 'No timing data',
+      centered: 'Centered',
+      avgEarly: (ms) => `Avg early ${ms}ms`,
+      avgLate: (ms) => `Avg late ${ms}ms`,
+      onTime: 'on time',
+      early: (ms) => `early ${ms}ms`,
+      late: (ms) => `late ${ms}ms`,
+      autoResolved: (count) => `Auto resolved ${count} note${count > 1 ? 's' : ''}`,
+      missedNotes: (count) => `Missed ${count} note${count > 1 ? 's' : ''}`,
+      laneMiss: (laneIndex) => `Lane ${laneIndex} miss`,
+    },
+    eventLabels: {
+      commit: 'Commit',
+      merge: 'Merge',
+      revert: 'Revert',
+      push: 'Push',
+      pull: 'Pull',
+      sync: 'Sync',
+      'pr-open': 'PR Open',
+      'pr-update': 'PR Update',
+      'review-comment': 'Review Comment',
+      'review-request-changes': 'Request Changes',
+      'review-resolve': 'Resolve Thread',
+      'review-reopen': 'Reopen Thread',
+      'review-approve': 'Approve',
+      'history-approved': 'History Approved',
+    },
+  },
+  ko: {
+    locale: 'ko-KR',
+    languageLabel: '언어',
+    languages: {
+      ko: '한국어',
+      en: 'English',
+    },
+    modeDefinitions: [
+      {
+        id: 'local',
+        label: '로컬 저장소',
+        description: '현재 머신의 저장소를 직접 읽습니다.',
+      },
+      {
+        id: 'public',
+        label: '공개 저장소 URL',
+        description: '공개 저장소 URL로 바로 리플레이를 엽니다.',
+      },
+      {
+        id: 'account',
+        label: '연결된 계정',
+        description: '연결된 계정에서 저장소를 선택합니다.',
+      },
+    ],
+    hero: {
+      eyebrow: 'Maestro Player',
+      titleLead: '저장소 이력을 ',
+      titleAccent: '플레이 가능한 악보',
+      titleTail: '로 바꿉니다.',
+      subtitle: '로컬 저장소, 공개 GitHub 또는 GitLab URL, 혹은 연결된 forge 저장소를 불러와 커밋 흐름을 리듬 차트로 변환합니다.',
+      meta: ['읽기 전용 리플레이', 'Git + PR 의미 반영', '결정적 모티프'],
+    },
+    common: {
+      pending: '대기 중',
+      unknown: '알 수 없음',
+      defaultBranch: '기본',
+      notLoaded: '불러오지 않음',
+      activeMode: '현재 모드',
+      selectRepository: '저장소 선택',
+    },
+    app: {
+      errors: {
+        localBridgeNeeded: '로컬 저장소 모드는 셸까지 연결되어 있습니다. 실제 리플레이 로딩에는 데스크톱 또는 서버 브리지가 더 필요합니다.',
+        selectRepositoryFirst: '리플레이를 불러오기 전에 연결된 계정 목록에서 저장소를 먼저 선택하세요.',
+        loadReplayFailed: '리플레이 소스를 불러오지 못했습니다.',
+        refreshRepositoriesFailed: '연결된 계정 저장소 목록을 새로고침하지 못했습니다.',
+      },
+      sourceLabelFallback: '알 수 없는 소스',
+      latestEventsTitle: '최근 매핑 이벤트',
+      latestEventsEmpty: '리플레이 소스를 불러오면 들어오는 이벤트 스트림을 여기서 미리 볼 수 있습니다.',
+      beats: (value) => `${value}박`,
+      density: (value) => `${value}/박`,
+    },
+    sourceInput: {
+      kicker: '리플레이 소스',
+      title: '입력 선택',
+      meta: {
+        local: '로컬 Git 저장소와 브랜치를 읽습니다.',
+        public: '공개 GitHub 또는 GitLab URL만으로 플레이 소스를 만듭니다.',
+        account: 'GitHub 또는 GitLab 계정을 연결하고 저장소를 선택합니다.',
+      },
+      labels: {
+        repoPath: '저장소 경로',
+        branch: '브랜치',
+        publicUrl: '공개 저장소 URL',
+        provider: '제공자',
+        token: '계정 토큰',
+        repository: '저장소',
+      },
+      placeholders: {
+        repoPath: '/Users/agent/projects/maestro',
+        branch: 'main',
+        publicUrl: 'https://github.com/openai/maestro-player 또는 https://gitlab.com/group/maestro-player',
+        tokenGithub: 'ghp_...',
+        tokenGitlab: 'glpat-...',
+        selectRepository: '저장소 선택',
+      },
+      buttons: {
+        submit: '리플레이 불러오기',
+        submitting: '불러오는 중…',
+        refresh: '저장소 새로고침',
+        refreshing: '새로고침 중…',
+      },
+    },
+    sourceGuide: {
+      kicker: '소스 모드',
+      title: '맞는 입력 경로 선택',
+      meta: '공개 모드와 계정 모드는 GitHub, GitLab 기준으로 바로 사용할 수 있습니다. 로컬 모드는 머신 저장소를 안전하게 읽는 브리지가 붙을 때까지 단계적으로 유지됩니다.',
+      labels: {
+        bestFor: '추천 상황',
+        currentCue: '현재 상태',
+        capabilities: '가능한 것',
+        risks: '주의할 점',
+      },
+      modes: {
+        local: {
+          label: '로컬 저장소',
+          readiness: '준비 중',
+          summary: '이 머신에 이미 있는 저장소를 읽습니다.',
+          bestFor: '비공개 실험, 오프라인 리플레이 준비, 데스크톱 중심 워크플로우에 적합합니다.',
+          cue: '실시간 리플레이 로딩에는 데스크톱 또는 서버 브리지가 더 필요합니다.',
+          capabilities: [
+            '공개하지 않은 로컬 히스토리도 대상으로 삼을 수 있습니다.',
+            '브리지가 붙으면 네트워크 왕복 없이 빠르게 읽을 수 있습니다.',
+            '향후 데스크톱 캡처와 연습 흐름에 잘 맞습니다.',
+          ],
+          risks: [
+            '현재 셸에서는 실시간 로딩이 완전히 연결되지 않았습니다.',
+            '경로 권한과 머신별 환경 설정이 리플레이를 막을 수 있습니다.',
+          ],
+        },
+        public: {
+          label: '공개 저장소 URL',
+          readiness: '즉시 사용 가능',
+          summary: '공개 GitHub 또는 GitLab 저장소를 URL로 불러와 커밋 히스토리에서 리플레이를 만듭니다.',
+          bestFor: '오픈소스 저장소, 데모, 바로 공유하는 챌린지 링크에 적합합니다.',
+          cue: '계정 연결이 필요 없어서 가장 바로 플레이하기 좋은 기본 경로입니다.',
+          capabilities: [
+            '로그인 없이 GitHub 또는 GitLab URL로 바로 시작할 수 있습니다.',
+            '공개 저장소 탐색과 빠른 챌린지 공유에 적합합니다.',
+            'forge 히스토리 기준으로 결정적인 리플레이를 유지합니다.',
+          ],
+          risks: [
+            'forge API에서 공개하는 히스토리에만 제한됩니다.',
+            '요청 제한이나 메타데이터 부족으로 리플레이 깊이가 줄 수 있습니다.',
+          ],
+        },
+        account: {
+          label: '연결된 계정',
+          readiness: '즉시 사용 가능',
+          summary: 'GitHub 또는 GitLab 토큰을 연결하고 저장소를 둘러본 뒤, 공개 또는 비공개 히스토리를 불러옵니다.',
+          bestFor: '비공개 저장소, 큐레이션된 저장소 선택기, 반복적인 개인 세션에 적합합니다.',
+          cue: '먼저 토큰이 필요하고, 그 다음 저장소 목록을 새로고침해야 리플레이를 불러올 수 있습니다.',
+          capabilities: [
+            '비공개 저장소 히스토리를 열 수 있습니다.',
+            '수동 URL 대신 저장소 선택기를 UI에 제공할 수 있습니다.',
+            '향후 더 풍부한 협업 오버레이를 붙일 여지를 남깁니다.',
+          ],
+          risks: [
+            '토큰 유효성과 권한 범위에 의존합니다.',
+            '계정 및 API 제한이 저장소 목록이나 로딩 속도에 영향을 줄 수 있습니다.',
+          ],
+        },
+      },
+    },
+    replayStatus: {
+      kicker: '리플레이 상태',
+      title: '현재 세션',
+      sourceReady: '소스 준비됨',
+      noSource: '불러온 소스 없음',
+      sections: {
+        activeSource: '현재 소스',
+        replayLoad: '리플레이 로드',
+        chartSummary: '차트 요약',
+      },
+      fields: {
+        label: '라벨',
+        mode: '모드',
+        provider: '제공자',
+        branch: '브랜치',
+        visibility: '공개 범위',
+        events: '이벤트',
+        commits: '커밋',
+        merges: '머지',
+        reviews: '리뷰',
+        lastLoaded: '마지막 로드',
+        notes: '노트',
+        phrases: '프레이즈',
+        lanes: '레인',
+        duration: '길이',
+        tempo: '템포',
+        maxDensity: '최대 밀도',
+        latestError: '최근 오류',
+      },
+      emptySource: '로컬 저장소, 공개 URL, 또는 연결된 계정 저장소를 선택하면 여기에서 세션 요약을 보여줍니다.',
+      emptyChart: '리플레이를 읽고 차트를 만들면 노트 수, 구간 수, 레인 구성을 요약합니다.',
+    },
+    timeline: {
+      kicker: '리플레이 이벤트',
+      defaultTitle: '최근 이벤트',
+      empty: '불러온 리플레이 이벤트가 아직 없습니다.',
+      eventsCount: (count) => `${count}개 이벤트`,
+      ariaLabel: '리플레이 이벤트 타임라인',
+      branchLabel: (branchName) => `브랜치 ${branchName}`,
+      fileCount: (count) => `${count}개 파일`,
+      untitled: '제목 없는 이벤트',
+    },
+    scoreHistory: {
+      kicker: '플레이 기록',
+      title: '최근 점수 기록',
+      savedRuns: (count) => (count ? `${count}개 저장된 런` : '저장된 런 없음'),
+      labels: {
+        bestScore: '최고 점수',
+        latestAccuracy: '최근 정확도',
+        currentSource: '현재 소스',
+        latestMode: '최근 모드',
+      },
+      currentSourceFiltered: '필터됨',
+      currentSourceAll: '전체 런',
+      points: (score) => `${score}점`,
+      maxCombo: (combo) => `최대 콤보 ${combo}`,
+      detail: ({ notesHit, totalNotes, misses, timestamp }) => `${notesHit} / ${totalNotes} 노트, 미스 ${misses}개, 저장 시각 ${timestamp}.`,
+      emptyActive: '현재 리플레이 소스에서 한 번 플레이를 완료하면 이 차트의 점수 기록이 저장됩니다.',
+      emptyGeneric: '리플레이 소스를 불러오고 플레이를 완료하면 점수 기록이 쌓이기 시작합니다.',
+      playModes: {
+        auto: '자동 프리뷰',
+        manual: '수동 플레이',
+      },
+    },
+    runPanel: {
+      kicker: '런 세션',
+      title: '차트 플레이',
+      noChart: '불러온 차트 없음',
+      noChartMessage: '리플레이 소스를 불러와 플레이 가능한 차트를 생성하세요. 그러면 이 패널에서 시작, 일시정지, 재시도, 레인 입력, 결과 요약을 모두 다룰 수 있습니다.',
+      playModes: {
+        manual: '수동 플레이',
+        auto: '자동 프리뷰',
+      },
+      statuses: {
+        running: '런 진행 중',
+        paused: '런 일시정지',
+        complete: '런 완료',
+        idle: '플레이 준비됨',
+      },
+      tempoManual: (tempo) => `${tempo} BPM 수동 플레이`,
+      tempoAuto: (tempo) => `${tempo} BPM 자동 프리뷰`,
+      subtitles: {
+        manual: '레인 버튼이나 A/S/D/F 키를 눌러 타이밍 윈도 안에서 노트를 맞히세요.',
+        auto: '자동 모드는 노트를 자동으로 처리해 콤보와 결과 처리 흐름을 검증합니다.',
+      },
+      sync: {
+        clickOn: '클릭 트랙 켜짐',
+        clickOff: '클릭 트랙 꺼짐',
+        clickPending: '오디오 준비 중',
+        bgmOn: 'BGM 레이어 켜짐',
+        bgmOff: 'BGM 레이어 꺼짐',
+        bgmPending: 'BGM 준비 중',
+        audioUnavailable: '오디오 사용 불가',
+        clickArmed: '클릭 트랙 준비됨',
+        clickMuted: '클릭 트랙 음소거',
+        downbeat: (beat) => `${beat}박 다운비트`,
+        beat: (beat, isSubdivision) => `${beat}박${isSubdivision ? ' 세부 박자' : ''}`,
+        bgmUnavailable: 'BGM 사용 불가',
+        bgmArmed: 'BGM 준비됨',
+        bgmMuted: 'BGM 음소거',
+      },
+      controls: {
+        start: '런 시작',
+        resume: '런 재개',
+        replay: '런 다시 재생',
+        muteClick: '클릭 트랙 끄기',
+        enableClick: '클릭 트랙 켜기',
+        muteBgm: 'BGM 레이어 끄기',
+        enableBgm: 'BGM 레이어 켜기',
+        pause: '런 일시정지',
+        retry: '런 재시도',
+        hit: (laneKey) => `${laneKey} 입력`,
+      },
+      metrics: {
+        score: '점수',
+        combo: '콤보',
+        maxCombo: '최대 콤보',
+        accuracy: '정확도',
+      },
+      judgments: {
+        perfect: '퍼펙트',
+        great: '그레이트',
+        good: '굿',
+        miss: '미스',
+      },
+      timingBias: (label) => `타이밍 편향: ${label}`,
+      autoTimingBias: '타이밍 편향: 자동 모드는 사람 타이밍 없이 노트를 처리합니다.',
+      bgmState: (label) => `BGM 상태: ${label}`,
+      beatProgress: (currentBeat, totalBeats) => `${currentBeat} / ${totalBeats}박`,
+      laneLabel: (laneIndex) => `레인 ${laneIndex}`,
+      upcomingTitle: '다가오는 노트',
+      queueNoteBeat: (beat) => `@ ${beat}박`,
+      queueEmpty: '이번 런에서 남은 대기 노트가 없습니다.',
+      resultManual: ({ notesHit, totalNotes, maxCombo, misses, score }) => `수동 플레이 완료: ${notesHit} / ${totalNotes} 노트 처리, 최대 콤보 ${maxCombo}, 미스 ${misses}개, 점수 ${score}.`,
+      resultAuto: ({ notesHit, totalNotes, maxCombo, misses, score }) => `자동 프리뷰 완료: ${notesHit} / ${totalNotes} 노트 처리, 최대 콤보 ${maxCombo}, 미스 ${misses}개, 점수 ${score}.`,
+      noTimingData: '타이밍 데이터 없음',
+      centered: '중앙',
+      avgEarly: (ms) => `평균 빠름 ${ms}ms`,
+      avgLate: (ms) => `평균 늦음 ${ms}ms`,
+      onTime: '정타',
+      early: (ms) => `${ms}ms 빠름`,
+      late: (ms) => `${ms}ms 늦음`,
+      autoResolved: (count) => `자동 처리 ${count}노트`,
+      missedNotes: (count) => `${count}노트 미스`,
+      laneMiss: (laneIndex) => `${laneIndex}번 레인 미스`,
+    },
+    eventLabels: {
+      commit: '커밋',
+      merge: '머지',
+      revert: '리버트',
+      push: '푸시',
+      pull: '풀',
+      sync: '동기화',
+      'pr-open': 'PR 열림',
+      'pr-update': 'PR 업데이트',
+      'review-comment': '리뷰 코멘트',
+      'review-request-changes': '수정 요청',
+      'review-resolve': '스레드 해결',
+      'review-reopen': '스레드 재오픈',
+      'review-approve': '승인',
+      'history-approved': '이력 승인',
+    },
+  },
+};
+
+export const PLAYER_LANGUAGES = Object.freeze([
+  { id: 'ko', label: '한국어' },
+  { id: 'en', label: 'English' },
+]);
+
+export function normalizePlayerLanguage(language) {
+  return language === 'ko' ? 'ko' : 'en';
+}
+
+export function resolveInitialPlayerLanguage(navigatorLanguage) {
+  return String(navigatorLanguage || '').toLowerCase().startsWith('ko') ? 'ko' : 'en';
+}
+
+export function getPlayerCopy(language = 'en') {
+  return PLAYER_COPY[normalizePlayerLanguage(language)];
+}
+
+export function formatPlayerNumber(value, language = 'en') {
+  const copy = getPlayerCopy(language);
+  return new Intl.NumberFormat(copy.locale).format(Number(value) || 0);
+}
+
+export function formatPlayerTimestamp(value, language = 'en', fallback = null) {
+  const copy = getPlayerCopy(language);
+  if (!value) {
+    return fallback ?? copy.common.notLoaded;
+  }
+
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) {
+    return String(value);
+  }
+
+  return timestamp.toLocaleString(copy.locale);
+}
+
+export function getReplayEventLabel(eventType, language = 'en') {
+  const copy = getPlayerCopy(language);
+
+  if (copy.eventLabels[eventType]) {
+    return copy.eventLabels[eventType];
+  }
+
+  if (normalizePlayerLanguage(language) === 'ko') {
+    return String(eventType || copy.common.unknown);
+  }
+
+  return String(eventType || copy.common.unknown)
+    .split('-')
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}

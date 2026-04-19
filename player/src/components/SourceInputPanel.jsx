@@ -1,4 +1,5 @@
 import React from 'react';
+import { getPlayerCopy } from '../lib/playerI18n.js';
 
 function normalizeRepositoryOption(repository) {
   if (typeof repository === 'string') {
@@ -48,6 +49,7 @@ function renderField({
 
 export default function SourceInputPanel({
   mode = 'local',
+  language = 'en',
   repoPath = '',
   publicUrl = '',
   branchName = '',
@@ -67,20 +69,19 @@ export default function SourceInputPanel({
   isSubmitting = false,
   isRefreshingRepositories = false,
 }) {
+  const copy = getPlayerCopy(language);
   const repositoryOptions = repositories.map(normalizeRepositoryOption);
-  const submitButtonLabel = isSubmitting ? 'Loading…' : submitLabel;
+  const submitButtonLabel = isSubmitting ? copy.sourceInput.buttons.submitting : submitLabel;
 
   return (
     <section className="player-card source-input-panel" aria-labelledby="source-input-panel-title">
       <div className="player-card__header">
         <div>
-          <p className="player-kicker">Replay Source</p>
-          <h2 id="source-input-panel-title" className="player-section-title">Choose input</h2>
+          <p className="player-kicker">{copy.sourceInput.kicker}</p>
+          <h2 id="source-input-panel-title" className="player-section-title">{copy.sourceInput.title}</h2>
         </div>
         <p className="player-card__meta">
-          {mode === 'local' && '로컬 Git 저장소와 브랜치를 읽습니다.'}
-          {mode === 'public' && '공개 GitHub 또는 GitLab 저장소 URL만으로 플레이 소스를 만듭니다.'}
-          {mode === 'account' && 'GitHub 또는 GitLab 계정을 연결하고 저장소를 선택합니다.'}
+          {copy.sourceInput.meta[mode]}
         </p>
       </div>
 
@@ -95,17 +96,17 @@ export default function SourceInputPanel({
           <div className="player-field-grid">
             {renderField({
               id: 'player-local-repo-path',
-              label: 'Repository Path',
+              label: copy.sourceInput.labels.repoPath,
               value: repoPath,
               onChange: onRepoPathChange,
-              placeholder: '/Users/agent/projects/maestro',
+              placeholder: copy.sourceInput.placeholders.repoPath,
             })}
             {renderField({
               id: 'player-local-branch',
-              label: 'Branch',
+              label: copy.sourceInput.labels.branch,
               value: branchName,
               onChange: onBranchNameChange,
-              placeholder: 'main',
+              placeholder: copy.sourceInput.placeholders.branch,
             })}
           </div>
         )}
@@ -114,18 +115,18 @@ export default function SourceInputPanel({
           <div className="player-field-grid">
             {renderField({
               id: 'player-public-repo-url',
-              label: 'Public Repository URL',
+              label: copy.sourceInput.labels.publicUrl,
               value: publicUrl,
               onChange: onPublicUrlChange,
-              placeholder: 'https://github.com/openai/maestro-player 또는 https://gitlab.com/group/maestro-player',
+              placeholder: copy.sourceInput.placeholders.publicUrl,
               type: 'url',
             })}
             {renderField({
               id: 'player-public-branch',
-              label: 'Branch',
+              label: copy.sourceInput.labels.branch,
               value: branchName,
               onChange: onBranchNameChange,
-              placeholder: 'main',
+              placeholder: copy.sourceInput.placeholders.branch,
             })}
           </div>
         )}
@@ -134,7 +135,7 @@ export default function SourceInputPanel({
           <div className="player-stack">
             <div className="player-field-grid">
               <label className="player-field" htmlFor="player-account-provider">
-                <span className="player-label">Provider</span>
+                <span className="player-label">{copy.sourceInput.labels.provider}</span>
                 <select
                   id="player-account-provider"
                   className="player-select"
@@ -147,32 +148,34 @@ export default function SourceInputPanel({
               </label>
               {renderField({
                 id: 'player-account-token',
-                label: 'Account Token',
+                label: copy.sourceInput.labels.token,
                 value: accountToken,
                 onChange: onAccountTokenChange,
-                placeholder: accountProvider === 'gitlab' ? 'glpat-...' : 'ghp_...',
+                placeholder: accountProvider === 'gitlab'
+                  ? copy.sourceInput.placeholders.tokenGitlab
+                  : copy.sourceInput.placeholders.tokenGithub,
                 type: 'password',
                 autoComplete: 'current-password',
               })}
               {renderField({
                 id: 'player-account-branch',
-                label: 'Branch',
+                label: copy.sourceInput.labels.branch,
                 value: branchName,
                 onChange: onBranchNameChange,
-                placeholder: 'main',
+                placeholder: copy.sourceInput.placeholders.branch,
               })}
             </div>
 
             <div className="player-field player-field--full">
               <div className="player-label-row">
-                <label className="player-label" htmlFor="player-account-repository">Repository</label>
+                <label className="player-label" htmlFor="player-account-repository">{copy.sourceInput.labels.repository}</label>
                 <button
                   type="button"
                   className="player-button player-button--secondary"
                   disabled={isRefreshingRepositories || !accountToken}
                   onClick={() => onRefreshRepositories?.()}
                 >
-                  {isRefreshingRepositories ? 'Refreshing…' : 'Refresh Repositories'}
+                  {isRefreshingRepositories ? copy.sourceInput.buttons.refreshing : copy.sourceInput.buttons.refresh}
                 </button>
               </div>
               <select
@@ -181,7 +184,7 @@ export default function SourceInputPanel({
                 value={selectedRepo}
                 onChange={(event) => onSelectedRepoChange?.(event.target.value)}
               >
-                <option value="">Select repository</option>
+                <option value="">{copy.common.selectRepository}</option>
                 {repositoryOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.meta ? `${option.label} (${option.meta})` : option.label}

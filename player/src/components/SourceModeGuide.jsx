@@ -1,80 +1,28 @@
 import React from 'react';
-
-const MODE_GUIDES = {
-  local: {
-    id: 'local',
-    label: 'Local Repo',
-    readiness: 'Staged',
-    readinessTone: 'staged',
-    summary: 'Read a repository already present on this machine.',
-    bestFor: 'Private experiments, offline replay prep, and desktop-first workflows.',
-    cue: 'Live replay loading still needs a desktop or server bridge.',
-    capabilities: [
-      'Can target private local history without publishing it.',
-      'Avoids network round-trips once a local bridge exists.',
-      'Fits future desktop capture and practice workflows.',
-    ],
-    risks: [
-      'Not fully wired for live loading in the current shell.',
-      'Path access and machine-specific setup can block replay.',
-    ],
-  },
-  public: {
-    id: 'public',
-    label: 'Public Repo URL',
-    readiness: 'Ready now',
-    readinessTone: 'ready',
-    summary: 'Load a public GitHub or GitLab repository by URL and build a replay from commit history.',
-    bestFor: 'Open-source repos, demos, and frictionless share links.',
-    cue: 'Best default for immediate play because no account connection is required.',
-    capabilities: [
-      'Start from a GitHub or GitLab URL without signing in.',
-      'Works well for public repository discovery and quick challenge sharing.',
-      'Keeps replay generation deterministic from forge history.',
-    ],
-    risks: [
-      'Limited to public history exposed by the forge API.',
-      'Rate limits or missing metadata can reduce replay depth.',
-    ],
-  },
-  account: {
-    id: 'account',
-    label: 'Connected Account',
-    readiness: 'Ready now',
-    readinessTone: 'ready',
-    summary: 'Connect a GitHub or GitLab token, browse repositories, and load private or public history.',
-    bestFor: 'Private repositories, curated repo pickers, and repeat personal sessions.',
-    cue: 'Requires a token first, then a repository refresh before replay can load.',
-    capabilities: [
-      'Can unlock private repository history.',
-      'Lets the UI offer a repository picker instead of manual URLs.',
-      'Leaves room for richer collaboration overlays later.',
-    ],
-    risks: [
-      'Depends on token validity and correct scopes.',
-      'Account and API limits can affect repository listing or replay load speed.',
-    ],
-  },
-};
+import { getPlayerCopy } from '../lib/playerI18n.js';
 
 const MODE_ORDER = ['local', 'public', 'account'];
 
-export default function SourceModeGuide({ mode = 'public', sourceState = {} }) {
+export default function SourceModeGuide({
+  mode = 'public',
+  sourceState = {},
+  language = 'en',
+}) {
+  const copy = getPlayerCopy(language);
+
   return (
     <section className="player-card source-mode-guide" aria-labelledby="source-mode-guide-title">
       <div className="player-card__header">
         <div>
-          <p className="player-kicker">Source Modes</p>
-          <h2 id="source-mode-guide-title" className="player-section-title">Choose the right input path</h2>
+          <p className="player-kicker">{copy.sourceGuide.kicker}</p>
+          <h2 id="source-mode-guide-title" className="player-section-title">{copy.sourceGuide.title}</h2>
         </div>
-        <p className="player-card__meta">
-          Public and account modes are ready in the shell now for GitHub and GitLab. Local mode stays staged until a bridge can read machine repositories safely.
-        </p>
+        <p className="player-card__meta">{copy.sourceGuide.meta}</p>
       </div>
 
       <div className="source-mode-guide__list" role="list">
         {MODE_ORDER.map((modeId) => {
-          const entry = buildGuideEntry(modeId, sourceState[modeId]);
+          const entry = buildGuideEntry(modeId, sourceState[modeId], copy);
           const isActive = modeId === mode;
 
           return (
@@ -94,24 +42,24 @@ export default function SourceModeGuide({ mode = 'public', sourceState = {} }) {
                   <span className={`player-pill${entry.readinessTone === 'ready' ? ' is-live' : ''}`}>
                     {entry.readiness}
                   </span>
-                  {isActive ? <span className="player-pill is-live">Active mode</span> : null}
+                  {isActive ? <span className="player-pill is-live">{copy.common.activeMode}</span> : null}
                 </div>
               </div>
 
               <dl className="status-grid">
                 <div className="status-item status-item--wide">
-                  <dt>Best for</dt>
+                  <dt>{copy.sourceGuide.labels.bestFor}</dt>
                   <dd>{entry.bestFor}</dd>
                 </div>
                 <div className="status-item status-item--wide">
-                  <dt>Current cue</dt>
+                  <dt>{copy.sourceGuide.labels.currentCue}</dt>
                   <dd>{entry.cue}</dd>
                 </div>
               </dl>
 
               <div className="source-mode-guide__columns">
                 <div>
-                  <h4 className="source-mode-guide__subheading">Capabilities</h4>
+                  <h4 className="source-mode-guide__subheading">{copy.sourceGuide.labels.capabilities}</h4>
                   <ul className="source-mode-guide__list-items">
                     {entry.capabilities.map((capability) => (
                       <li key={capability}>{capability}</li>
@@ -119,7 +67,7 @@ export default function SourceModeGuide({ mode = 'public', sourceState = {} }) {
                   </ul>
                 </div>
                 <div>
-                  <h4 className="source-mode-guide__subheading">Risks</h4>
+                  <h4 className="source-mode-guide__subheading">{copy.sourceGuide.labels.risks}</h4>
                   <ul className="source-mode-guide__list-items">
                     {entry.risks.map((risk) => (
                       <li key={risk}>{risk}</li>
@@ -135,8 +83,8 @@ export default function SourceModeGuide({ mode = 'public', sourceState = {} }) {
   );
 }
 
-function buildGuideEntry(modeId, overrides = {}) {
-  const base = MODE_GUIDES[modeId];
+function buildGuideEntry(modeId, overrides = {}, copy) {
+  const base = copy.sourceGuide.modes[modeId];
   if (!base) {
     throw new Error(`unsupported source mode guide: ${modeId}`);
   }

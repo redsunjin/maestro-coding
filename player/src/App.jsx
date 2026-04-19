@@ -10,17 +10,16 @@ import { createConnectedAccountRepoSource, listConnectedRepositories, loadConnec
 import { createChartFromMusicPlan } from './lib/chartMapper.js';
 import { loadCollaborationOverlayEvents } from './lib/collaborationOverlayAdapter.js';
 import { hasLocalRepoBridge, loadLocalRepoReplayEvents } from './lib/localRepoBridge.js';
+import {
+  getPlayerCopy,
+  PLAYER_LANGUAGES,
+  resolveInitialPlayerLanguage,
+} from './lib/playerI18n.js';
 import { appendPerformanceRecord, loadPerformanceHistory } from './lib/performanceHistoryStore.js';
 import { loadPublicRepoReplayEvents, createPublicRepoSource } from './lib/publicRepoAdapter.js';
 import { buildMusicPlan } from './lib/musicIntentMapper.js';
 import { registerLocalRepoSource } from './lib/sourceRegistry.js';
 import './styles.css';
-
-const MODE_DEFINITIONS = [
-  { id: 'local', label: 'Local Repo' },
-  { id: 'public', label: 'Public Repo URL' },
-  { id: 'account', label: 'Connected Account' },
-];
 
 const INITIAL_DRAFTS = {
   local: {
@@ -40,6 +39,7 @@ const INITIAL_DRAFTS = {
 };
 
 export default function App() {
+  const [language, setLanguage] = useState(() => resolveInitialPlayerLanguage(globalThis.navigator?.language));
   const [sourceMode, setSourceMode] = useState('public');
   const [drafts, setDrafts] = useState(INITIAL_DRAFTS);
   const [activeSource, setActiveSource] = useState(null);
@@ -52,6 +52,8 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('');
   const [performanceHistory, setPerformanceHistory] = useState(() => loadPerformanceHistory(globalThis));
   const localBridgeAvailable = hasLocalRepoBridge(globalThis);
+  const copy = useMemo(() => getPlayerCopy(language), [language]);
+  const modeDefinitions = useMemo(() => copy.modeDefinitions, [copy]);
 
   const latestEvents = useMemo(
     () => loadedEvents.slice(-6).reverse(),
@@ -76,15 +78,18 @@ export default function App() {
       return null;
     }
 
+    const hasNotes = Boolean(chart?.notes?.length);
     return {
       noteCount: chart?.notes?.length || 0,
       laneCount: chart?.laneCount || 4,
       phraseCount: musicPlan.length,
-      durationLabel: chart?.notes?.length ? `${Math.max(...chart.notes.map((note) => note.beatOffset + note.durationBeats)).toFixed(1)} beats` : 'Pending',
-      tempoLabel: musicPlan[0]?.tempo ? `${musicPlan[0].tempo} BPM` : 'Pending',
-      maxDensity: chart?.notes?.length ? `${Math.max(...summarizeBeatDensity(chart.notes))}/beat` : 'Pending',
+      durationLabel: hasNotes
+        ? copy.app.beats(Math.max(...chart.notes.map((note) => note.beatOffset + note.durationBeats)).toFixed(1))
+        : copy.common.pending,
+      tempoLabel: musicPlan[0]?.tempo ? `${musicPlan[0].tempo} BPM` : copy.common.pending,
+      maxDensity: hasNotes ? copy.app.density(Math.max(...summarizeBeatDensity(chart.notes))) : copy.common.pending,
     };
-  }, [activeSource, chart, loadedEvents.length, musicPlan]);
+  }, [activeSource, chart, copy, musicPlan]);
 
   const sourceGuideState = useMemo(() => buildSourceGuideState({
     activeSource,
@@ -92,7 +97,8 @@ export default function App() {
     drafts,
     accountRepositories,
     localBridgeAvailable,
-  }), [activeSource, replaySummary, drafts, accountRepositories, localBridgeAvailable]);
+    language,
+  }), [accountRepositories, activeSource, drafts, language, localBridgeAvailable, replaySummary]);
 
   const activeSourceKey = useMemo(
     () => buildPerformanceSourceKey(activeSource),
@@ -165,7 +171,7 @@ export default function App() {
           });
         });
 
-        setErrorMessage('Local Repo Mode is staged in the shell. Live replay loading still needs a desktop or server bridge.');
+        setErrorMessage(copy.app.errors.localBridgeNeeded);
         return;
       }
 
@@ -199,14 +205,14 @@ export default function App() {
       );
 
       if (!selectedRepository) {
-        throw new Error('Select a repository from the connected account list before loading replay.');
+        throw new Error(copy.app.errors.selectRepositoryFirst);
       }
 
       const source = createConnectedAccountRepoSource({
         ...selectedRepository,
         accountId: `connected-${drafts.account.provider}-account`,
         branchName: drafts.account.branch || selectedRepository.defaultBranch || 'main',
-        sourceLabel: `${selectedRepository.repo} (connected account)`,
+        sourceLabel: `${selectedRepository.repo} (${language === 'ko' ? '연결된 계정' : 'connected account'})`,
       });
       const replayEvents = await loadConnectedAccountReplayEvents({
         ...selectedRepository,
@@ -229,7 +235,7 @@ export default function App() {
       });
       applyReplayResult(source, mergeReplayEvents(replayEvents, overlayEvents));
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to load replay source.');
+      setErrorMessage(error instanceof Error ? error.message : copy.app.errors.loadReplayFailed);
     } finally {
       setIsLoading(false);
     }
@@ -257,7 +263,7 @@ export default function App() {
         }));
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to refresh connected account repositories.');
+      setErrorMessage(error instanceof Error ? error.message : copy.app.errors.refreshRepositoriesFailed);
     } finally {
       setIsRepoListLoading(false);
     }
@@ -292,7 +298,7 @@ export default function App() {
       runId: `${activeChartId || 'chart'}:${runResult.runToken}`,
       chartId: activeChartId || 'unknown-chart',
       sourceKey: activeSourceKey || 'unknown-source',
-      sourceLabel: activeSource.sourceLabel || activeSource.repoSlug || activeSource.targetPathOrId || 'Unknown source',
+      sourceLabel: activeSource.sourceLabel || activeSource.repoSlug || activeSource.targetPathOrId || copy.app.sourceLabelFallback,
       sourceType: activeSource.sourceType || 'unknown',
       branchName: activeSource.branchName || 'main',
       provider: activeSource.provider || 'unknown',
@@ -318,15 +324,35 @@ export default function App() {
     <div className="player-shell">
       <div className="player-shell__inner">
         <header className="player-hero">
-          <p className="player-eyebrow">Maestro Player</p>
-          <h1 className="player-title">Turn repository history into a <span>playable score</span>.</h1>
-          <p className="player-subtitle">
-            Load a local repo, a public GitHub or GitLab URL, or a connected forge repository and translate commit flow into a rhythm chart.
-          </p>
-          <div className="player-hero__meta">
-          <span>Read-only replay</span>
-          <span>Git + PR semantics</span>
-          <span>Deterministic motifs</span>
+          <div className="player-hero__content">
+            <p className="player-kicker">{copy.hero.eyebrow}</p>
+            <h1 className="player-title">{renderHeroTitle(copy, language)}</h1>
+            <p className="player-subtitle">{copy.hero.subtitle}</p>
+            <div className="player-hero__meta">
+              {copy.hero.meta.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </div>
+          </div>
+          <div className="player-hero__controls">
+            <span className="player-language-switch__label">{copy.languageLabel}</span>
+            <div className="player-language-switch" role="group" aria-label={copy.languageLabel}>
+              {PLAYER_LANGUAGES.map((item) => {
+                const isActive = language === item.id;
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`player-language-switch__button${isActive ? ' is-active' : ''}`}
+                    aria-pressed={isActive}
+                    onClick={() => setLanguage(item.id)}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </header>
 
@@ -334,15 +360,18 @@ export default function App() {
           <div className="player-column">
             <SourceModeTabs
               mode={sourceMode}
-              modes={MODE_DEFINITIONS}
+              modes={modeDefinitions}
               onModeChange={setSourceMode}
+              ariaLabel={language === 'ko' ? '리플레이 소스 모드' : 'Replay source mode'}
             />
             <SourceModeGuide
               mode={sourceMode}
               sourceState={sourceGuideState}
+              language={language}
             />
             <SourceInputPanel
               mode={sourceMode}
+              language={language}
               repoPath={drafts.local.repoPath}
               publicUrl={drafts.public.url}
               branchName={drafts[sourceMode].branch}
@@ -369,6 +398,7 @@ export default function App() {
               onSelectedRepoChange={(value) => handleDraftChange('account', 'repoSlug', value)}
               onRefreshRepositories={handleRefreshRepositories}
               onSubmit={handleLoadReplay}
+              submitLabel={copy.sourceInput.buttons.submit}
               isSubmitting={isLoading}
               isRefreshingRepositories={isRepoListLoading}
             />
@@ -379,21 +409,25 @@ export default function App() {
               replaySummary={replaySummary}
               chartSummary={chartSummary}
               latestError={errorMessage}
+              language={language}
             />
             <PlayerRunPanel
               chart={chart}
               tempo={musicPlan[0]?.tempo || 120}
               onRunComplete={handleRunComplete}
+              language={language}
             />
             <ScoreHistoryPanel
               activeSource={activeSource}
               records={visiblePerformanceHistory}
+              language={language}
             />
             <ReplayEventTimeline
               events={latestEvents}
-              title="Latest mapped events"
-              emptyMessage="Load a replay source to preview the incoming event stream."
+              title={copy.app.latestEventsTitle}
+              emptyMessage={copy.app.latestEventsEmpty}
               maxItems={6}
+              language={language}
             />
           </div>
         </main>
@@ -408,104 +442,149 @@ function buildSourceGuideState({
   drafts,
   accountRepositories,
   localBridgeAvailable,
+  language,
 }) {
   return {
-    local: buildLocalGuideState(drafts.local, activeSource, replaySummary, localBridgeAvailable),
-    public: buildPublicGuideState(drafts.public, activeSource, replaySummary),
-    account: buildAccountGuideState(drafts.account, accountRepositories, activeSource, replaySummary),
+    local: buildLocalGuideState(drafts.local, activeSource, replaySummary, localBridgeAvailable, language),
+    public: buildPublicGuideState(drafts.public, activeSource, replaySummary, language),
+    account: buildAccountGuideState(drafts.account, accountRepositories, activeSource, replaySummary, language),
   };
 }
 
-function buildLocalGuideState(localDraft, activeSource, replaySummary, localBridgeAvailable) {
+function buildLocalGuideState(localDraft, activeSource, replaySummary, localBridgeAvailable, language = 'en') {
+  const copy = getPlayerCopy(language);
   const branchName = localDraft.branch || 'main';
   const repoPath = localDraft.repoPath?.trim();
 
   if (activeSource?.sourceType === 'git-local') {
     return {
-      readiness: 'Loaded',
+      readiness: language === 'ko' ? '불러옴' : 'Loaded',
       readinessTone: 'ready',
-      cue: `Replay mapped from the local bridge: ${replaySummary?.eventCount || 0} events.`,
-      summary: `Loaded the selected local repository on ${activeSource.branchName || branchName}.`,
+      cue: language === 'ko'
+        ? `로컬 브리지에서 ${replaySummary?.eventCount || 0}개 이벤트를 매핑했습니다.`
+        : `Replay mapped from the local bridge: ${replaySummary?.eventCount || 0} events.`,
+      summary: language === 'ko'
+        ? `선택한 로컬 저장소를 ${activeSource.branchName || branchName} 브랜치에서 불러왔습니다.`
+        : `Loaded the selected local repository on ${activeSource.branchName || branchName}.`,
     };
   }
 
   if (localBridgeAvailable) {
     return {
-      readiness: 'Ready now',
+      readiness: language === 'ko' ? '즉시 사용 가능' : 'Ready now',
       readinessTone: 'ready',
-      cue: `Local bridge detected. ${repoPath ? 'Load the selected repository' : 'Select a repository path'} on ${branchName}.`,
-      risks: [
-        'Path access still depends on the desktop bridge implementation.',
-        'Machine-specific repo availability can still block replay.',
-      ],
+      cue: language === 'ko'
+        ? `로컬 브리지가 감지되었습니다. ${repoPath ? '선택한 저장소를' : '저장소 경로를 선택하고'} ${branchName} 브랜치에서 불러오세요.`
+        : `Local bridge detected. ${repoPath ? 'Load the selected repository' : 'Select a repository path'} on ${branchName}.`,
+      risks: language === 'ko'
+        ? [
+          '경로 접근은 여전히 데스크톱 브리지 구현에 의존합니다.',
+          '머신별 저장소 유무가 리플레이를 막을 수 있습니다.',
+        ]
+        : [
+          'Path access still depends on the desktop bridge implementation.',
+          'Machine-specific repo availability can still block replay.',
+        ],
     };
   }
 
   if (repoPath) {
     return {
-      cue: `Prepared ${repoPath} on ${branchName}. Live loading still needs a desktop or server bridge.`,
+      cue: language === 'ko'
+        ? `${repoPath} 경로를 ${branchName} 브랜치 기준으로 준비했습니다. 실제 로딩에는 데스크톱 또는 서버 브리지가 더 필요합니다.`
+        : `Prepared ${repoPath} on ${branchName}. Live loading still needs a desktop or server bridge.`,
     };
   }
 
-  return {};
+  return {
+    readiness: copy.sourceGuide.modes.local.readiness,
+  };
 }
 
-function buildPublicGuideState(publicDraft, activeSource, replaySummary) {
+function buildPublicGuideState(publicDraft, activeSource, replaySummary, language = 'en') {
+  const copy = getPlayerCopy(language);
   const branchName = publicDraft.branch || 'main';
   const publicUrl = publicDraft.url?.trim();
 
   if (activeSource?.sourceType === 'git-public-url') {
-    const reviewSuffix = replaySummary?.reviewCount ? `, including ${replaySummary.reviewCount} review events` : '';
+    const reviewSuffix = replaySummary?.reviewCount
+      ? language === 'ko'
+        ? `, 리뷰 이벤트 ${replaySummary.reviewCount}개 포함`
+        : `, including ${replaySummary.reviewCount} review events`
+      : '';
     return {
-      readiness: 'Loaded',
+      readiness: language === 'ko' ? '불러옴' : 'Loaded',
       readinessTone: 'ready',
-      cue: `Replay mapped from the selected public source: ${replaySummary?.eventCount || 0} events${reviewSuffix}.`,
-      summary: `Loaded ${activeSource.branchName || branchName} from the selected ${activeSource.provider || 'public'} repository.`,
+      cue: language === 'ko'
+        ? `선택한 공개 소스에서 ${replaySummary?.eventCount || 0}개 이벤트를 매핑했습니다${reviewSuffix}.`
+        : `Replay mapped from the selected public source: ${replaySummary?.eventCount || 0} events${reviewSuffix}.`,
+      summary: language === 'ko'
+        ? `선택한 ${activeSource.provider || 'public'} 저장소에서 ${activeSource.branchName || branchName} 브랜치를 불러왔습니다.`
+        : `Loaded ${activeSource.branchName || branchName} from the selected ${activeSource.provider || 'public'} repository.`,
     };
   }
 
   if (publicUrl) {
     return {
-      cue: `Ready to load ${publicUrl} on ${branchName}.`,
+      cue: language === 'ko'
+        ? `${publicUrl} 을(를) ${branchName} 브랜치에서 불러올 준비가 됐습니다.`
+        : `Ready to load ${publicUrl} on ${branchName}.`,
     };
   }
 
-  return {};
+  return {
+    readiness: copy.sourceGuide.modes.public.readiness,
+  };
 }
 
-function buildAccountGuideState(accountDraft, accountRepositories, activeSource, replaySummary) {
+function buildAccountGuideState(accountDraft, accountRepositories, activeSource, replaySummary, language = 'en') {
+  const copy = getPlayerCopy(language);
   const branchName = accountDraft.branch || 'main';
   const providerLabel = accountDraft.provider === 'gitlab' ? 'GitLab' : 'GitHub';
 
   if (activeSource?.sourceType === 'git-account') {
-    const reviewSuffix = replaySummary?.reviewCount ? `, including ${replaySummary.reviewCount} review events` : '';
+    const reviewSuffix = replaySummary?.reviewCount
+      ? language === 'ko'
+        ? `, 리뷰 이벤트 ${replaySummary.reviewCount}개 포함`
+        : `, including ${replaySummary.reviewCount} review events`
+      : '';
     return {
-      readiness: 'Loaded',
+      readiness: language === 'ko' ? '불러옴' : 'Loaded',
       readinessTone: 'ready',
-      cue: `Replay mapped from the connected repository: ${replaySummary?.eventCount || 0} events${reviewSuffix}.`,
-      summary: `${activeSource.provider || providerLabel} replay loaded on ${activeSource.branchName || branchName}.`,
+      cue: language === 'ko'
+        ? `연결된 저장소에서 ${replaySummary?.eventCount || 0}개 이벤트를 매핑했습니다${reviewSuffix}.`
+        : `Replay mapped from the connected repository: ${replaySummary?.eventCount || 0} events${reviewSuffix}.`,
+      summary: language === 'ko'
+        ? `${activeSource.provider || providerLabel} 리플레이를 ${activeSource.branchName || branchName} 브랜치에서 불러왔습니다.`
+        : `${activeSource.provider || providerLabel} replay loaded on ${activeSource.branchName || branchName}.`,
     };
   }
 
   if (accountDraft.token && accountRepositories.length > 0) {
     return {
-      readiness: 'Connected',
+      readiness: language === 'ko' ? '연결됨' : 'Connected',
       readinessTone: 'ready',
-      cue: `${accountRepositories.length} ${providerLabel} repositories available. Select one and load replay.`,
+      cue: language === 'ko'
+        ? `${providerLabel} 저장소 ${accountRepositories.length}개를 사용할 수 있습니다. 하나를 선택하고 리플레이를 불러오세요.`
+        : `${accountRepositories.length} ${providerLabel} repositories available. Select one and load replay.`,
     };
   }
 
   if (accountDraft.token) {
     return {
-      readiness: 'Connected',
+      readiness: language === 'ko' ? '연결됨' : 'Connected',
       readinessTone: 'ready',
-      cue: `${providerLabel} token added. Refresh repositories to populate the picker.`,
+      cue: language === 'ko'
+        ? `${providerLabel} 토큰이 추가되었습니다. 저장소 목록을 새로고침해 선택기를 채우세요.`
+        : `${providerLabel} token added. Refresh repositories to populate the picker.`,
     };
   }
 
   return {
-    readiness: 'Token needed',
-    cue: `Add a ${providerLabel} token to list repositories and unlock private replay.`,
+    readiness: language === 'ko' ? '토큰 필요' : 'Token needed',
+    cue: language === 'ko'
+      ? `${providerLabel} 토큰을 추가하면 저장소 목록을 불러오고 비공개 리플레이까지 열 수 있습니다.`
+      : `Add a ${providerLabel} token to list repositories and unlock private replay.`,
   };
 }
 
@@ -520,53 +599,83 @@ function summarizeBeatDensity(notes) {
   return [...bucketCounts.values()];
 }
 
-async function loadOverlayEventsSafe(input) {
+async function loadOverlayEventsSafe({
+  owner,
+  repo,
+  branchName,
+  accessToken,
+  fetchImpl,
+  canonicalUrl,
+  sourceLabel,
+  visibility,
+  provider,
+}) {
   try {
-    return await loadCollaborationOverlayEvents(input);
+    return await loadCollaborationOverlayEvents({
+      owner,
+      repo,
+      branchName,
+      accessToken,
+      fetchImpl,
+      canonicalUrl,
+      sourceLabel,
+      visibility,
+      provider,
+    });
   } catch {
     return [];
   }
 }
 
-function mergeReplayEvents(primaryEvents, overlayEvents) {
-  return [...primaryEvents, ...overlayEvents].sort(compareReplayEvents);
+function mergeReplayEvents(replayEvents, overlayEvents) {
+  return [...replayEvents, ...overlayEvents]
+    .filter(Boolean)
+    .sort((left, right) => String(left.timestamp || '').localeCompare(String(right.timestamp || '')));
 }
 
-function compareReplayEvents(left, right) {
-  const leftTimestamp = new Date(left?.timestamp || 0).getTime();
-  const rightTimestamp = new Date(right?.timestamp || 0).getTime();
-  const timeDelta = leftTimestamp - rightTimestamp;
-
-  if (timeDelta !== 0) {
-    return timeDelta;
-  }
-
-  return String(left?.eventId || '').localeCompare(String(right?.eventId || ''));
-}
-
-function buildPerformanceSourceKey(activeSource) {
-  if (!activeSource) {
+function buildPerformanceSourceKey(source) {
+  if (!source) {
     return '';
   }
 
   return [
-    activeSource.sourceType || 'unknown',
-    activeSource.provider || 'unknown',
-    activeSource.repoSlug || activeSource.targetPathOrId || activeSource.sourceLabel || 'unknown',
-    activeSource.branchName || 'main',
+    source.sourceType || 'unknown',
+    source.provider || 'unknown',
+    source.repoSlug || source.targetPathOrId || source.sourceLabel || 'unknown',
+    source.branchName || 'main',
   ].join(':');
 }
 
 function buildPerformanceChartId(sourceKey, chart, loadedEvents, musicPlan) {
-  if (!sourceKey || !chart) {
+  if (!sourceKey) {
     return '';
   }
 
   return [
     sourceKey,
-    chart.laneCount || 4,
-    chart.notes?.length || 0,
+    chart?.notes?.length || 0,
     loadedEvents.length,
-    musicPlan[0]?.tempo || 0,
+    musicPlan.length,
   ].join(':');
+}
+
+function renderHeroTitle(copy, language) {
+  if (language === 'ko') {
+    return (
+      <>
+        {copy.hero.titleLead}
+        <span>{copy.hero.titleAccent}</span>
+        {copy.hero.titleTail}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {copy.hero.titleLead}
+      {' '}
+      <span>{copy.hero.titleAccent}</span>
+      .
+    </>
+  );
 }

@@ -32,3 +32,9 @@ Original prompt: 좋아 계속 작업을 진행해보자
 - Expanded GitLab fixtures and UI harness routes to use discussion payloads, including a reopen scenario, and updated QA expectations around latest-event ordering.
 - `npm run qa` passed after the discussion semantics pass.
 - Live Playwright smoke against the Vite shell rendered correctly, but console logs still showed one 404 and one 403 in this environment, so live forge fetch verification remains partially constrained by local network/runtime conditions.
+- Started a UI simplification pass so player settings do not sprawl into a separate panel; kept the setting surface to a single header language toggle.
+- Added a lightweight bilingual copy layer plus browser-language defaulting so the shell can switch between English and Korean without duplicating component logic.
+- Threaded localized copy through the hero, source tabs, source guide, input panel, replay status, run panel, event timeline, and score history views.
+- Added UI coverage for toggling between English and Korean and kept the existing English-first harness flows green.
+- `npm run qa` passed after the bilingual shell pass.
+- Browser smoke via the Playwright client captured a Korean-shell screenshot at `player/output/web-game-bilingual/shot-0.png` with no new console error artifact emitted for that run.
