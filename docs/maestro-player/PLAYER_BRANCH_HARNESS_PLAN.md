@@ -91,6 +91,7 @@ assumptions:
   - `docs/maestro-player/README.md`
   - `docs/maestro-player/mvp-spec.md`
   - `docs/maestro-player/music-mapping-spec.md`
+  - `docs/maestro-player/music-validation-plan.md`
   - `docs/maestro-player/bootstrap-plan.md`
   - `docs/maestro-player/test-plan.md`
   - `docs/maestro-player/PLAYER_BRANCH_HARNESS_PLAN.md`
@@ -114,6 +115,7 @@ targeted_tests:
 - `player/tests/gitReplayAdapter.test.mjs`
 - `player/tests/metronomeEngine.test.mjs`
 - `player/tests/replayAudioEngine.test.mjs`
+- `player/tests/musicValidationHarness.test.mjs`
 - `player/tests/publicRepoAdapter.test.mjs`
 - `player/tests/accountRepoAdapter.test.mjs`
 - `player/tests/playerHarness.test.mjs`
@@ -130,6 +132,8 @@ runtime_signals:
 - `review-resolve`는 approve보다 약한 cadence/resolve 패턴으로 반영됨
 - `review-reopen`은 discussion 재개에 맞는 재긴장 패턴으로 반영됨
 - `merge`는 accent/cadence lane으로 귀결됨
+- 고정 fixture에서 peak tension / peak resolution event가 결정적으로 유지됨
+- `push`는 fill/drum footprint, `sync`는 steady/repeat footprint를 유지함
 - 이벤트가 몰려도 density cap이 유지됨
 - public repo URL을 등록하면 replay source가 생성됨
 - provider를 GitHub/GitLab로 바꿔도 replay source shape가 유지됨

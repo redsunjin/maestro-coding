@@ -54,12 +54,16 @@
 - `review-resolve`가 cadence/resolve 패턴으로 반영되는지
 - `review-reopen`이 재긴장 패턴으로 반영되는지
 - overlay 이벤트가 없을 때도 Git-only 곡이 성립하는지
+- 고정 fixture에서 음악적 fingerprint가 다시 실행해도 동일한지
+- `push`, `pull`, `sync`가 멜로디 주재료가 아니라 전환/재정렬 역할로 유지되는지
 
 성공 기준:
 
 - 같은 입력에서 motif, key, tempo, structural role이 결정적으로 동일하다.
 - `merge`는 accent lane 또는 cadence pattern으로 수렴한다.
 - 이벤트 폭주 구간에서도 density cap이 유지된다.
+- fixture 기준 peak tension event와 peak resolution event가 의미적으로 유지된다.
+- chart/cue 번역 뒤에도 `push`는 fill footprint, `merge`는 accent dominance를 유지한다.
 
 ### D. UI Shell
 
@@ -111,6 +115,7 @@
 6. `App` UI smoke 테스트
 7. 샘플 Git history로 replay smoke 테스트
 8. 공개 레포 URL replay smoke 테스트
+9. music validation harness 테스트
 
 ## 4. 수동 확인 항목
 
@@ -118,6 +123,7 @@
 - note 밀도가 과도하지 않은가
 - 악보뷰가 플레이 결과를 이해하는 데 도움이 되는가
 - 사용자가 이 앱을 실제 업무 도구로 오해하지 않는가
+- golden listening set에서 긴장/해소와 전환 효과가 귀로도 구분되는가
 
 ## 5. 릴리즈 전 최소 통과 기준
 

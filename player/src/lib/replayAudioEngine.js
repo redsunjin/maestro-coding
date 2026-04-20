@@ -79,6 +79,7 @@ function createCueFromNote(note, stepIndex, options) {
   return {
     cueId: `${note.noteId || `cue-${stepIndex}-${laneIndex}`}`,
     noteId: note.noteId || '',
+    eventRef: note.eventRef || '',
     laneIndex,
     noteType: note.noteType || 'tap',
     stepIndex,

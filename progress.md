@@ -38,3 +38,16 @@ Original prompt: 좋아 계속 작업을 진행해보자
 - Added UI coverage for toggling between English and Korean and kept the existing English-first harness flows green.
 - `npm run qa` passed after the bilingual shell pass.
 - Browser smoke via the Playwright client captured a Korean-shell screenshot at `player/output/web-game-bilingual/shot-0.png` with no new console error artifact emitted for that run.
+- Started a music validation pass so future mapping changes can be judged by stable musical contracts instead of ad-hoc listening only.
+- Added `docs/maestro-player/music-validation-plan.md` to define a layered validation model: semantic contracts, musical fingerprint checks, chart/cue translation checks, and human listening rubric.
+- Added `player/tests/musicValidationHarness.test.mjs` with a fixed fixture that checks deterministic fingerprinting plus `push`, `sync`, `request changes`, `resolve`, `approve`, and `merge` musical roles.
+- Extended `replayAudioEngine` cues with `eventRef` so chart-to-audio translation can be traced during validation.
+- Updated harness and test-plan docs so music validation is a first-class regression gate.
+- `npm run qa` passed after the music validation pass.
+- Started the next validation layer: a golden listening set and autoplay listening pack so human listening checks can reuse stable public/provider fixtures.
+- Added `player/tests/fixtures/goldenListeningSet.mjs` with three fixed listening scenarios: GitHub public PR cadence, GitLab public discussion resolution, and transition overlay practice.
+- Added `player/scripts/exportGoldenListeningPack.mjs` plus `npm run listening:pack` to emit `player/output/golden-listening-set/manifest.json` and `listening-pack.md`.
+- Added `docs/maestro-player/golden-listening-set.md` and linked the new pack into the validation workflow docs.
+- Added `player/tests/goldenListeningSet.test.mjs` so the listening pack metadata stays deterministic in CI.
+- `npm run qa` passed after the golden listening set pass.
+- Browser smoke against the dedicated player dev server on `127.0.0.1:4174` rendered the Korean shell correctly at `player/output/web-game-golden-pack-player/shot-0.png`.
