@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildGoldenListeningPack } from '../scripts/exportGoldenListeningPack.mjs';
-import { buildGoldenListeningScenarios } from './fixtures/goldenListeningSet.mjs';
+import { buildGoldenListeningScenarios } from '../src/lib/goldenListeningPack.js';
 
 test('golden listening set exposes three stable autoplay scenarios', () => {
   const scenarios = buildGoldenListeningScenarios();

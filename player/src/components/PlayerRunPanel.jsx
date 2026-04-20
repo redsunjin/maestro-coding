@@ -36,6 +36,7 @@ export default function PlayerRunPanel({
   audioDriver = null,
   bgmDriver = null,
   language = 'en',
+  runRequest = null,
 }) {
   const copy = getPlayerCopy(language);
   const notes = useMemo(
@@ -54,6 +55,7 @@ export default function PlayerRunPanel({
   const [pulseIndicator, setPulseIndicator] = useState(null);
   const [activeCueSummary, setActiveCueSummary] = useState('');
   const lastReportedRunTokenRef = useRef('');
+  const lastRunRequestIdRef = useRef('');
   const lastPulseStepRef = useRef(-1);
   const lastCueStepRef = useRef(-1);
   const metronomeDriver = useMemo(
@@ -75,13 +77,62 @@ export default function PlayerRunPanel({
   const audioSupported = metronomeDriver?.isSupported?.() ?? false;
   const bgmSupported = replayAudioDriver?.isSupported?.() ?? false;
 
-  useEffect(() => {
-    setRunState(createEmptyRunState());
+  const resetPanelEphemera = () => {
     setPulseIndicator(null);
     setActiveCueSummary('');
     lastPulseStepRef.current = -1;
     lastCueStepRef.current = -1;
-  }, [chart, totalBeats, notes.length, playMode]);
+  };
+
+  const resetRunState = () => {
+    resetPanelEphemera();
+    setRunState(createEmptyRunState());
+  };
+
+  useEffect(() => {
+    resetRunState();
+  }, [chart, totalBeats, notes.length]);
+
+  useEffect(() => {
+    if (!runRequest?.requestId || notes.length === 0) {
+      return;
+    }
+
+    if (lastRunRequestIdRef.current === runRequest.requestId) {
+      return;
+    }
+
+    lastRunRequestIdRef.current = runRequest.requestId;
+    const nextPlayMode = runRequest.playMode || 'auto';
+    const shouldAutoStart = runRequest.autoStart !== false;
+
+    if (nextPlayMode !== playMode) {
+      setPlayMode(nextPlayMode);
+    }
+
+    if (shouldAutoStart) {
+      if (audioSupported) {
+        metronomeDriver?.prime?.();
+      }
+      if (bgmSupported) {
+        replayAudioDriver?.prime?.();
+      }
+    }
+
+    resetPanelEphemera();
+    setRunState({
+      ...createEmptyRunState(),
+      status: shouldAutoStart ? 'running' : 'idle',
+    });
+  }, [
+    audioSupported,
+    bgmSupported,
+    metronomeDriver,
+    notes.length,
+    playMode,
+    replayAudioDriver,
+    runRequest,
+  ]);
 
   useEffect(() => {
     if (runState.status !== 'running' || notes.length === 0) {
@@ -242,6 +293,44 @@ export default function PlayerRunPanel({
       ? activeCueSummary || copy.runPanel.sync.bgmArmed
       : copy.runPanel.sync.bgmMuted;
 
+  const handleStartOrResume = () => {
+    const shouldResume = runState.status === 'paused';
+
+    if (audioSupported) {
+      metronomeDriver?.prime?.();
+    }
+    if (bgmSupported) {
+      replayAudioDriver?.prime?.();
+    }
+
+    if (!shouldResume) {
+      resetPanelEphemera();
+    }
+
+    setRunState((previousState) => {
+      if (shouldResume) {
+        return {
+          ...previousState,
+          status: 'running',
+        };
+      }
+
+      return {
+        ...createEmptyRunState(),
+        status: 'running',
+      };
+    });
+  };
+
+  const handleModeChange = (nextPlayMode) => {
+    if (nextPlayMode === playMode) {
+      return;
+    }
+
+    setPlayMode(nextPlayMode);
+    resetRunState();
+  };
+
   if (!chart || notes.length === 0) {
     return (
       <section className="player-card" aria-labelledby="player-run-panel-title">
@@ -321,7 +410,7 @@ export default function PlayerRunPanel({
               type="button"
               role="tab"
               aria-selected={playMode === mode.id}
-              onClick={() => setPlayMode(mode.id)}
+              onClick={() => handleModeChange(mode.id)}
             >
               <span className="source-mode-tab__label">{copy.runPanel.playModes[mode.id]}</span>
               <span className="source-mode-tab__description" />
@@ -333,28 +422,7 @@ export default function PlayerRunPanel({
             className="player-button"
             type="button"
             disabled={runState.status === 'running'}
-            onClick={() => {
-              if (audioSupported) {
-                metronomeDriver?.prime?.();
-              }
-              if (bgmSupported) {
-                replayAudioDriver?.prime?.();
-              }
-
-              setRunState((previousState) => {
-                if (previousState.status === 'complete') {
-                  return {
-                    ...createEmptyRunState(),
-                    status: 'running',
-                  };
-                }
-
-                return {
-                  ...previousState,
-                  status: 'running',
-                };
-              });
-            }}
+            onClick={handleStartOrResume}
           >
             {runState.status === 'idle' ? copy.runPanel.controls.start : runState.status === 'paused' ? copy.runPanel.controls.resume : copy.runPanel.controls.replay}
           </button>
@@ -396,8 +464,7 @@ export default function PlayerRunPanel({
             type="button"
             disabled={runState.status === 'idle'}
             onClick={() => {
-              setRunState(createEmptyRunState());
-              setActiveCueSummary('');
+              resetRunState();
             }}
           >
             {copy.runPanel.controls.retry}

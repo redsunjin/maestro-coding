@@ -201,6 +201,19 @@ describeIfApp('Player Shell UI', () => {
     });
   });
 
+  test('golden listening autoplay demo loads a fixed scenario and starts the run immediately', async () => {
+    const { user } = renderPlayerApp(App);
+
+    await user.click(screen.getByRole('button', { name: 'Autoplay demo for GitHub Public PR Cadence' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('GitHub Public PR Cadence', { selector: 'dd' })).toBeVisible();
+      expect(screen.getByText('Run active')).toBeVisible();
+      expect(screen.getByRole('tab', { name: 'Auto Preview' })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByText('Active demo')).toBeVisible();
+    });
+  });
+
   test('loads persisted score history for the active source', async () => {
     const storedHistory = [
       {

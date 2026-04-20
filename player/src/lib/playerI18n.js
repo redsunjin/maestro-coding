@@ -51,6 +51,31 @@ const PLAYER_COPY = {
       beats: (value) => `${value} beats`,
       density: (value) => `${value}/beat`,
     },
+    goldenListening: {
+      kicker: 'Golden Listening',
+      title: 'Autoplay demo pack',
+      meta: 'Load a fixed listening scenario and jump straight into autoplay preview.',
+      activeDemo: 'Active demo',
+      empty: 'No golden listening scenarios are available.',
+      actions: {
+        autoplay: 'Autoplay Demo',
+        autoplayAria: (label) => `Autoplay demo for ${label}`,
+      },
+      labels: {
+        events: 'Events',
+        notes: 'Notes',
+        focus: 'Listening focus',
+        peakTension: 'Peak tension',
+        peakResolution: 'Peak resolution',
+      },
+      providers: {
+        github: 'GitHub',
+        gitlab: 'GitLab',
+        hybrid: 'Hybrid',
+      },
+      signature: (motifId, key) => `${motifId} motif · ${key}`,
+      tempo: (tempo) => `${tempo} BPM`,
+    },
     sourceInput: {
       kicker: 'Replay Source',
       title: 'Choose input',
@@ -358,6 +383,31 @@ const PLAYER_COPY = {
       latestEventsEmpty: '리플레이 소스를 불러오면 들어오는 이벤트 스트림을 여기서 미리 볼 수 있습니다.',
       beats: (value) => `${value}박`,
       density: (value) => `${value}/박`,
+    },
+    goldenListening: {
+      kicker: '골든 리스닝',
+      title: '자동 재생 데모 팩',
+      meta: '고정된 리스닝 시나리오를 불러와 바로 자동 프리뷰로 들어갑니다.',
+      activeDemo: '현재 데모',
+      empty: '사용 가능한 골든 리스닝 시나리오가 없습니다.',
+      actions: {
+        autoplay: '자동 데모 실행',
+        autoplayAria: (label) => `${label} 자동 데모 실행`,
+      },
+      labels: {
+        events: '이벤트',
+        notes: '노트',
+        focus: '청취 포인트',
+        peakTension: '최대 긴장',
+        peakResolution: '최대 해소',
+      },
+      providers: {
+        github: 'GitHub',
+        gitlab: 'GitLab',
+        hybrid: '하이브리드',
+      },
+      signature: (motifId, key) => `${motifId} 모티프 · ${key}`,
+      tempo: (tempo) => `${tempo} BPM`,
     },
     sourceInput: {
       kicker: '리플레이 소스',

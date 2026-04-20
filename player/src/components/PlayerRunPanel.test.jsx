@@ -178,6 +178,49 @@ describe('PlayerRunPanel', () => {
     expect(screen.getByText('BGM state: BGM muted')).toBeVisible();
   });
 
+  test('accepts an external autoplay run request from the shell demo panel', () => {
+    vi.useFakeTimers();
+    const onRunComplete = vi.fn();
+    const audioDriver = createAudioDriverHarness();
+    const bgmDriver = createBgmDriverHarness();
+
+    render(
+      <PlayerRunPanel
+        tempo={128}
+        onRunComplete={onRunComplete}
+        audioDriver={audioDriver}
+        bgmDriver={bgmDriver}
+        runRequest={{
+          requestId: 'golden-demo-1',
+          playMode: 'auto',
+          autoStart: true,
+        }}
+        chart={{
+          laneCount: 4,
+          notes: [
+            { noteId: 'external-1', laneIndex: 1, beatOffset: 0, durationBeats: 1, noteType: 'tap' },
+            { noteId: 'external-2', laneIndex: 4, beatOffset: 1.5, durationBeats: 1, noteType: 'accent' },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Run active')).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Auto Preview' })).toHaveAttribute('aria-selected', 'true');
+    expect(audioDriver.prime).toHaveBeenCalledTimes(1);
+    expect(bgmDriver.prime).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      vi.advanceTimersByTime(1400);
+    });
+
+    expect(screen.getByText('Run complete')).toBeVisible();
+    expect(onRunComplete).toHaveBeenCalledWith(expect.objectContaining({
+      playMode: 'auto',
+      totalNotes: 2,
+    }));
+  });
+
   test('maps near-miss timing into a great judgment tier', () => {
     vi.useFakeTimers();
     const audioDriver = createAudioDriverHarness();

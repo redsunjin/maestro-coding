@@ -51,3 +51,7 @@ Original prompt: 좋아 계속 작업을 진행해보자
 - Added `player/tests/goldenListeningSet.test.mjs` so the listening pack metadata stays deterministic in CI.
 - `npm run qa` passed after the golden listening set pass.
 - Browser smoke against the dedicated player dev server on `127.0.0.1:4174` rendered the Korean shell correctly at `player/output/web-game-golden-pack-player/shot-0.png`.
+- Started the next product-facing step: reuse the golden listening pack as a runtime source so the shell can launch fixed autoplay demos without going through forge fetches.
+- Added shared runtime module `player/src/lib/goldenListeningPack.js` and repointed the export script plus tests to that source so demos, docs, and QA no longer drift.
+- Added `GoldenListeningPanel` to the shell with curated autoplay demo cards for the GitHub, GitLab, and transition validation scenarios.
+- Extended `PlayerRunPanel` with external run requests so the shell can load a golden scenario and start autoplay immediately.

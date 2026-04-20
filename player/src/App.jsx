@@ -1,4 +1,5 @@
-import React, { startTransition, useMemo, useState } from 'react';
+import React, { startTransition, useEffect, useMemo, useState } from 'react';
+import GoldenListeningPanel from './components/GoldenListeningPanel.jsx';
 import PlayerRunPanel from './components/PlayerRunPanel.jsx';
 import ReplayEventTimeline from './components/ReplayEventTimeline.jsx';
 import ScoreHistoryPanel from './components/ScoreHistoryPanel.jsx';
@@ -18,6 +19,7 @@ import {
 import { appendPerformanceRecord, loadPerformanceHistory } from './lib/performanceHistoryStore.js';
 import { loadPublicRepoReplayEvents, createPublicRepoSource } from './lib/publicRepoAdapter.js';
 import { buildMusicPlan } from './lib/musicIntentMapper.js';
+import { buildGoldenListeningPackEntries, buildGoldenListeningSource } from './lib/goldenListeningPack.js';
 import { registerLocalRepoSource } from './lib/sourceRegistry.js';
 import './styles.css';
 
@@ -51,9 +53,12 @@ export default function App() {
   const [isRepoListLoading, setIsRepoListLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [performanceHistory, setPerformanceHistory] = useState(() => loadPerformanceHistory(globalThis));
+  const [pendingRunRequest, setPendingRunRequest] = useState(null);
+  const [runRequest, setRunRequest] = useState(null);
   const localBridgeAvailable = hasLocalRepoBridge(globalThis);
   const copy = useMemo(() => getPlayerCopy(language), [language]);
   const modeDefinitions = useMemo(() => copy.modeDefinitions, [copy]);
+  const goldenListeningEntries = useMemo(() => buildGoldenListeningPackEntries(), []);
 
   const latestEvents = useMemo(
     () => loadedEvents.slice(-6).reverse(),
@@ -109,6 +114,10 @@ export default function App() {
     () => buildPerformanceChartId(activeSourceKey, chart, loadedEvents, musicPlan),
     [activeSourceKey, chart, loadedEvents, musicPlan],
   );
+  const activeGoldenScenarioId = useMemo(
+    () => (activeSource?.sourceType === 'golden-listening-demo' ? activeSource.targetPathOrId || '' : ''),
+    [activeSource],
+  );
 
   const visiblePerformanceHistory = useMemo(() => {
     if (!performanceHistory.length) {
@@ -123,6 +132,27 @@ export default function App() {
       .filter((record) => record.sourceKey === activeSourceKey)
       .slice(0, 6);
   }, [activeSourceKey, performanceHistory]);
+
+  useEffect(() => {
+    if (!pendingRunRequest || !activeSource || !chart?.notes?.length) {
+      return;
+    }
+
+    if (activeSource.sourceType !== 'golden-listening-demo') {
+      return;
+    }
+
+    if (activeSource.targetPathOrId !== pendingRunRequest.scenarioId) {
+      return;
+    }
+
+    setRunRequest({
+      requestId: pendingRunRequest.requestId,
+      playMode: 'auto',
+      autoStart: true,
+    });
+    setPendingRunRequest(null);
+  }, [activeSource, chart?.notes?.length, pendingRunRequest]);
 
   const handleDraftChange = (mode, field, value) => {
     setDrafts((currentDrafts) => ({
@@ -320,6 +350,16 @@ export default function App() {
     });
   };
 
+  const handleAutoplayGoldenScenario = (entry) => {
+    setErrorMessage('');
+    const source = buildGoldenListeningSource(entry);
+    applyReplayResult(source, entry.events);
+    setPendingRunRequest({
+      scenarioId: entry.id,
+      requestId: `golden:${entry.id}:${Date.now()}`,
+    });
+  };
+
   return (
     <div className="player-shell">
       <div className="player-shell__inner">
@@ -402,6 +442,12 @@ export default function App() {
               isSubmitting={isLoading}
               isRefreshingRepositories={isRepoListLoading}
             />
+            <GoldenListeningPanel
+              entries={goldenListeningEntries}
+              activeScenarioId={activeGoldenScenarioId}
+              onAutoplay={handleAutoplayGoldenScenario}
+              language={language}
+            />
           </div>
           <div className="player-column">
             <ReplayStatusPanel
@@ -416,6 +462,7 @@ export default function App() {
               tempo={musicPlan[0]?.tempo || 120}
               onRunComplete={handleRunComplete}
               language={language}
+              runRequest={runRequest}
             />
             <ScoreHistoryPanel
               activeSource={activeSource}

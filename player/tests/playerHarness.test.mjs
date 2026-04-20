@@ -25,6 +25,7 @@ test('player harness keeps required docs and source files in sync', () => {
     '../src/lib/gitReplayAdapter.js',
     '../src/lib/localRepoBridge.js',
     '../src/lib/metronomeEngine.js',
+    '../src/lib/goldenListeningPack.js',
     '../src/lib/performanceHistoryStore.js',
     '../src/lib/replayAudioEngine.js',
     '../scripts/exportGoldenListeningPack.mjs',
@@ -38,6 +39,7 @@ test('player harness keeps required docs and source files in sync', () => {
     '../src/lib/motifCatalog.js',
     '../src/lib/harmonyEngine.js',
     '../src/components/PlayerRunPanel.jsx',
+    '../src/components/GoldenListeningPanel.jsx',
     '../src/components/ScoreHistoryPanel.jsx',
     '../server/localReplayBridgePlugin.js',
   ];

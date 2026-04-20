@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createChartFromMusicPlan } from '../src/lib/chartMapper.js';
+import { buildTransitionValidationFixture } from '../src/lib/goldenListeningPack.js';
 import { buildMusicPlan } from '../src/lib/musicIntentMapper.js';
 import { createReplayCuePlan } from '../src/lib/replayAudioEngine.js';
-import { buildTransitionValidationFixture } from './fixtures/goldenListeningSet.mjs';
 
 test('music validation harness keeps the musical fingerprint deterministic for the same fixture', () => {
   const firstFingerprint = createMusicFingerprint(buildTransitionValidationFixture());
