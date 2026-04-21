@@ -253,6 +253,12 @@ const PLAYER_COPY = {
         manual: 'Use the lane buttons or A/S/D/F to hit notes inside the timing window.',
         auto: 'Auto mode resolves notes automatically so the shell can verify combo and result handling.',
       },
+      stage: {
+        now: 'Now Beat',
+        nextHit: (laneLabel, beat) => `Next hit: ${laneLabel} @ ${beat}`,
+        noNextHit: 'No queued hit',
+        judgmentRail: 'Judgment rail',
+      },
       sync: {
         clickOn: 'Click Track On',
         clickOff: 'Click Track Off',
@@ -585,6 +591,12 @@ const PLAYER_COPY = {
       subtitles: {
         manual: '레인 버튼이나 A/S/D/F 키를 눌러 타이밍 윈도 안에서 노트를 맞히세요.',
         auto: '자동 모드는 노트를 자동으로 처리해 콤보와 결과 처리 흐름을 검증합니다.',
+      },
+      stage: {
+        now: '현재 박자',
+        nextHit: (laneLabel, beat) => `다음 입력: ${laneLabel} @ ${beat}`,
+        noNextHit: '대기 입력 없음',
+        judgmentRail: '판정 레일',
       },
       sync: {
         clickOn: '클릭 트랙 켜짐',

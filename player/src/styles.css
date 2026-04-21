@@ -411,6 +411,7 @@ textarea {
 .player-run-panel,
 .player-run-panel__hero,
 .player-run-panel__actions,
+.player-run-panel__cockpit,
 .player-run-panel__progress,
 .player-run-panel__queue,
 .player-run-panel__mode-switch {
@@ -418,13 +419,48 @@ textarea {
   gap: 16px;
 }
 
+.player-run-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.player-run-panel::before {
+  content: "";
+  position: absolute;
+  inset: -40% -20% auto;
+  height: 240px;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(103, 232, 249, 0.12), transparent 62%);
+  opacity: 0.45;
+  transform: translateY(-18%);
+}
+
+.player-run-panel.is-running::before {
+  animation: playerRunPulse 1.4s ease-in-out infinite alternate;
+}
+
 .player-run-panel__header-pills,
-.player-run-panel__judgment-row,
 .player-run-panel__lanes,
 .player-run-panel__lane,
 .player-run-panel__lane-label {
   display: grid;
   gap: 12px;
+}
+
+.player-run-panel__hero,
+.player-run-panel__cockpit,
+.player-run-panel__lanes {
+  position: relative;
+  z-index: 1;
+}
+
+.player-run-panel__hero {
+  padding: 18px;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(8, 47, 73, 0.32), transparent 48%),
+    rgba(2, 6, 23, 0.26);
 }
 
 .player-run-panel__tempo {
@@ -488,6 +524,101 @@ textarea {
 
 .player-run-panel__mode-switch {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.player-run-panel__cockpit {
+  grid-template-columns: minmax(180px, 0.38fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.player-run-panel__now,
+.player-run-panel__judgment-track {
+  border: 1px solid rgba(71, 85, 105, 0.48);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.86), rgba(2, 6, 23, 0.68)),
+    rgba(2, 6, 23, 0.28);
+}
+
+.player-run-panel__now {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.player-run-panel__now span {
+  color: var(--player-cyan);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.player-run-panel__now strong {
+  color: var(--player-text);
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+}
+
+.player-run-panel__now em {
+  color: var(--player-text-dim);
+  font-size: 0.84rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.player-run-panel__judgment-track {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px;
+}
+
+.player-run-panel__judgment-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border: 1px solid rgba(71, 85, 105, 0.48);
+  border-radius: 14px;
+  padding: 0.45rem 0.7rem;
+  background: rgba(2, 6, 23, 0.36);
+  color: var(--player-text-dim);
+  font-size: 0.82rem;
+  font-weight: 800;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.player-run-panel__judgment-chip.has-value {
+  color: var(--player-text);
+  transform: translateY(-1px);
+}
+
+.player-run-panel__judgment-chip.is-perfect.has-value {
+  border-color: rgba(52, 211, 153, 0.42);
+  background: rgba(6, 78, 59, 0.24);
+}
+
+.player-run-panel__judgment-chip.is-great.has-value {
+  border-color: rgba(103, 232, 249, 0.4);
+  background: rgba(8, 47, 73, 0.3);
+}
+
+.player-run-panel__judgment-chip.is-good.has-value {
+  border-color: rgba(251, 191, 36, 0.38);
+  background: rgba(113, 63, 18, 0.2);
+}
+
+.player-run-panel__judgment-chip.is-miss.has-value {
+  border-color: rgba(248, 113, 113, 0.36);
+  background: rgba(127, 29, 29, 0.18);
+}
+
+.player-run-panel__judgment-chip.is-last {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+  color: var(--player-text);
 }
 
 .player-run-panel__progress-meta {
@@ -558,6 +689,12 @@ textarea {
 .player-run-panel__lanes {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: start;
+  padding: 14px;
+  border: 1px solid rgba(103, 232, 249, 0.14);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 50% 105%, rgba(103, 232, 249, 0.14), transparent 36%),
+    linear-gradient(180deg, rgba(8, 13, 28, 0.78), rgba(2, 6, 23, 0.5));
 }
 
 .player-run-panel__lane {
@@ -585,19 +722,39 @@ textarea {
   position: relative;
   min-height: 260px;
   overflow: hidden;
-  border: 1px solid rgba(71, 85, 105, 0.48);
+  border: 1px solid rgba(71, 85, 105, 0.58);
   border-radius: 18px;
   background:
+    linear-gradient(180deg, rgba(103, 232, 249, 0.08), transparent 30%),
+    repeating-linear-gradient(180deg, rgba(148, 163, 184, 0.08) 0 1px, transparent 1px 36px),
+    linear-gradient(90deg, transparent 0 47%, rgba(103, 232, 249, 0.06) 47% 53%, transparent 53% 100%),
     linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.92)),
     rgba(2, 6, 23, 0.36);
+  box-shadow: inset 0 -22px 42px rgba(2, 6, 23, 0.62);
+}
+
+.player-run-panel__lane.is-armed .player-run-panel__lane-track {
+  border-color: rgba(103, 232, 249, 0.28);
+}
+
+.player-run-panel__lane-radar {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 88%, rgba(251, 191, 36, 0.16), transparent 28%),
+    linear-gradient(180deg, transparent, rgba(103, 232, 249, 0.08));
+  opacity: 0.58;
 }
 
 .player-run-panel__note {
   position: absolute;
   left: 14%;
   right: 14%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.42);
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.42), 0 0 18px rgba(103, 232, 249, 0.16);
+  transition: top 120ms linear, opacity 120ms linear, transform 120ms linear;
 }
 
 .player-run-panel__note.is-tap {
@@ -606,6 +763,7 @@ textarea {
 
 .player-run-panel__note.is-accent {
   background: linear-gradient(180deg, rgba(251, 191, 36, 0.96), rgba(245, 158, 11, 0.78));
+  box-shadow: 0 10px 26px rgba(2, 6, 23, 0.48), 0 0 22px rgba(251, 191, 36, 0.28);
 }
 
 .player-run-panel__note.is-hold {
@@ -621,6 +779,10 @@ textarea {
   border-radius: 999px;
   background: linear-gradient(90deg, var(--player-amber), var(--player-cyan));
   box-shadow: 0 0 18px rgba(103, 232, 249, 0.35);
+}
+
+.player-run-panel.is-running .player-run-panel__hit-line {
+  animation: hitLinePulse 760ms ease-in-out infinite alternate;
 }
 
 .source-mode-guide__list {
@@ -835,6 +997,30 @@ textarea {
   line-height: 1.55;
 }
 
+@keyframes playerRunPulse {
+  from {
+    opacity: 0.36;
+    transform: translateY(-18%) scale(0.98);
+  }
+
+  to {
+    opacity: 0.72;
+    transform: translateY(-12%) scale(1.04);
+  }
+}
+
+@keyframes hitLinePulse {
+  from {
+    filter: brightness(0.92);
+    transform: scaleX(0.92);
+  }
+
+  to {
+    filter: brightness(1.18);
+    transform: scaleX(1);
+  }
+}
+
 @media (max-width: 960px) {
   .player-grid {
     grid-template-columns: 1fr;
@@ -865,6 +1051,10 @@ textarea {
 
   .player-run-panel__lanes {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .player-run-panel__cockpit {
+    grid-template-columns: 1fr;
   }
 
   .golden-listening-panel__heading {
@@ -898,8 +1088,8 @@ textarea {
 
   .player-run-panel__actions,
   .player-run-panel__queue-item,
-  .player-run-panel__judgment-row,
-  .player-run-panel__lanes {
+  .player-run-panel__lanes,
+  .player-run-panel__judgment-track {
     grid-template-columns: 1fr;
   }
 

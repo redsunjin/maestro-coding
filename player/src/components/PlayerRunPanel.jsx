@@ -292,6 +292,16 @@ export default function PlayerRunPanel({
     : bgmEnabled
       ? activeCueSummary || copy.runPanel.sync.bgmArmed
       : copy.runPanel.sync.bgmMuted;
+  const nextQueuedNote = upcomingNotes[0] || null;
+  const nextHitLabel = nextQueuedNote
+    ? copy.runPanel.stage.nextHit(copy.runPanel.laneLabel(nextQueuedNote.laneIndex), nextQueuedNote.beatOffset.toFixed(2))
+    : copy.runPanel.stage.noNextHit;
+  const judgmentTiers = [
+    { id: 'perfect', label: copy.runPanel.judgments.perfect, value: runState.judgments.perfect },
+    { id: 'great', label: copy.runPanel.judgments.great, value: runState.judgments.great },
+    { id: 'good', label: copy.runPanel.judgments.good, value: runState.judgments.good },
+    { id: 'miss', label: copy.runPanel.judgments.miss, value: runState.judgments.miss },
+  ];
 
   const handleStartOrResume = () => {
     const shouldResume = runState.status === 'paused';
@@ -349,7 +359,7 @@ export default function PlayerRunPanel({
   }
 
   return (
-    <section className="player-card player-run-panel" aria-labelledby="player-run-panel-title">
+    <section className={`player-card player-run-panel is-${runState.status}`} aria-labelledby="player-run-panel-title">
       <div className="player-card__header">
         <div>
           <p className="player-kicker">{copy.runPanel.kicker}</p>
@@ -482,6 +492,30 @@ export default function PlayerRunPanel({
         </div>
       </div>
 
+      <div className="player-run-panel__cockpit">
+        <div className="player-run-panel__now">
+          <span>{copy.runPanel.stage.now}</span>
+          <strong>{runState.currentBeat.toFixed(1)}</strong>
+          <em>{nextHitLabel}</em>
+        </div>
+        <div
+          className="player-run-panel__judgment-track"
+          aria-label={copy.runPanel.stage.judgmentRail}
+        >
+          {judgmentTiers.map((tier) => (
+            <span
+              key={tier.id}
+              className={`player-run-panel__judgment-chip is-${tier.id}${tier.value ? ' has-value' : ''}`}
+            >
+              {`${tier.label} ${tier.value}`}
+            </span>
+          ))}
+          <span className="player-run-panel__judgment-chip is-last">
+            {runState.lastJudgment || audioSyncLabel}
+          </span>
+        </div>
+      </div>
+
       <div className="status-metrics">
         <article className="status-metric">
           <span className="status-metric__label">{copy.runPanel.metrics.score}</span>
@@ -501,13 +535,6 @@ export default function PlayerRunPanel({
         </article>
       </div>
 
-      <div className="player-run-panel__judgment-row">
-        <span>{`${copy.runPanel.judgments.perfect} ${runState.judgments.perfect}`}</span>
-        <span>{`${copy.runPanel.judgments.great} ${runState.judgments.great}`}</span>
-        <span>{`${copy.runPanel.judgments.good} ${runState.judgments.good}`}</span>
-        <span>{`${copy.runPanel.judgments.miss} ${runState.judgments.miss}`}</span>
-        <span>{runState.lastJudgment || audioSyncLabel}</span>
-      </div>
       <p className="player-run-panel__timing-note">
         {playMode === 'manual' ? copy.runPanel.timingBias(averageOffsetLabel) : copy.runPanel.autoTimingBias}
       </p>
@@ -520,12 +547,13 @@ export default function PlayerRunPanel({
           const laneKey = resolveLaneKey(laneIndex);
 
           return (
-            <div key={laneIndex} className="player-run-panel__lane">
+            <div key={laneIndex} className={`player-run-panel__lane${runState.status === 'running' ? ' is-armed' : ''}`}>
               <div className="player-run-panel__lane-label">
                 <span>{copy.runPanel.laneLabel(laneIndex)}</span>
                 <kbd>{laneKey}</kbd>
               </div>
               <div className="player-run-panel__lane-track">
+                <span className="player-run-panel__lane-radar" aria-hidden="true" />
                 {laneNotes.map((note) => (
                   <span
                     key={note.noteId}
@@ -762,6 +790,8 @@ function buildNoteStyle(note, currentBeat) {
   return {
     top: `${top}%`,
     height: `${height}px`,
+    opacity: String(0.38 + (normalized * 0.62)),
+    transform: `scale(${0.94 + (normalized * 0.06)})`,
   };
 }
 

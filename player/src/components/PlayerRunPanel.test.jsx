@@ -97,6 +97,9 @@ describe('PlayerRunPanel', () => {
     expect(screen.getByRole('tab', { name: 'Manual Play' })).toBeVisible();
     expect(screen.getByLabelText('Chart lanes')).toBeVisible();
     expect(screen.getByLabelText('Beat meter')).toBeVisible();
+    expect(screen.getByText('Now Beat')).toBeVisible();
+    expect(screen.getByLabelText('Judgment rail')).toBeVisible();
+    expect(screen.getByText('Next hit: Lane 1 @ 0.50')).toBeVisible();
     expect(screen.getAllByRole('button', { name: /Hit / })).toHaveLength(4);
 
     fireEvent.click(screen.getByRole('button', { name: 'Start Run' }));

@@ -55,3 +55,10 @@ Original prompt: 좋아 계속 작업을 진행해보자
 - Added shared runtime module `player/src/lib/goldenListeningPack.js` and repointed the export script plus tests to that source so demos, docs, and QA no longer drift.
 - Added `GoldenListeningPanel` to the shell with curated autoplay demo cards for the GitHub, GitLab, and transition validation scenarios.
 - Extended `PlayerRunPanel` with external run requests so the shell can load a golden scenario and start autoplay immediately.
+
+2026-04-21
+- Started play-screen polish with a narrower scope: improve the active run surface without adding new settings.
+- Added a play cockpit to `PlayerRunPanel` with current beat, next hit, and a compact judgment rail so the run state reads faster during autoplay/manual play.
+- Restyled the lane stage with beat-grid texture, active hit-line pulse, lane radar glow, and stronger note depth.
+- `npm run qa` passed after the polish pass.
+- Browser smoke captured the polished autoplay surface at `player/output/web-game-play-polish/shot-0.png`, and a focused run panel element capture at `player/output/web-game-play-polish/run-panel-element.png`.
