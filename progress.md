@@ -62,3 +62,10 @@ Original prompt: 좋아 계속 작업을 진행해보자
 - Restyled the lane stage with beat-grid texture, active hit-line pulse, lane radar glow, and stronger note depth.
 - `npm run qa` passed after the polish pass.
 - Browser smoke captured the polished autoplay surface at `player/output/web-game-play-polish/shot-0.png`, and a focused run panel element capture at `player/output/web-game-play-polish/run-panel-element.png`.
+
+2026-04-23
+- Captured the adrenaline phrase idea as a reusable effect contract: `거침없이 커밋해라. 풀리퀘스트는 거침없이 쏴라.`
+- Added `adrenalineEffectCatalog` so commit backlog bursts can deterministically emit a `maestro-adrenaline.commit-backlog-barrage` effect for future UI/audio/chart use.
+- Documented trigger thresholds, visual/audio/chart direction, and guardrails in `docs/maestro-player/adrenaline-effects.md`.
+- Verified the current branch history: recent replay events emit 1 `commit-backlog-barrage` effect with `rush` severity.
+- `npm run qa` passed after adding the adrenaline effect catalog, tests, and harness coverage.
