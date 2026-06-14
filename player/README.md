@@ -25,6 +25,7 @@
 - [Project Overview](../docs/maestro-player/README.md)
 - [MVP Spec](../docs/maestro-player/mvp-spec.md)
 - [Music Mapping Spec](../docs/maestro-player/music-mapping-spec.md)
+- [Chrome Extension Strategy](../docs/maestro-player/chrome-extension-strategy.md)
 - [Branch Harness Plan](../docs/maestro-player/PLAYER_BRANCH_HARNESS_PLAN.md)
 - [Bootstrap Plan](../docs/maestro-player/bootstrap-plan.md)
 - [Test Plan](../docs/maestro-player/test-plan.md)

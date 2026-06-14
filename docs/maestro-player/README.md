@@ -45,6 +45,7 @@
 
 - [MVP Spec](./mvp-spec.md)
 - [Music Mapping Spec](./music-mapping-spec.md)
+- [Chrome Extension Strategy](./chrome-extension-strategy.md)
 - [Branch Harness Plan](./PLAYER_BRANCH_HARNESS_PLAN.md)
 - [Bootstrap Plan](./bootstrap-plan.md)
 - [Test Plan](./test-plan.md)

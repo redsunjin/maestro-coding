@@ -69,3 +69,8 @@ Original prompt: 좋아 계속 작업을 진행해보자
 - Documented trigger thresholds, visual/audio/chart direction, and guardrails in `docs/maestro-player/adrenaline-effects.md`.
 - Verified the current branch history: recent replay events emit 1 `commit-backlog-barrage` effect with `rush` severity.
 - `npm run qa` passed after adding the adrenaline effect catalog, tests, and harness coverage.
+
+2026-05-13
+- Re-oriented the project for a return-to-project review: current player state is a working browser shell with public/account replay adapters, golden demos, polished run screen, and deterministic music mapping.
+- Added `docs/maestro-player/chrome-extension-strategy.md` to lock the recommendation that a fast Chrome extension MVP should focus on `Public Repo URL Mode`, current-tab repo detection, autoplay preview, and optional token-based account mode.
+- Explicitly excluded `Local Repo Mode` from the extension MVP because the current implementation still depends on a desktop/server bridge for read-only git access.
