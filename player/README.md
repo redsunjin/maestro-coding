@@ -10,8 +10,10 @@
 
 현재 상태:
 
-- planning only
-- 구현 전 문서 기준은 `docs/maestro-player/`를 본다.
+- browser shell 구현 진행 중
+- public/account replay adapter, golden demo, run screen polish, bilingual copy가 이미 들어가 있다.
+- Chrome extension MVP scaffold는 `player/extension/` 아래에서 관리한다.
+- 구현 기준 문서는 계속 `docs/maestro-player/`를 본다.
 
 작업 경계:
 
@@ -34,6 +36,7 @@
 
 ```text
 player/
+  extension/
   package.json
   index.html
   src/

@@ -225,8 +225,8 @@ function parseGitLabPublicRepositoryUrl(parsedUrl) {
     .split('/')
     .filter(Boolean);
 
-  const treeIndex = pathSegments.findIndex((segment, index) => segment === '-' && pathSegments[index + 1] === 'tree');
-  const repoSegments = treeIndex >= 0 ? pathSegments.slice(0, treeIndex) : pathSegments;
+  const dashIndex = pathSegments.indexOf('-');
+  const repoSegments = dashIndex >= 0 ? pathSegments.slice(0, dashIndex) : pathSegments;
 
   if (repoSegments.length < 2) {
     throw new Error(`public repository url is missing owner/repo: ${parsedUrl}`);
@@ -235,8 +235,8 @@ function parseGitLabPublicRepositoryUrl(parsedUrl) {
   const repo = repoSegments.at(-1);
   const owner = repoSegments.slice(0, -1).join('/');
   const repoSlug = `${owner}/${repo}`;
-  const branchName = treeIndex >= 0 && pathSegments.length > treeIndex + 2
-    ? decodeURIComponent(pathSegments.slice(treeIndex + 2).join('/'))
+  const branchName = dashIndex >= 0 && pathSegments[dashIndex + 1] === 'tree' && pathSegments.length > dashIndex + 2
+    ? decodeURIComponent(pathSegments.slice(dashIndex + 2).join('/'))
     : 'main';
   const canonicalUrl = `https://gitlab.com/${repoSlug}`;
 

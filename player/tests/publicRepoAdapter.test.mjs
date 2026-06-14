@@ -36,6 +36,17 @@ test('parsePublicRepositoryUrl normalizes gitlab public repository URLs with sub
   assert.equal(parsed.canonicalUrl, 'https://gitlab.com/openai/platform/maestro-player');
 });
 
+test('parsePublicRepositoryUrl normalizes gitlab merge request URLs back to the repository root', () => {
+  const parsed = parsePublicRepositoryUrl('https://gitlab.com/openai/platform/maestro-player/-/merge_requests/42');
+
+  assert.equal(parsed.provider, 'gitlab');
+  assert.equal(parsed.owner, 'openai/platform');
+  assert.equal(parsed.repo, 'maestro-player');
+  assert.equal(parsed.repoSlug, 'openai/platform/maestro-player');
+  assert.equal(parsed.branchName, 'main');
+  assert.equal(parsed.canonicalUrl, 'https://gitlab.com/openai/platform/maestro-player');
+});
+
 test('createPublicRepoSource registers a public replay source', () => {
   const source = createPublicRepoSource({
     url: 'https://github.com/openai/maestro-player',

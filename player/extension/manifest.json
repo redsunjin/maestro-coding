@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Maestro Player",
+  "version": "0.1.0",
+  "description": "Read public Git history as a playable Maestro Player session.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://github.com/*",
+    "https://api.github.com/*",
+    "https://gitlab.com/*"
+  ],
+  "action": {
+    "default_title": "Maestro Player",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}

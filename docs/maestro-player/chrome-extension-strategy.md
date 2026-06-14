@@ -1,5 +1,11 @@
 # Maestro Player Chrome Extension Strategy
 
+## 현재 상태
+
+- `player/extension/` 아래에 MV3 scaffold를 둔다.
+- 첫 scaffold는 `popup + background + player page + public repo URL handoff`까지만 포함한다.
+- 실제 리듬 플레이어 React 셸 마운트는 다음 단계로 남긴다.
+
 ## 결론
 
 `Maestro Player`를 크롬 익스텐션 형태로 빠르게 시험하는 것은 타당하다.

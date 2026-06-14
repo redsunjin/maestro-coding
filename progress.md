@@ -74,3 +74,10 @@ Original prompt: 좋아 계속 작업을 진행해보자
 - Re-oriented the project for a return-to-project review: current player state is a working browser shell with public/account replay adapters, golden demos, polished run screen, and deterministic music mapping.
 - Added `docs/maestro-player/chrome-extension-strategy.md` to lock the recommendation that a fast Chrome extension MVP should focus on `Public Repo URL Mode`, current-tab repo detection, autoplay preview, and optional token-based account mode.
 - Explicitly excluded `Local Repo Mode` from the extension MVP because the current implementation still depends on a desktop/server bridge for read-only git access.
+
+2026-06-14
+- Started the Chrome extension scaffold pass under `player/extension/` so the public repo flow can be tested as a loadable MV3 extension before mounting the full React player shell.
+- Added a minimal extension runtime: `manifest.json`, popup, background service worker, player page, shared launch-session storage helpers, and bilingual copy for English/Korean browsers.
+- Scoped the first handoff to `Public Repo URL Mode`: popup reads the active tab, canonicalizes supported GitHub/GitLab repository URLs, persists the selected repo seed, and opens the extension player page.
+- Tightened GitLab public URL parsing in `publicRepoAdapter` so `/-/merge_requests/...` and similar forge paths normalize back to the repository root instead of breaking repo detection.
+- Next recommended step: mount the existing React run shell into `player/extension/player.html`, then wire the stored repo seed into the current public replay loader for autoplay preview.
