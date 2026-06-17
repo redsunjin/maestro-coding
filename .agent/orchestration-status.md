@@ -5,17 +5,17 @@
 - Method: sdd
 - Existing validation: npm run test, npm run build, npm run test:e2e
 - Harness structure: unchanged
-- Next action: execute Goal 0 commit separation or continue to Goal 2 after user confirmation
-- Latest validation: `npm run test:server` passed on 2026-06-14
+- Next action: continue to Goal 3 ApprovalRequest Store after review
+- Latest validation: `npm run test:server` and `npm run build` passed on 2026-06-17
 - Blockers: none recorded
 
 ## Goal Status
 
 | Goal | Status | Notes |
 |---|---|---|
-| Goal 0 Hook automation separation | pending | Existing uncommitted changes already present. |
+| Goal 0 Hook automation separation | completed | Committed as `dfee71d`. |
 | Goal 1 Contract and harness roadmap | completed | Roadmap and harness docs aligned; server tests passed. |
-| Goal 2 Agent Registry MVP | pending | Start only after Goal 1 is accepted. |
+| Goal 2 Agent Registry MVP | completed | Added in-memory registry, heartbeat, list/detail APIs, auth coverage. |
 | Goal 3 ApprovalRequest Store | pending | Depends on Goal 2. |
 | Goal 4 ApprovalDecision Pull API | pending | Depends on Goal 3. |
 | Goal 5 Executor boundary | pending | Depends on Goal 4. |

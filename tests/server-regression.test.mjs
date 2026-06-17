@@ -118,6 +118,32 @@ async function postWorkSession(port, payload = {}, headers = {}) {
   return response;
 }
 
+async function postAgentRegistration(port, payload = {}, headers = {}) {
+  const response = await fetch(`http://127.0.0.1:${port}/api/agents/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return response;
+}
+
+async function postAgentHeartbeat(port, agentId, headers = {}) {
+  const response = await fetch(`http://127.0.0.1:${port}/api/agents/${encodeURIComponent(agentId)}/heartbeat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify({}),
+  });
+
+  return response;
+}
+
 async function postWorkSessionMessage(port, workSessionId, body, headers = {}) {
   const response = await fetch(`http://127.0.0.1:${port}/api/work-sessions/${workSessionId}/messages`, {
     method: 'POST',
@@ -314,6 +340,117 @@ test('work session store restores sessions and messages after restart', async (t
   const detailBody = await detailResponse.json();
   assert.equal(detailBody.item.title, 'Persistent Work Session');
   assert.equal(detailBody.messages.some((message) => message.body === '운영자 메모'), true);
+});
+
+test('agent registry registers, upserts, lists, and records heartbeat', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const registerResponse = await postAgentRegistration(server.port, {
+    agentId: 'claude_code_local',
+    adapterType: 'claude-stop',
+    repoRoot: ROOT_DIR,
+    displayName: 'Claude Code Local',
+    capabilities: ['approval-request', 'decision-polling', 'decision-polling'],
+    tokenId: 'local-token',
+    metadata: {
+      cli: 'claude-code',
+      installTarget: 'claude-stop',
+    },
+  });
+
+  assert.equal(registerResponse.status, 200);
+  const registerBody = await registerResponse.json();
+  assert.equal(registerBody.success, true);
+  assert.equal(registerBody.item.agentId, 'claude_code_local');
+  assert.equal(registerBody.item.adapterType, 'claude-stop');
+  assert.equal(registerBody.item.repoRoot, ROOT_DIR);
+  assert.equal(registerBody.item.displayName, 'Claude Code Local');
+  assert.deepEqual(registerBody.item.capabilities, ['approval-request', 'decision-polling']);
+  assert.equal(registerBody.item.tokenId, 'local-token');
+  assert.equal(registerBody.item.status, 'registered');
+  assert.equal(registerBody.item.metadata.cli, 'claude-code');
+  assert.equal(typeof registerBody.item.registeredAt, 'string');
+  assert.equal(typeof registerBody.item.updatedAt, 'string');
+  assert.equal(registerBody.item.lastHeartbeatAt, null);
+
+  const updateResponse = await postAgentRegistration(server.port, {
+    agentId: 'claude_code_local',
+    adapterType: 'wrapper',
+    repoRoot: ROOT_DIR,
+    displayName: 'Claude Wrapper',
+    capabilities: ['approval-request'],
+  });
+
+  assert.equal(updateResponse.status, 200);
+  const updateBody = await updateResponse.json();
+  assert.equal(updateBody.item.agentId, 'claude_code_local');
+  assert.equal(updateBody.item.adapterType, 'wrapper');
+  assert.equal(updateBody.item.displayName, 'Claude Wrapper');
+  assert.deepEqual(updateBody.item.capabilities, ['approval-request']);
+  assert.equal(updateBody.item.tokenId, 'local-token');
+  assert.equal(updateBody.item.metadata.cli, 'claude-code');
+  assert.equal(updateBody.item.registeredAt, registerBody.item.registeredAt);
+
+  const heartbeatResponse = await postAgentHeartbeat(server.port, 'claude_code_local');
+  assert.equal(heartbeatResponse.status, 200);
+  const heartbeatBody = await heartbeatResponse.json();
+  assert.equal(heartbeatBody.success, true);
+  assert.equal(heartbeatBody.item.agentId, 'claude_code_local');
+  assert.equal(heartbeatBody.item.status, 'connected');
+  assert.equal(typeof heartbeatBody.item.lastHeartbeatAt, 'string');
+
+  const listResponse = await fetch(`http://127.0.0.1:${server.port}/api/agents`);
+  assert.equal(listResponse.status, 200);
+  const listBody = await listResponse.json();
+  assert.equal(listBody.count, 1);
+  assert.equal(listBody.items[0].agentId, 'claude_code_local');
+  assert.equal(listBody.items[0].status, 'connected');
+
+  const detailResponse = await fetch(`http://127.0.0.1:${server.port}/api/agents/claude_code_local`);
+  assert.equal(detailResponse.status, 200);
+  const detailBody = await detailResponse.json();
+  assert.equal(detailBody.item.agentId, 'claude_code_local');
+  assert.equal(detailBody.item.lastHeartbeatAt, heartbeatBody.item.lastHeartbeatAt);
+});
+
+test('agent registry APIs enforce bearer token when MAESTRO_SERVER_TOKEN is set', async (t) => {
+  const server = startServer({ token: 'secret-token' });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const unauthorizedRegister = await postAgentRegistration(server.port, {
+    agentId: 'blocked_agent',
+    adapterType: 'wrapper',
+    repoRoot: ROOT_DIR,
+    capabilities: ['approval-request'],
+  });
+  assert.equal(unauthorizedRegister.status, 401);
+
+  const unauthorizedList = await fetch(`http://127.0.0.1:${server.port}/api/agents`);
+  assert.equal(unauthorizedList.status, 401);
+
+  const authorizedRegister = await postAgentRegistration(server.port, {
+    agentId: 'trusted_agent',
+    adapterType: 'wrapper',
+    repoRoot: ROOT_DIR,
+    capabilities: ['approval-request'],
+  }, {
+    Authorization: 'Bearer secret-token',
+  });
+  assert.equal(authorizedRegister.status, 200);
+
+  const authorizedHeartbeat = await postAgentHeartbeat(server.port, 'trusted_agent', {
+    Authorization: 'Bearer secret-token',
+  });
+  assert.equal(authorizedHeartbeat.status, 200);
 });
 
 test('GET /api/projects returns active runtime project and registered candidates', async (t) => {

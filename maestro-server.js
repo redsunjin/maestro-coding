@@ -348,6 +348,97 @@ function resolveProjectUpdateTarget({ projectId, projectPath }) {
   )) || null;
 }
 
+const AGENT_STATUS = {
+  REGISTERED: 'registered',
+  CONNECTED: 'connected',
+};
+
+const agentsById = new Map();
+
+function normalizeAgentCapabilities(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const items = [];
+  for (const item of value) {
+    const normalized = sanitizeHistoryText(String(item || ''), 64);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    items.push(normalized);
+    if (items.length >= 20) break;
+  }
+  return items;
+}
+
+function sanitizeAgentMetadata(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value;
+}
+
+function normalizeAgentRegistration(input = {}) {
+  const agentId = sanitizeHistoryText(input.agentId || '', 80);
+  if (!agentId) return null;
+
+  const repoRootRaw = typeof input.repoRoot === 'string' ? input.repoRoot.trim() : '';
+  const repoRoot = repoRootRaw ? path.resolve(repoRootRaw) : runtimeProjectState.path;
+  const existing = agentsById.get(agentId) || null;
+  const now = new Date().toISOString();
+  const tokenId = Object.prototype.hasOwnProperty.call(input, 'tokenId')
+    ? sanitizeHistoryText(input.tokenId || '', 80) || null
+    : existing?.tokenId || null;
+  const capabilities = Array.isArray(input.capabilities)
+    ? normalizeAgentCapabilities(input.capabilities)
+    : existing?.capabilities || [];
+  const metadata = Object.prototype.hasOwnProperty.call(input, 'metadata')
+    ? sanitizeAgentMetadata(input.metadata)
+    : existing?.metadata || {};
+
+  return {
+    agentId,
+    adapterType: sanitizeHistoryText(input.adapterType || '', 40) || existing?.adapterType || 'unknown',
+    repoRoot,
+    displayName: sanitizeHistoryText(input.displayName || '', 120) || existing?.displayName || agentId,
+    capabilities,
+    tokenId,
+    status: existing?.status || AGENT_STATUS.REGISTERED,
+    registeredAt: existing?.registeredAt || now,
+    updatedAt: now,
+    lastHeartbeatAt: existing?.lastHeartbeatAt || null,
+    metadata,
+  };
+}
+
+function registerAgent(input = {}) {
+  const agent = normalizeAgentRegistration(input);
+  if (!agent) return null;
+  agentsById.set(agent.agentId, agent);
+  return agent;
+}
+
+function getAgent(agentId) {
+  const normalizedAgentId = sanitizeHistoryText(agentId || '', 80);
+  if (!normalizedAgentId) return null;
+  return agentsById.get(normalizedAgentId) || null;
+}
+
+function recordAgentHeartbeat(agentId) {
+  const existing = getAgent(agentId);
+  if (!existing) return null;
+  const now = new Date().toISOString();
+  const nextAgent = {
+    ...existing,
+    status: AGENT_STATUS.CONNECTED,
+    updatedAt: now,
+    lastHeartbeatAt: now,
+  };
+  agentsById.set(nextAgent.agentId, nextAgent);
+  return nextAgent;
+}
+
+function listAgents() {
+  return Array.from(agentsById.values())
+    .sort((a, b) => Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0));
+}
+
 const WORK_SESSION_STATUS = {
   QUEUED: 'queued',
   ACTIVE: 'active',
@@ -847,6 +938,99 @@ const server = http.createServer((req, res) => {
         storePath: WORKFLOW_STORE_PATH,
       },
     }));
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/agents') {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const items = listAgents();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      items,
+      count: items.length,
+    }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/agents/register') {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const agent = registerAgent(data);
+        if (!agent) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'AGENT_ID_REQUIRED' }));
+          return;
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          item: agent,
+        }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
+  const agentHeartbeatMatch = pathname.match(/^\/api\/agents\/([^/]+)\/heartbeat$/);
+  if (req.method === 'POST' && agentHeartbeatMatch) {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const agentId = decodeURIComponent(agentHeartbeatMatch[1]);
+    const agent = recordAgentHeartbeat(agentId);
+    if (!agent) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'AGENT_NOT_FOUND' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      item: agent,
+    }));
+    return;
+  }
+
+  const agentDetailMatch = pathname.match(/^\/api\/agents\/([^/]+)$/);
+  if (req.method === 'GET' && agentDetailMatch) {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const agentId = decodeURIComponent(agentDetailMatch[1]);
+    const agent = getAgent(agentId);
+    if (!agent) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'AGENT_NOT_FOUND' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ item: agent }));
     return;
   }
 

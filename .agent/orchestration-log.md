@@ -13,3 +13,10 @@
 - Linked VU-001 roadmap and branch harness docs to the protocol roadmap.
 - Added goal-level implementation plan at `docs/superpowers/plans/2026-06-14-agent-approval-protocol-roadmap.md`.
 - Current goal order: hook installer separation, contract/harness roadmap, Agent Registry, ApprovalRequest Store, ApprovalDecision Pull API, executor boundary, Work Console trust surface.
+
+## 2026-06-17T21:25:00
+
+- Committed Goal 1 as `9f602d2` and Goal 0 as `dfee71d`.
+- Implemented Goal 2 Agent Registry MVP.
+- Added `POST /api/agents/register`, `POST /api/agents/:agentId/heartbeat`, `GET /api/agents`, and `GET /api/agents/:agentId`.
+- Validation passed: `npm run test:server`, `npm run build`.

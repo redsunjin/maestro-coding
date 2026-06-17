@@ -51,7 +51,7 @@
 - Create: `scripts/install-maestro-hook.mjs`
 - Create: `tests/install-hook.test.mjs`
 
-- [ ] **Step 1: Review the current diff**
+- [x] **Step 1: Review the current diff**
 
 Run:
 
@@ -63,7 +63,7 @@ sed -n '1,220p' tests/install-hook.test.mjs
 
 Expected: only hook installer, installer tests, and user-facing install docs are in scope.
 
-- [ ] **Step 2: Validate server tests**
+- [x] **Step 2: Validate server tests**
 
 Run:
 
@@ -73,7 +73,7 @@ npm run test:server
 
 Expected: all server tests pass, including `tests/install-hook.test.mjs`.
 
-- [ ] **Step 3: Validate full QA if runtime cost is acceptable**
+- [x] **Step 3: Validate full QA if runtime cost is acceptable**
 
 Run:
 
@@ -83,7 +83,7 @@ npm run qa
 
 Expected: QA gate passes. If it fails, fix only failures caused by the hook installer changes before committing.
 
-- [ ] **Step 4: Commit only hook automation scope**
+- [x] **Step 4: Commit only hook automation scope**
 
 Run:
 
@@ -112,7 +112,7 @@ Expected: hook automation changes are isolated from protocol roadmap changes.
 - Create: `.agent/prompts/tdd-hardening.md`
 - Create: `.agent/prompts/final-review.md`
 
-- [ ] **Step 1: Confirm contract decisions are documented**
+- [x] **Step 1: Confirm contract decisions are documented**
 
 Run:
 
@@ -122,7 +122,7 @@ rg -n "Pull-first|legacy ingress|executorAction|Agent 등록 모델|Goal 0|Goal 
 
 Expected: every confirmed decision appears in at least one source-of-truth document.
 
-- [ ] **Step 2: Confirm harness files exist**
+- [x] **Step 2: Confirm harness files exist**
 
 Run:
 
@@ -132,7 +132,7 @@ find .agent -maxdepth 3 -type f | sort
 
 Expected: orchestration contract, status, log, and prompt files are present.
 
-- [ ] **Step 3: Validate no runtime behavior changed**
+- [x] **Step 3: Validate no runtime behavior changed**
 
 Run:
 
@@ -142,7 +142,7 @@ npm run test:server
 
 Expected: server tests pass because this goal only changes docs/harness files.
 
-- [ ] **Step 4: Commit roadmap and harness scope**
+- [x] **Step 4: Commit roadmap and harness scope**
 
 Run:
 
@@ -164,7 +164,7 @@ Expected: roadmap and harness are separated from implementation commits.
 - Future Test: `tests/server-regression.test.mjs`
 - Future Docs: `docs/MAESTRO_AGENT_ADAPTERS_PLAN.md`
 
-- [ ] **Step 1: Add failing tests for agent registration**
+- [x] **Step 1: Add failing tests for agent registration**
 
 Add tests that exercise:
 
@@ -182,7 +182,7 @@ Required assertions:
 - heartbeat updates `lastHeartbeatAt`
 - bearer-token mode is enforced consistently with existing APIs
 
-- [ ] **Step 2: Run the focused failing tests**
+- [x] **Step 2: Run the focused failing tests**
 
 Run:
 
@@ -192,7 +192,7 @@ npm run test:server
 
 Expected: tests fail because `/api/agents/*` does not exist yet.
 
-- [ ] **Step 3: Implement the smallest registry**
+- [x] **Step 3: Implement the smallest registry**
 
 Implementation constraints:
 
@@ -201,7 +201,7 @@ Implementation constraints:
 - Do not add external dependencies.
 - Do not alter existing `/api/request` behavior.
 
-- [ ] **Step 4: Run validation**
+- [x] **Step 4: Run validation**
 
 Run:
 
