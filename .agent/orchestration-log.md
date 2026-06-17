@@ -27,3 +27,10 @@
 - Added `POST /api/approval-requests` with `status=pending_decision` response item.
 - Bridged legacy `POST /api/request` into the same in-memory request store while preserving existing WebSocket and auto-approve behavior.
 - Validation passed: `npm run test:server`, `npm run build`.
+
+## 2026-06-17T22:55:49+0900
+
+- Implemented Goal 4 ApprovalDecision Pull API.
+- Added `GET /api/approval-requests/:requestId/decision` and `POST /api/approval-decisions/:decisionId/ack`.
+- Manual approve/reject now stores pull-deliverable decisions without changing existing WebSocket result events.
+- Validation passed: `npm run test:server`, `npm run build`.

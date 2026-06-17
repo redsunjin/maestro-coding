@@ -1563,6 +1563,66 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  const approvalDecisionPollMatch = pathname.match(/^\/api\/approval-requests\/([^/]+)\/decision$/);
+  if (req.method === 'GET' && approvalDecisionPollMatch) {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const requestId = decodeURIComponent(approvalDecisionPollMatch[1]);
+    const approvalRequest = getApprovalRequest(requestId);
+    if (!approvalRequest) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'APPROVAL_REQUEST_NOT_FOUND' }));
+      return;
+    }
+
+    const decision = getApprovalDecisionByRequestId(requestId);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      requestId: approvalRequest.requestId,
+      status: decision ? decision.delivery.status : 'pending',
+      item: decision,
+    }));
+    return;
+  }
+
+  const approvalDecisionAckMatch = pathname.match(/^\/api\/approval-decisions\/([^/]+)\/ack$/);
+  if (req.method === 'POST' && approvalDecisionAckMatch) {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const decisionId = decodeURIComponent(approvalDecisionAckMatch[1]);
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const data = body.trim() ? JSON.parse(body) : {};
+        const decision = acknowledgeApprovalDecision(decisionId, data);
+        if (!decision) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'APPROVAL_DECISION_NOT_FOUND' }));
+          return;
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          item: decision,
+        }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
   // 에이전트 승인 요청 수신 엔드포인트
   // 에이전트는 작업 완료 후 이 엔드포인트로 POST 요청을 보냅니다.
   //
@@ -1652,7 +1712,27 @@ const APPROVAL_REQUEST_STATUS = {
   PENDING_DECISION: 'pending_decision',
 };
 
+const APPROVAL_DECISION = {
+  APPROVE: 'approve',
+  REJECT: 'reject',
+  REVISE: 'revise',
+  ASK: 'ask',
+  CANCEL: 'cancel',
+};
+
+const EXECUTOR_ACTION = {
+  NONE: 'none',
+  MERGE: 'merge',
+};
+
+const DECISION_DELIVERY_STATUS = {
+  AVAILABLE: 'available',
+  ACKNOWLEDGED: 'acknowledged',
+};
+
 const approvalRequestsById = new Map();
+const approvalDecisionsByRequestId = new Map();
+const approvalDecisionsById = new Map();
 const requestStateById = new Map();
 const requestMetaById = new Map();
 const autoApproveInFlight = new Set();
@@ -1966,6 +2046,95 @@ function submitApprovalRequest(input = {}, options = {}) {
   };
 }
 
+function getApprovalRequest(requestId) {
+  const normalizedRequestId = sanitizeHistoryText(requestId || '', 80);
+  if (!normalizedRequestId) return null;
+  return approvalRequestsById.get(normalizedRequestId) || null;
+}
+
+function createDecisionId() {
+  return `apd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeApprovalDecisionValue(value) {
+  const normalized = sanitizeHistoryText(value || '', 32).toLowerCase();
+  const allowed = new Set(Object.values(APPROVAL_DECISION));
+  return allowed.has(normalized) ? normalized : APPROVAL_DECISION.ASK;
+}
+
+function normalizeExecutorAction(value) {
+  const normalized = sanitizeHistoryText(value || '', 32).toLowerCase();
+  const allowed = new Set(Object.values(EXECUTOR_ACTION));
+  return allowed.has(normalized) ? normalized : EXECUTOR_ACTION.NONE;
+}
+
+function storeApprovalDecision(input = {}) {
+  const requestId = sanitizeHistoryText(input.requestId || '', 80);
+  if (!requestId) return null;
+
+  const existing = approvalDecisionsByRequestId.get(requestId) || null;
+  if (existing) return existing;
+
+  const request = getApprovalRequest(requestId);
+  const meta = getRequestMeta(requestId);
+  const now = new Date().toISOString();
+  const decision = normalizeApprovalDecisionValue(input.decision);
+  const decisionItem = {
+    decisionId: createDecisionId(),
+    requestId,
+    agentId: sanitizeHistoryText(input.agentId || request?.agentId || meta?.agentId || '', 64) || null,
+    decision,
+    comment: sanitizeHistoryText(input.comment || '', 500) || null,
+    executorAction: normalizeExecutorAction(input.executorAction),
+    delivery: {
+      mode: 'pull',
+      status: DECISION_DELIVERY_STATUS.AVAILABLE,
+      acknowledgedAt: null,
+      acknowledgedBy: null,
+    },
+    decidedBy: sanitizeHistoryText(input.decidedBy || '', 64) || 'operator',
+    createdAt: now,
+  };
+
+  approvalDecisionsByRequestId.set(requestId, decisionItem);
+  approvalDecisionsById.set(decisionItem.decisionId, decisionItem);
+  return decisionItem;
+}
+
+function getApprovalDecisionByRequestId(requestId) {
+  const normalizedRequestId = sanitizeHistoryText(requestId || '', 80);
+  if (!normalizedRequestId) return null;
+  return approvalDecisionsByRequestId.get(normalizedRequestId) || null;
+}
+
+function getApprovalDecisionById(decisionId) {
+  const normalizedDecisionId = sanitizeHistoryText(decisionId || '', 80);
+  if (!normalizedDecisionId) return null;
+  return approvalDecisionsById.get(normalizedDecisionId) || null;
+}
+
+function acknowledgeApprovalDecision(decisionId, input = {}) {
+  const existing = getApprovalDecisionById(decisionId);
+  if (!existing) return null;
+  if (existing.delivery.status === DECISION_DELIVERY_STATUS.ACKNOWLEDGED) {
+    return existing;
+  }
+
+  const updatedDecision = {
+    ...existing,
+    delivery: {
+      ...existing.delivery,
+      status: DECISION_DELIVERY_STATUS.ACKNOWLEDGED,
+      acknowledgedAt: new Date().toISOString(),
+      acknowledgedBy: sanitizeHistoryText(input.agentId || '', 64) || existing.agentId || null,
+    },
+  };
+
+  approvalDecisionsByRequestId.set(updatedDecision.requestId, updatedDecision);
+  approvalDecisionsById.set(updatedDecision.decisionId, updatedDecision);
+  return updatedDecision;
+}
+
 async function runConditionalAutoApprove(approvalRequest) {
   if (autoApproveInFlight.has(approvalRequest.requestId)) {
     appendAutoApproveEvent({
@@ -2118,6 +2287,14 @@ wss.on('connection', (ws) => {
           branchName: payload.branchName,
           title: payload.title,
         });
+        storeApprovalDecision({
+          requestId: payload.requestId,
+          agentId: payload.agentId,
+          decision: APPROVAL_DECISION.APPROVE,
+          comment: payload.comment || payload.feedback || '',
+          executorAction: EXECUTOR_ACTION.MERGE,
+          decidedBy: 'operator',
+        });
         const skipReason = getApproveSkipReason(payload.requestId);
         if (skipReason) {
           ws.send(JSON.stringify({
@@ -2187,6 +2364,14 @@ wss.on('connection', (ws) => {
           agentId: payload.agentId,
           branchName: payload.branchName,
           title: payload.title,
+        });
+        storeApprovalDecision({
+          requestId: payload.requestId,
+          agentId: payload.agentId,
+          decision: APPROVAL_DECISION.REJECT,
+          comment: payload.feedback || payload.comment || '',
+          executorAction: EXECUTOR_ACTION.NONE,
+          decidedBy: 'operator',
         });
         setRequestState(payload.requestId, REQUEST_STATUS.REJECTED, 'manual');
         ws.send(JSON.stringify({ event: 'AGENT_RESTARTED', requestId: payload.requestId }));

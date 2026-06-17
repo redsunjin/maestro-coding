@@ -1,7 +1,7 @@
 # Maestro Agent Adapters and Approval Protocol Plan
 
 기준일: 2026-06-14
-상태: Goal 3 구현 반영
+상태: Goal 4 구현 반영
 
 ## 1. 목적
 
@@ -35,6 +35,8 @@ Maestro가 특정 CLI의 수동 훅 설정에만 묶이지 않도록, `에이전
 - `POST /api/agents/register`, `POST /api/agents/:agentId/heartbeat`
 - `POST /api/approval-requests`
 - legacy ingress `POST /api/request`
+- `GET /api/approval-requests/:requestId/decision`
+- `POST /api/approval-decisions/:decisionId/ack`
 
 현재 한계:
 
@@ -277,6 +279,14 @@ MVP에서는 토큰을 선택 필드로 두고, 기존 `MAESTRO_SERVER_TOKEN` �
 - decision 없음은 `204` 또는 명확한 `pending` 응답으로 표현
 - decision 있음은 안정적으로 반환
 - ack 후 `delivery.status=acknowledged`로 상태 갱신
+
+현재 구현:
+
+- `GET /api/approval-requests/:requestId/decision`은 저장된 request에 decision이 없으면 `status=pending`, `item=null`을 반환한다.
+- 알 수 없는 request는 `404 APPROVAL_REQUEST_NOT_FOUND`를 반환한다.
+- manual `APPROVE`는 `decision=approve`, `executorAction=merge`, `delivery.mode=pull` decision을 저장한다.
+- manual `REJECT`는 `decision=reject`, `executorAction=none`, feedback comment를 포함한 decision을 저장한다.
+- `POST /api/approval-decisions/:decisionId/ack`는 `delivery.status=acknowledged`와 `acknowledgedAt`을 기록하며 반복 ack는 같은 값을 유지한다.
 
 ### Goal 5. Executor 분리
 

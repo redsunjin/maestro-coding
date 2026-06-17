@@ -285,14 +285,14 @@ git commit -m "feat: add approval request store"
 - Future Test: `tests/server-regression.test.mjs`
 - Future Docs: `docs/MAESTRO_AGENT_ADAPTERS_PLAN.md`
 
-- [ ] **Step 1: Add failing tests for pending decision polling**
+- [x] **Step 1: Add failing tests for pending decision polling**
 
 Required assertions:
 
 - `GET /api/approval-requests/:requestId/decision` returns a pending response or `204` when no decision exists.
 - unknown request returns `404`.
 
-- [ ] **Step 2: Add failing tests for decision availability and ack**
+- [x] **Step 2: Add failing tests for decision availability and ack**
 
 Required assertions:
 
@@ -300,7 +300,7 @@ Required assertions:
 - `POST /api/approval-decisions/:decisionId/ack` records `acknowledgedAt`
 - repeated ack is idempotent
 
-- [ ] **Step 3: Implement decision store**
+- [x] **Step 3: Implement decision store**
 
 Implementation constraints:
 
@@ -308,7 +308,7 @@ Implementation constraints:
 - Add `delivery.status` values `available` and `acknowledged`.
 - Do not require push delivery for MVP.
 
-- [ ] **Step 4: Run validation**
+- [x] **Step 4: Run validation**
 
 Run:
 
@@ -319,7 +319,7 @@ npm run build
 
 Expected: decision polling and ack tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 

@@ -619,6 +619,171 @@ test('legacy POST /api/request uses approval request store without changing ingr
   )), true);
 });
 
+test('approval decision polling returns pending for stored request and 404 for unknown request', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const requestId = `apr_pending_decision_${Date.now()}`;
+  const createResponse = await postFirstClassApprovalRequest(server.port, {}, {
+    requestId,
+    agentId: 'qa_agent',
+    branchName: 'feature/pending-decision',
+    diffSummary: {
+      title: 'Pending decision',
+      shortDescription: 'polling should show no decision yet',
+    },
+  });
+  assert.equal(createResponse.status, 200);
+
+  const pendingResponse = await fetch(`http://127.0.0.1:${server.port}/api/approval-requests/${requestId}/decision`);
+  assert.equal(pendingResponse.status, 200);
+  const pendingBody = await pendingResponse.json();
+  assert.equal(pendingBody.status, 'pending');
+  assert.equal(pendingBody.requestId, requestId);
+  assert.equal(pendingBody.item, null);
+
+  const unknownResponse = await fetch(`http://127.0.0.1:${server.port}/api/approval-requests/missing_request/decision`);
+  assert.equal(unknownResponse.status, 404);
+});
+
+test('manual approval decision can be polled and acknowledged idempotently', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const requestId = `apr_decision_approve_${Date.now()}`;
+  const createResponse = await postFirstClassApprovalRequest(server.port, {}, {
+    requestId,
+    agentId: 'qa_agent',
+    projectId: 'proj_decision',
+    laneIndex: 2,
+    diffSummary: {
+      title: 'Approval decision',
+      shortDescription: 'decision polling validation',
+    },
+  });
+  assert.equal(createResponse.status, 200);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const mergeResultPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'MERGE_SUCCESS' && event.requestId === requestId,
+    3000,
+    'manual approval merge success',
+  );
+  ws.send(JSON.stringify({
+    action: 'APPROVE',
+    requestId,
+    agentId: 'qa_agent',
+    projectId: 'proj_decision',
+    laneIndex: 2,
+    title: 'Approval decision',
+  }));
+  await mergeResultPromise;
+
+  const decisionResponse = await fetch(`http://127.0.0.1:${server.port}/api/approval-requests/${requestId}/decision`);
+  assert.equal(decisionResponse.status, 200);
+  const decisionBody = await decisionResponse.json();
+  assert.equal(decisionBody.status, 'available');
+  assert.equal(decisionBody.item.requestId, requestId);
+  assert.equal(decisionBody.item.agentId, 'qa_agent');
+  assert.equal(decisionBody.item.decision, 'approve');
+  assert.equal(decisionBody.item.executorAction, 'merge');
+  assert.equal(decisionBody.item.delivery.mode, 'pull');
+  assert.equal(decisionBody.item.delivery.status, 'available');
+  assert.equal(decisionBody.item.delivery.acknowledgedAt, null);
+  assert.equal(typeof decisionBody.item.decisionId, 'string');
+  assert.equal(typeof decisionBody.item.createdAt, 'string');
+
+  const ackResponse = await fetch(`http://127.0.0.1:${server.port}/api/approval-decisions/${decisionBody.item.decisionId}/ack`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ agentId: 'qa_agent' }),
+  });
+  assert.equal(ackResponse.status, 200);
+  const ackBody = await ackResponse.json();
+  assert.equal(ackBody.success, true);
+  assert.equal(ackBody.item.delivery.status, 'acknowledged');
+  assert.equal(typeof ackBody.item.delivery.acknowledgedAt, 'string');
+  const acknowledgedAt = ackBody.item.delivery.acknowledgedAt;
+
+  const secondAckResponse = await fetch(`http://127.0.0.1:${server.port}/api/approval-decisions/${decisionBody.item.decisionId}/ack`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ agentId: 'qa_agent' }),
+  });
+  assert.equal(secondAckResponse.status, 200);
+  const secondAckBody = await secondAckResponse.json();
+  assert.equal(secondAckBody.item.delivery.status, 'acknowledged');
+  assert.equal(secondAckBody.item.delivery.acknowledgedAt, acknowledgedAt);
+});
+
+test('manual reject creates a pull decision without executor action', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const requestId = `apr_decision_reject_${Date.now()}`;
+  const createResponse = await postFirstClassApprovalRequest(server.port, {}, {
+    requestId,
+    agentId: 'qa_agent',
+    diffSummary: {
+      title: 'Reject decision',
+      shortDescription: 'rejection polling validation',
+    },
+  });
+  assert.equal(createResponse.status, 200);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const rejectResultPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'AGENT_RESTARTED' && event.requestId === requestId,
+    3000,
+    'manual reject restarted',
+  );
+  ws.send(JSON.stringify({
+    action: 'REJECT',
+    requestId,
+    agentId: 'qa_agent',
+    feedback: 'revise tests',
+  }));
+  await rejectResultPromise;
+
+  const decisionResponse = await fetch(`http://127.0.0.1:${server.port}/api/approval-requests/${requestId}/decision`);
+  assert.equal(decisionResponse.status, 200);
+  const decisionBody = await decisionResponse.json();
+  assert.equal(decisionBody.status, 'available');
+  assert.equal(decisionBody.item.requestId, requestId);
+  assert.equal(decisionBody.item.decision, 'reject');
+  assert.equal(decisionBody.item.comment, 'revise tests');
+  assert.equal(decisionBody.item.executorAction, 'none');
+  assert.equal(decisionBody.item.delivery.status, 'available');
+});
+
 test('GET /api/projects returns active runtime project and registered candidates', async (t) => {
   const fixture = createProjectRegistryFixture([]);
   t.after(() => {
