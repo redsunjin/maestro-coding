@@ -105,6 +105,29 @@ async function postApprovalRequest(port, headers = {}, payloadOverrides = {}) {
   return response;
 }
 
+async function postFirstClassApprovalRequest(port, headers = {}, payloadOverrides = {}) {
+  const response = await fetch(`http://127.0.0.1:${port}/api/approval-requests`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify({
+      requestId: `apr_${Date.now()}`,
+      agentId: 'qa_agent',
+      branchName: 'feature/qa-approval-request',
+      laneIndex: 1,
+      diffSummary: {
+        title: 'First-class approval request',
+        shortDescription: 'approval request store validation',
+      },
+      ...payloadOverrides,
+    }),
+  });
+
+  return response;
+}
+
 async function postWorkSession(port, payload = {}, headers = {}) {
   const response = await fetch(`http://127.0.0.1:${port}/api/work-sessions`, {
     method: 'POST',
@@ -451,6 +474,149 @@ test('agent registry APIs enforce bearer token when MAESTRO_SERVER_TOKEN is set'
     Authorization: 'Bearer secret-token',
   });
   assert.equal(authorizedHeartbeat.status, 200);
+});
+
+test('POST /api/approval-requests stores pending request, broadcasts task ready, and appends history', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const requestId = `apr_store_${Date.now()}`;
+  const taskReadyPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'AGENT_TASK_READY' && event.requestId === requestId,
+    3000,
+    'approval request task ready',
+  );
+  const historyPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'HISTORY_APPEND' && event.item?.requestId === requestId,
+    3000,
+    'approval request history append',
+  );
+
+  const response = await postFirstClassApprovalRequest(server.port, {}, {
+    requestId,
+    agentId: 'qa_agent',
+    branchName: 'feature/approval-store',
+    projectId: 'proj_approval',
+    laneIndex: 2,
+    diffSummary: {
+      title: 'Approval store',
+      impact: 'High',
+      shortDescription: 'store validation',
+    },
+  });
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.success, true);
+  assert.equal(body.requestId, requestId);
+  assert.equal(body.item.requestId, requestId);
+  assert.equal(body.item.agentId, 'qa_agent');
+  assert.equal(body.item.branchName, 'feature/approval-store');
+  assert.equal(body.item.projectId, 'proj_approval');
+  assert.equal(body.item.laneIndex, 2);
+  assert.equal(body.item.status, 'pending_decision');
+  assert.equal(body.item.source, 'agent');
+  assert.equal(body.item.diffSummary.title, 'Approval store');
+  assert.equal(body.item.diffSummary.shortDescription, 'store validation');
+  assert.equal(typeof body.item.createdAt, 'string');
+  assert.equal(typeof body.item.updatedAt, 'string');
+
+  const taskReadyEvent = await taskReadyPromise;
+  assert.equal(taskReadyEvent.event, 'AGENT_TASK_READY');
+  assert.equal(taskReadyEvent.status, 'pending_decision');
+  assert.equal(taskReadyEvent.diffSummary.title, 'Approval store');
+
+  const historyEvent = await historyPromise;
+  assert.equal(historyEvent.item.result, 'REQUESTED');
+  assert.equal(historyEvent.item.reason, 'AGENT_TASK_READY');
+  assert.equal(historyEvent.item.agentId, 'qa_agent');
+
+  const historyResponse = await fetch(`http://127.0.0.1:${server.port}/api/history?limit=5&result=REQUESTED`);
+  assert.equal(historyResponse.status, 200);
+  const historyBody = await historyResponse.json();
+  assert.equal(historyBody.items.some((item) => (
+    item.requestId === requestId
+    && item.result === 'REQUESTED'
+    && item.reason === 'AGENT_TASK_READY'
+    && item.branchName === 'feature/approval-store'
+  )), true);
+});
+
+test('legacy POST /api/request uses approval request store without changing ingress contract', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const requestId = `req_legacy_store_${Date.now()}`;
+  const taskReadyPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'AGENT_TASK_READY' && event.requestId === requestId,
+    3000,
+    'legacy task ready',
+  );
+
+  const response = await postApprovalRequest(server.port, {}, {
+    requestId,
+    agentId: 'legacy_agent',
+    branchName: 'feature/legacy-approval-store',
+    projectId: 'proj_legacy',
+    laneIndex: 3,
+    diffSummary: {
+      title: 'Legacy approval store',
+      shortDescription: 'legacy bridge validation',
+    },
+  });
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.success, true);
+  assert.equal(body.requestId, requestId);
+  assert.equal(body.item.requestId, requestId);
+  assert.equal(body.item.legacyRequestId, requestId);
+  assert.equal(body.item.status, 'pending_decision');
+  assert.equal(body.item.source, 'legacy');
+  assert.equal(body.item.agentId, 'legacy_agent');
+  assert.equal(body.item.projectId, 'proj_legacy');
+  assert.equal(body.item.laneIndex, 3);
+  assert.equal(body.item.branchName, 'feature/legacy-approval-store');
+
+  const taskReadyEvent = await taskReadyPromise;
+  assert.equal(taskReadyEvent.event, 'AGENT_TASK_READY');
+  assert.equal(taskReadyEvent.requestId, requestId);
+  assert.equal(taskReadyEvent.status, 'pending_decision');
+  assert.equal(taskReadyEvent.agentId, 'legacy_agent');
+
+  const historyResponse = await fetch(`http://127.0.0.1:${server.port}/api/history?limit=5&result=REQUESTED`);
+  assert.equal(historyResponse.status, 200);
+  const historyBody = await historyResponse.json();
+  assert.equal(historyBody.items.some((item) => (
+    item.requestId === requestId
+    && item.agentId === 'legacy_agent'
+    && item.projectId === 'proj_legacy'
+    && item.laneIndex === 3
+    && item.branchName === 'feature/legacy-approval-store'
+  )), true);
 });
 
 test('GET /api/projects returns active runtime project and registered candidates', async (t) => {

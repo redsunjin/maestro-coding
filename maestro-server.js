@@ -1533,6 +1533,36 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.method === 'POST' && pathname === '/api/approval-requests') {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const { approvalRequest, autoApprove } = submitApprovalRequest(data, { source: 'agent' });
+        console.log(`📨 승인 요청 수신: [${approvalRequest.agentId}] ${approvalRequest.diffSummary.title}`);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          requestId: approvalRequest.requestId,
+          item: approvalRequest,
+          autoApprove,
+        }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
   // 에이전트 승인 요청 수신 엔드포인트
   // 에이전트는 작업 완료 후 이 엔드포인트로 POST 요청을 보냅니다.
   //
@@ -1560,74 +1590,15 @@ const server = http.createServer((req, res) => {
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
       try {
-        const data = JSON.parse(body);
-        const activeLaneCount = sanitizeLaneCount(runtimeProjectState.laneCount, DEFAULT_LANE_COUNT);
-        const normalizedLaneIndex = normalizeConfiguredLaneIndex(data.laneIndex, activeLaneCount);
-
-        // 필수 필드 기본값 채우기
-        const approvalRequest = {
-          requestId: data.requestId || `req_${Date.now()}`,
-          agentId: data.agentId || 'unknown_agent',
-          branchName: data.branchName || null,
-          projectId: data.projectId || null,
-          laneIndex: normalizedLaneIndex || pickRandomLaneIndex(activeLaneCount),
-          autoApprove: data.autoApprove === true,
-          timestamp: new Date().toISOString(),
-          diffSummary: data.diffSummary || {
-            title: data.title || '에이전트 작업 완료',
-            impact: 'Medium',
-            shortDescription: data.description || '',
-          },
-        };
-
-        setRequestMeta(approvalRequest.requestId, {
-          requestId: approvalRequest.requestId,
-          projectId: approvalRequest.projectId,
-          laneIndex: approvalRequest.laneIndex,
-          agentId: approvalRequest.agentId,
-          branchName: approvalRequest.branchName,
-          title: approvalRequest.diffSummary?.title,
-        });
-
-        setRequestState(approvalRequest.requestId, REQUEST_STATUS.READY, 'request');
-        const autoApprove = evaluateAutoApproveEligibility(approvalRequest, AUTO_APPROVE_CONFIG, {
-          now: Date.now(),
-          lastAutoApproveAt,
-        });
-        appendAutoApproveEvent({
-          phase: 'policy',
-          requestId: approvalRequest.requestId,
-          agentId: approvalRequest.agentId,
-          projectId: approvalRequest.projectId,
-          branchName: approvalRequest.branchName,
-          decision: autoApprove.eligible ? 'ELIGIBLE' : 'BLOCKED',
-          reason: autoApprove.reason,
-          retryAfterMs: autoApprove.retryAfterMs,
-          dryRun: AUTO_APPROVE_CONFIG.dryRun,
-        });
-
-        broadcastToClients({ event: 'AGENT_TASK_READY', ...approvalRequest });
-        appendHistory({
-          requestId: approvalRequest.requestId,
-          projectId: approvalRequest.projectId,
-          laneIndex: approvalRequest.laneIndex,
-          agentId: approvalRequest.agentId,
-          branchName: approvalRequest.branchName,
-          title: approvalRequest.diffSummary?.title,
-          source: 'system',
-          result: 'REQUESTED',
-          reason: 'AGENT_TASK_READY',
-        });
+        const data = JSON.parse(body || '{}');
+        const { approvalRequest, autoApprove } = submitApprovalRequest(data, { source: 'legacy' });
         console.log(`📨 승인 요청 수신: [${approvalRequest.agentId}] ${approvalRequest.diffSummary.title}`);
-
-        if (autoApprove.eligible) {
-          void runConditionalAutoApprove(approvalRequest);
-        }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           success: true,
           requestId: approvalRequest.requestId,
+          item: approvalRequest,
           autoApprove,
         }));
       } catch {
@@ -1677,6 +1648,11 @@ const REQUEST_STATUS = {
   REJECTED: 'rejected',
 };
 
+const APPROVAL_REQUEST_STATUS = {
+  PENDING_DECISION: 'pending_decision',
+};
+
+const approvalRequestsById = new Map();
 const requestStateById = new Map();
 const requestMetaById = new Map();
 const autoApproveInFlight = new Set();
@@ -1876,6 +1852,118 @@ function markApproveFinished({ requestId, ok, source }) {
     // 실패 후 재시도 가능해야 하므로 READY로 복귀
     setRequestState(requestId, REQUEST_STATUS.READY, source);
   }
+}
+
+function normalizeDiffSummary(input = {}) {
+  const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  return {
+    title: sanitizeHistoryText(source.title || '', 120) || '에이전트 작업 완료',
+    impact: sanitizeHistoryText(source.impact || '', 40) || 'Medium',
+    shortDescription: sanitizeHistoryText(source.shortDescription || source.description || '', 500) || '',
+  };
+}
+
+function normalizeApprovalRequest(input = {}, { source = 'agent' } = {}) {
+  const now = new Date().toISOString();
+  const normalizedSource = sanitizeHistoryText(source || input.source || 'agent', 32) || 'agent';
+  const requestIdPrefix = normalizedSource === 'legacy' ? 'req' : 'apr';
+  const requestId = sanitizeHistoryText(input.requestId || '', 80) || `${requestIdPrefix}_${Date.now()}`;
+  const existing = approvalRequestsById.get(requestId) || null;
+  const activeLaneCount = sanitizeLaneCount(runtimeProjectState.laneCount, DEFAULT_LANE_COUNT);
+  const normalizedLaneIndex = normalizeConfiguredLaneIndex(input.laneIndex, activeLaneCount);
+  const agentId = sanitizeHistoryText(input.agentId || '', 64) || 'unknown_agent';
+  const registeredAgent = getAgent(agentId);
+  const repoRootRaw = typeof input.repoRoot === 'string' ? input.repoRoot.trim() : '';
+  const projectId = sanitizeHistoryText(input.projectId || '', 64)
+    || existing?.projectId
+    || (normalizedSource === 'legacy' ? null : runtimeProjectState.id);
+  const diffSummary = normalizeDiffSummary(input.diffSummary || {
+    title: input.title,
+    impact: input.impact,
+    shortDescription: input.description,
+  });
+
+  return {
+    requestId,
+    agentId,
+    projectId,
+    repoRoot: repoRootRaw ? path.resolve(repoRootRaw) : registeredAgent?.repoRoot || runtimeProjectState.path,
+    branchName: sanitizeHistoryText(input.branchName || '', 120) || null,
+    laneIndex: normalizedLaneIndex || existing?.laneIndex || pickRandomLaneIndex(activeLaneCount),
+    diffSummary,
+    source: normalizedSource,
+    legacyRequestId: normalizedSource === 'legacy'
+      ? requestId
+      : sanitizeHistoryText(input.legacyRequestId || existing?.legacyRequestId || '', 80) || null,
+    status: APPROVAL_REQUEST_STATUS.PENDING_DECISION,
+    autoApprove: input.autoApprove === true,
+    timestamp: existing?.timestamp || now,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+  };
+}
+
+function storeApprovalRequest(input = {}, options = {}) {
+  const approvalRequest = normalizeApprovalRequest(input, options);
+  approvalRequestsById.set(approvalRequest.requestId, approvalRequest);
+
+  setRequestMeta(approvalRequest.requestId, {
+    requestId: approvalRequest.requestId,
+    projectId: approvalRequest.projectId,
+    laneIndex: approvalRequest.laneIndex,
+    agentId: approvalRequest.agentId,
+    branchName: approvalRequest.branchName,
+    title: approvalRequest.diffSummary?.title,
+  });
+  setRequestState(
+    approvalRequest.requestId,
+    REQUEST_STATUS.READY,
+    approvalRequest.source === 'legacy' ? 'request' : 'approval-request',
+  );
+
+  return approvalRequest;
+}
+
+function submitApprovalRequest(input = {}, options = {}) {
+  const approvalRequest = storeApprovalRequest(input, options);
+  const autoApprove = evaluateAutoApproveEligibility(approvalRequest, AUTO_APPROVE_CONFIG, {
+    now: Date.now(),
+    lastAutoApproveAt,
+  });
+
+  appendAutoApproveEvent({
+    phase: 'policy',
+    requestId: approvalRequest.requestId,
+    agentId: approvalRequest.agentId,
+    projectId: approvalRequest.projectId,
+    branchName: approvalRequest.branchName,
+    decision: autoApprove.eligible ? 'ELIGIBLE' : 'BLOCKED',
+    reason: autoApprove.reason,
+    retryAfterMs: autoApprove.retryAfterMs,
+    dryRun: AUTO_APPROVE_CONFIG.dryRun,
+  });
+
+  broadcastToClients({ event: 'AGENT_TASK_READY', ...approvalRequest });
+  appendHistory({
+    requestId: approvalRequest.requestId,
+    projectId: approvalRequest.projectId,
+    laneIndex: approvalRequest.laneIndex,
+    agentId: approvalRequest.agentId,
+    branchName: approvalRequest.branchName,
+    title: approvalRequest.diffSummary?.title,
+    source: 'system',
+    result: 'REQUESTED',
+    reason: 'AGENT_TASK_READY',
+  });
+
+  if (autoApprove.eligible) {
+    void runConditionalAutoApprove(approvalRequest);
+  }
+
+  return {
+    approvalRequest,
+    autoApprove,
+  };
 }
 
 async function runConditionalAutoApprove(approvalRequest) {

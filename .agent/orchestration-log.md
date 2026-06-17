@@ -20,3 +20,10 @@
 - Implemented Goal 2 Agent Registry MVP.
 - Added `POST /api/agents/register`, `POST /api/agents/:agentId/heartbeat`, `GET /api/agents`, and `GET /api/agents/:agentId`.
 - Validation passed: `npm run test:server`, `npm run build`.
+
+## 2026-06-17T22:47:39+0900
+
+- Implemented Goal 3 ApprovalRequest Store and legacy ingress bridge.
+- Added `POST /api/approval-requests` with `status=pending_decision` response item.
+- Bridged legacy `POST /api/request` into the same in-memory request store while preserving existing WebSocket and auto-approve behavior.
+- Validation passed: `npm run test:server`, `npm run build`.

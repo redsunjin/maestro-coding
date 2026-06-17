@@ -1,7 +1,7 @@
 # Maestro Agent Adapters and Approval Protocol Plan
 
 기준일: 2026-06-14
-상태: 계약 기준 초안
+상태: Goal 3 구현 반영
 
 ## 1. 목적
 
@@ -32,6 +32,9 @@ Maestro가 특정 CLI의 수동 훅 설정에만 묶이지 않도록, `에이전
 - `hooks/notify-maestro.sh`
 - `Claude Code Stop Hook`
 - `git post-commit hook`
+- `POST /api/agents/register`, `POST /api/agents/:agentId/heartbeat`
+- `POST /api/approval-requests`
+- legacy ingress `POST /api/request`
 
 현재 한계:
 
@@ -250,6 +253,13 @@ MVP에서는 토큰을 선택 필드로 두고, 기존 `MAESTRO_SERVER_TOKEN` �
 - 새 API가 `ApprovalRequest`를 생성함
 - 기존 `/api/request`가 회귀 없이 `AGENT_TASK_READY`를 발생시킴
 - 새 request 상태가 decision을 기다리는 상태로 남음
+
+현재 구현:
+
+- `POST /api/approval-requests`는 `ApprovalRequest`를 생성하고 `status=pending_decision`으로 저장한다.
+- 생성된 request는 기존 `AGENT_TASK_READY` WebSocket 이벤트와 `REQUESTED / AGENT_TASK_READY` history entry를 계속 발생시킨다.
+- 기존 `POST /api/request`는 `source=legacy`, `legacyRequestId=<requestId>`로 같은 request store에 브리지하며, 기존 `success: true`, `requestId`, `autoApprove` 응답을 유지하고 `item`을 추가로 반환한다.
+- 기존 `requestStateById`는 executor 분리가 끝날 때까지 유지한다.
 
 ### Goal 4. ApprovalDecision Pull API
 

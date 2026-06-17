@@ -212,7 +212,7 @@ npm run build
 
 Expected: agent registry tests pass and frontend build remains green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
@@ -232,7 +232,7 @@ git commit -m "feat: add agent registry api"
 - Future Test: `tests/server-regression.test.mjs`
 - Future Docs: `docs/MAESTRO_AGENT_ADAPTERS_PLAN.md`
 
-- [ ] **Step 1: Add failing tests for `POST /api/approval-requests`**
+- [x] **Step 1: Add failing tests for `POST /api/approval-requests`**
 
 Required assertions:
 
@@ -240,13 +240,13 @@ Required assertions:
 - broadcasts the existing `AGENT_TASK_READY` event
 - appends history consistently with current request creation behavior
 
-- [ ] **Step 2: Add legacy ingress regression test**
+- [x] **Step 2: Add legacy ingress regression test**
 
 Required assertion:
 
 - existing `POST /api/request` still returns `success: true`, still emits `AGENT_TASK_READY`, and maps to the same internal request metadata.
 
-- [ ] **Step 3: Implement request store**
+- [x] **Step 3: Implement request store**
 
 Implementation constraints:
 
@@ -254,7 +254,7 @@ Implementation constraints:
 - Keep existing `requestStateById` until executor separation is complete.
 - Do not rename existing WebSocket events in this goal.
 
-- [ ] **Step 4: Run validation**
+- [x] **Step 4: Run validation**
 
 Run:
 
@@ -265,7 +265,7 @@ npm run build
 
 Expected: new and legacy request paths pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
