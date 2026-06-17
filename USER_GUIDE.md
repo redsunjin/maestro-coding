@@ -215,6 +215,10 @@ curl -X POST http://localhost:8080/api/request \
 Claude Code가 작업을 마칠 때 자동으로 승인 요청을 보내도록 설정합니다.
 
 ```bash
+# 권장: 설치 스크립트로 자동 등록
+npm run install:hook -- --target=claude-stop
+
+# 수동 등록
 mkdir -p .claude
 cp hooks/claude-settings-example.json .claude/settings.json
 ```
@@ -240,10 +244,25 @@ MAESTRO_SERVER_TOKEN=very-secret-token sh hooks/notify-maestro.sh
 ### 방법 4 — git post-commit 훅
 
 ```bash
+# 권장: 설치 스크립트로 자동 등록
+npm run install:hook -- --target=git-post-commit
+
+# 수동 등록
 echo '#!/bin/sh' > .git/hooks/post-commit
 echo 'sh "$(git rev-parse --show-toplevel)/hooks/notify-maestro.sh"' >> .git/hooks/post-commit
 chmod +x .git/hooks/post-commit
 ```
+
+### 방법 5 — 두 어댑터 한 번에 설치
+
+```bash
+npm run install:hook
+```
+
+기본값은 아래 둘을 함께 설치합니다.
+
+- `.git/hooks/post-commit`
+- `.claude/settings.json` 의 `Stop` hook
 
 ---
 

@@ -71,8 +71,9 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
   - `WP-007` 구조 분해 완료
     - `src/App.jsx` 422 lines로 축소
     - BGM/실시간/이력/운영 패널 로직을 훅/컴포넌트로 분리
-  - 원클릭 실행 경로(`npm run start:app`, `npm run check:env`) 제공
-  - `start:app` 오류 조치 메시지/대시보드 URL 자동 감지 고도화
+- 원클릭 실행 경로(`npm run start:app`, `npm run check:env`) 제공
+- 훅 설치 자동화(`npm run install:hook`) 제공
+- `start:app` 오류 조치 메시지/대시보드 URL 자동 감지 고도화
 - 확인된 개선 필요 항목
   - `KI-001` `function bach` Hz 미노출 환경 재현 데이터 확보 필요
   - 승인 이력 영속 저장/export는 아직 범위 밖이며 후속 범위로 별도 검토 예정

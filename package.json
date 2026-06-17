@@ -18,6 +18,7 @@
     "smoke:lanes": "node scripts/smoke-project-lanes.mjs",
     "qa": "bash scripts/qa-agent.sh",
     "setup": "sh scripts/setup_env.sh",
+    "install:hook": "node scripts/install-maestro-hook.mjs --target=all",
     "configure": "node scripts/configure.js",
     "project:list": "node scripts/projects.js list",
     "project:add": "node scripts/projects.js add",
