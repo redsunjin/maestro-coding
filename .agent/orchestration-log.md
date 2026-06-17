@@ -34,3 +34,10 @@
 - Added `GET /api/approval-requests/:requestId/decision` and `POST /api/approval-decisions/:decisionId/ack`.
 - Manual approve/reject now stores pull-deliverable decisions without changing existing WebSocket result events.
 - Validation passed: `npm run test:server`, `npm run build`.
+
+## 2026-06-17T23:01:43+0900
+
+- Implemented Goal 5 Executor Boundary.
+- Added decision-driven `runDecisionExecutor()` for manual approve execution.
+- Added executor result recording for skipped, succeeded, and failed merge execution.
+- Validation passed: `npm run test:server`, `npm run build`, `npm run smoke:integration`.

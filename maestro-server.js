@@ -2094,11 +2094,33 @@ function storeApprovalDecision(input = {}) {
     },
     decidedBy: sanitizeHistoryText(input.decidedBy || '', 64) || 'operator',
     createdAt: now,
+    executorResult: null,
   };
 
   approvalDecisionsByRequestId.set(requestId, decisionItem);
   approvalDecisionsById.set(decisionItem.decisionId, decisionItem);
   return decisionItem;
+}
+
+function updateApprovalDecision(decision) {
+  if (!decision?.decisionId || !decision?.requestId) return null;
+  approvalDecisionsByRequestId.set(decision.requestId, decision);
+  approvalDecisionsById.set(decision.decisionId, decision);
+  return decision;
+}
+
+function recordApprovalDecisionExecutorResult(decision, input = {}) {
+  if (!decision) return null;
+  const updatedDecision = {
+    ...decision,
+    executorResult: {
+      status: sanitizeHistoryText(input.status || '', 32) || 'skipped',
+      reason: sanitizeHistoryText(input.reason || '', 80) || null,
+      event: sanitizeHistoryText(input.event || '', 80) || null,
+      finishedAt: new Date().toISOString(),
+    },
+  };
+  return updateApprovalDecision(updatedDecision);
 }
 
 function getApprovalDecisionByRequestId(requestId) {
@@ -2133,6 +2155,121 @@ function acknowledgeApprovalDecision(decisionId, input = {}) {
   approvalDecisionsByRequestId.set(updatedDecision.requestId, updatedDecision);
   approvalDecisionsById.set(updatedDecision.decisionId, updatedDecision);
   return updatedDecision;
+}
+
+async function runDecisionExecutor(decision, {
+  requestId,
+  branchName = null,
+  projectId = null,
+  laneIndex = null,
+  agentId = null,
+  title = null,
+  source = 'manual',
+  mainRepoPath = getActiveMainRepoPath(),
+  sendEvent = () => {},
+} = {}) {
+  if (!decision) return null;
+
+  const executionRequestId = requestId || decision.requestId;
+  const executorSource = normalizeHistorySource(source);
+  const historyInput = {
+    requestId: executionRequestId,
+    projectId,
+    laneIndex,
+    agentId: agentId || decision.agentId,
+    branchName,
+    title,
+    source: executorSource,
+    autoApproved: executorSource === 'auto',
+  };
+
+  if (decision.executorAction !== EXECUTOR_ACTION.MERGE) {
+    const reason = 'EXECUTOR_ACTION_NONE';
+    sendEvent({
+      event: 'MERGE_SKIPPED',
+      requestId: executionRequestId,
+      reason,
+    });
+    appendHistory({
+      ...historyInput,
+      result: 'APPROVE_SKIPPED',
+      reason,
+    });
+    return recordApprovalDecisionExecutorResult(decision, {
+      status: 'skipped',
+      reason,
+      event: 'MERGE_SKIPPED',
+    });
+  }
+
+  const skipReason = getApproveSkipReason(executionRequestId);
+  if (skipReason) {
+    sendEvent({
+      event: 'MERGE_SKIPPED',
+      requestId: executionRequestId,
+      reason: skipReason,
+    });
+    appendHistory({
+      ...historyInput,
+      result: 'APPROVE_SKIPPED',
+      reason: skipReason,
+    });
+    return recordApprovalDecisionExecutorResult(decision, {
+      status: 'skipped',
+      reason: skipReason,
+      event: 'MERGE_SKIPPED',
+    });
+  }
+
+  setRequestState(executionRequestId, REQUEST_STATUS.APPROVING, executorSource);
+
+  if (branchName && isValidBranchName(branchName)) {
+    const ok = await gitOps
+      .mergeAgentBranch(mainRepoPath, branchName)
+      .then(() => true)
+      .catch((err) => { console.error('Merge 실패:', err.message); return false; });
+
+    markApproveFinished({
+      requestId: executionRequestId,
+      ok,
+      source: executorSource,
+    });
+
+    const event = ok ? 'MERGE_SUCCESS' : 'MERGE_FAILED';
+    sendEvent({
+      event,
+      requestId: executionRequestId,
+      autoApproved: executorSource === 'auto' ? true : undefined,
+    });
+    appendHistory({
+      ...historyInput,
+      result: ok ? 'APPROVED' : 'APPROVE_FAILED',
+      reason: event,
+    });
+    return recordApprovalDecisionExecutorResult(decision, {
+      status: ok ? 'succeeded' : 'failed',
+      reason: event,
+      event,
+    });
+  }
+
+  // 브랜치 정보 없이도 기존 UI 흐름은 성공 이벤트를 반환한다.
+  markApproveFinished({
+    requestId: executionRequestId,
+    ok: true,
+    source: executorSource,
+  });
+  sendEvent({ event: 'MERGE_SUCCESS', requestId: executionRequestId });
+  appendHistory({
+    ...historyInput,
+    result: 'APPROVED',
+    reason: 'MERGE_SUCCESS',
+  });
+  return recordApprovalDecisionExecutorResult(decision, {
+    status: 'succeeded',
+    reason: 'MERGE_SUCCESS',
+    event: 'MERGE_SUCCESS',
+  });
 }
 
 async function runConditionalAutoApprove(approvalRequest) {
@@ -2287,71 +2424,28 @@ wss.on('connection', (ws) => {
           branchName: payload.branchName,
           title: payload.title,
         });
-        storeApprovalDecision({
+        const decision = storeApprovalDecision({
           requestId: payload.requestId,
           agentId: payload.agentId,
           decision: APPROVAL_DECISION.APPROVE,
           comment: payload.comment || payload.feedback || '',
-          executorAction: EXECUTOR_ACTION.MERGE,
+          executorAction: payload.executorAction || EXECUTOR_ACTION.MERGE,
           decidedBy: 'operator',
         });
-        const skipReason = getApproveSkipReason(payload.requestId);
-        if (skipReason) {
-          ws.send(JSON.stringify({
-            event: 'MERGE_SKIPPED',
-            requestId: payload.requestId,
-            reason: skipReason,
-          }));
-          appendHistory({
-            requestId: payload.requestId,
-            source: 'manual',
-            result: 'APPROVE_SKIPPED',
-            reason: skipReason,
-            autoApproved: false,
-          });
-          break;
-        }
 
-        setRequestState(payload.requestId, REQUEST_STATUS.APPROVING, 'manual');
-        if (payload.branchName && isValidBranchName(payload.branchName)) {
-          const ok = await gitOps
-            .mergeAgentBranch(mainRepoPath, payload.branchName)
-            .then(() => true)
-            .catch((err) => { console.error('Merge 실패:', err.message); return false; });
-
-          markApproveFinished({
-            requestId: payload.requestId,
-            ok,
-            source: 'manual',
-          });
-
-          ws.send(JSON.stringify({
-            event: ok ? 'MERGE_SUCCESS' : 'MERGE_FAILED',
-            requestId: payload.requestId,
-          }));
-          appendHistory({
-            requestId: payload.requestId,
-            source: 'manual',
-            result: ok ? 'APPROVED' : 'APPROVE_FAILED',
-            reason: ok ? 'MERGE_SUCCESS' : 'MERGE_FAILED',
-            autoApproved: false,
-          });
-        } else {
-          // 브랜치 정보 없이도 UI 응답은 반환
-          markApproveFinished({
-            requestId: payload.requestId,
-            ok: true,
-            source: 'manual',
-          });
-          ws.send(JSON.stringify({ event: 'MERGE_SUCCESS', requestId: payload.requestId }));
-          appendHistory({
-            requestId: payload.requestId,
-            source: 'manual',
-            result: 'APPROVED',
-            reason: 'MERGE_SUCCESS',
-            autoApproved: false,
-          });
-        }
+        await runDecisionExecutor(decision, {
+          requestId: payload.requestId,
+          branchName: payload.branchName,
+          projectId: payload.projectId,
+          laneIndex: payload.laneIndex,
+          agentId: payload.agentId,
+          title: payload.title,
+          source: 'manual',
+          mainRepoPath,
+          sendEvent: (eventPayload) => {
+            ws.send(JSON.stringify(eventPayload));
+          },
+        });
         break;
       }
 

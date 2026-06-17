@@ -1,7 +1,7 @@
 # Maestro Agent Adapters and Approval Protocol Plan
 
 기준일: 2026-06-14
-상태: Goal 4 구현 반영
+상태: Goal 5 구현 반영
 
 ## 1. 목적
 
@@ -300,6 +300,14 @@ MVP에서는 토큰을 선택 필드로 두고, 기존 `MAESTRO_SERVER_TOKEN` �
 - `executorAction=merge`일 때만 기존 `gitOps.mergeAgentBranch()`가 호출됨
 - 실패 시 decision은 남고 executor result만 실패로 기록됨
 - 기존 manual approve/auto approve 회귀 없음
+
+현재 구현:
+
+- manual `APPROVE`는 먼저 `ApprovalDecision`을 저장한 뒤 `runDecisionExecutor(decision, context)`로 실행한다.
+- `executorAction=merge`일 때만 `gitOps.mergeAgentBranch()`를 호출한다.
+- `executorAction=none`은 `MERGE_SKIPPED / EXECUTOR_ACTION_NONE`으로 응답하고 decision의 `executorResult.status=skipped`를 기록한다.
+- merge 실패는 기존 `MERGE_FAILED` 이벤트와 history를 유지하면서 decision의 `executorResult.status=failed`로 남긴다.
+- branch 정보가 없는 기존 UI 승인 경로는 기존처럼 `MERGE_SUCCESS`를 반환한다.
 
 ### Goal 6. Work Console 신뢰 표시
 

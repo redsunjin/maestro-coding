@@ -339,7 +339,7 @@ git commit -m "feat: add approval decision polling"
 - Future Test: `tests/server-regression.test.mjs`
 - Future Docs: `docs/MAESTRO_AGENT_ADAPTERS_PLAN.md`
 
-- [ ] **Step 1: Add failing tests for executor action**
+- [x] **Step 1: Add failing tests for executor action**
 
 Required assertions:
 
@@ -348,7 +348,7 @@ Required assertions:
 - merge failure leaves the decision record available for polling
 - reject creates `ApprovalDecision.decision=reject` with `executorAction=none`
 
-- [ ] **Step 2: Extract executor helper inside server**
+- [x] **Step 2: Extract executor helper inside server**
 
 Implementation constraints:
 
@@ -356,7 +356,7 @@ Implementation constraints:
 - Introduce a focused helper such as `runDecisionExecutor(decision, approvalRequest)`.
 - Preserve existing `MERGE_SUCCESS`, `MERGE_FAILED`, `MERGE_SKIPPED`, and history behavior.
 
-- [ ] **Step 3: Run validation**
+- [x] **Step 3: Run validation**
 
 Run:
 
@@ -368,7 +368,7 @@ npm run smoke:integration
 
 Expected: existing integration smoke still sees the old approval events.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 

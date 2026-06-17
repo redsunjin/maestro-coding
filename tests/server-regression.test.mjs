@@ -784,6 +784,116 @@ test('manual reject creates a pull decision without executor action', async (t) 
   assert.equal(decisionBody.item.delivery.status, 'available');
 });
 
+test('manual approve skips merge executor when executorAction is none', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const requestId = `apr_executor_none_${Date.now()}`;
+  const createResponse = await postFirstClassApprovalRequest(server.port, {}, {
+    requestId,
+    agentId: 'qa_agent',
+    branchName: 'feature/executor-none',
+    diffSummary: {
+      title: 'Executor none',
+      shortDescription: 'approve without merge execution',
+    },
+  });
+  assert.equal(createResponse.status, 200);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const skippedPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'MERGE_SKIPPED' && event.requestId === requestId,
+    3000,
+    'executor none skip',
+  );
+  ws.send(JSON.stringify({
+    action: 'APPROVE',
+    requestId,
+    agentId: 'qa_agent',
+    branchName: 'feature/executor-none',
+    executorAction: 'none',
+  }));
+
+  const skippedEvent = await skippedPromise;
+  assert.equal(skippedEvent.reason, 'EXECUTOR_ACTION_NONE');
+
+  const decisionResponse = await fetch(`http://127.0.0.1:${server.port}/api/approval-requests/${requestId}/decision`);
+  assert.equal(decisionResponse.status, 200);
+  const decisionBody = await decisionResponse.json();
+  assert.equal(decisionBody.item.decision, 'approve');
+  assert.equal(decisionBody.item.executorAction, 'none');
+  assert.equal(decisionBody.item.executorResult.status, 'skipped');
+  assert.equal(decisionBody.item.executorResult.reason, 'EXECUTOR_ACTION_NONE');
+});
+
+test('manual approve records failed executor result while decision remains pollable', async (t) => {
+  const server = startServer({
+    extraEnv: {
+      MAIN_REPO_PATH: ROOT_DIR,
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const requestId = `apr_executor_fail_${Date.now()}`;
+  const missingBranch = `feature/missing-executor-branch-${Date.now()}`;
+  const createResponse = await postFirstClassApprovalRequest(server.port, {}, {
+    requestId,
+    agentId: 'qa_agent',
+    branchName: missingBranch,
+    diffSummary: {
+      title: 'Executor failed',
+      shortDescription: 'merge failure should not remove decision',
+    },
+  });
+  assert.equal(createResponse.status, 200);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const failedPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'MERGE_FAILED' && event.requestId === requestId,
+    3000,
+    'executor merge failed',
+  );
+  ws.send(JSON.stringify({
+    action: 'APPROVE',
+    requestId,
+    agentId: 'qa_agent',
+    branchName: missingBranch,
+    executorAction: 'merge',
+  }));
+  await failedPromise;
+
+  const decisionResponse = await fetch(`http://127.0.0.1:${server.port}/api/approval-requests/${requestId}/decision`);
+  assert.equal(decisionResponse.status, 200);
+  const decisionBody = await decisionResponse.json();
+  assert.equal(decisionBody.status, 'available');
+  assert.equal(decisionBody.item.decision, 'approve');
+  assert.equal(decisionBody.item.executorAction, 'merge');
+  assert.equal(decisionBody.item.executorResult.status, 'failed');
+  assert.equal(decisionBody.item.executorResult.reason, 'MERGE_FAILED');
+  assert.equal(decisionBody.item.executorResult.event, 'MERGE_FAILED');
+  assert.equal(typeof decisionBody.item.executorResult.finishedAt, 'string');
+});
+
 test('GET /api/projects returns active runtime project and registered candidates', async (t) => {
   const fixture = createProjectRegistryFixture([]);
   t.after(() => {
