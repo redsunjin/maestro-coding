@@ -1,8 +1,8 @@
 # Work Console Branch Harness Plan
 
-기준일: 2026-03-29
+기준일: 2026-06-14
 대상 트랙: `VU-001`
-상태: 실행 기준 초안
+상태: 실행 기준 초안 / Agent Approval Protocol goal 하네스 반영
 
 ## 1. 목적
 
@@ -175,6 +175,46 @@ runtime_signals:
   - 향후 문서-테스트-파일 존재 여부를 검사하는 작은 harness check 추가 검토
 
 ## 4. Execution Sequence
+
+### Step 0. Agent Approval Protocol Roadmap
+
+브랜치: `codex/work-console-feature`
+
+목표:
+
+- hook adapter 중심 문서를 `Agent Registry + ApprovalDecision Pull` 계약으로 현행화한다.
+- 기존 `/api/request`를 legacy ingress로 정의한다.
+- `git merge`를 decision 이후 executor action으로 분리하는 기준을 고정한다.
+- goal 단위 실행 계획을 만들어 후속 구현이 순서대로 진행되게 한다.
+
+하네스 파일:
+
+- `.agent/orchestration-contract.md`
+- `.agent/orchestration-status.md`
+- `.agent/orchestration-log.md`
+- `.agent/prompts/continue-to-goal.md`
+- `.agent/prompts/run-validation-loop.md`
+- `.agent/prompts/fix-failing-harness.md`
+- `.agent/prompts/tdd-hardening.md`
+- `.agent/prompts/final-review.md`
+
+기준 문서:
+
+- `docs/MAESTRO_AGENT_ADAPTERS_PLAN.md`
+- `docs/superpowers/plans/2026-06-14-agent-approval-protocol-roadmap.md`
+- `docs/version-upgrades/vu-001-openclaw-work-orchestration/README.md`
+
+검증 명령:
+
+- 문서/하네스 현행화만 수행한 경우: `npm run test:server`
+- 구현 goal 수행 후: `npm run test`, `npm run build`
+- 브라우저/통합 경로 변경 후: `npm run test:e2e` 또는 `npm run qa`
+
+완료 기준:
+
+- 사용자 결정값이 기준 문서에 반영됨
+- Goal 0~6 실행 순서가 문서화됨
+- 후속 구현은 Goal 단위로 커밋 가능함
 
 ### Step 1. Mockup Branch
 

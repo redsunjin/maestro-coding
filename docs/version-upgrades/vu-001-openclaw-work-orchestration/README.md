@@ -1,7 +1,7 @@
 # VU-001 OpenClaw Work Orchestration
 
-기준일: 2026-03-14
-상태: 설계 초안
+기준일: 2026-06-14
+상태: 설계 초안 / Agent Approval Protocol 로드맵 반영
 
 ## 1. 배경
 
@@ -64,6 +64,14 @@ Maestro를 다음 역할로 확장한다.
 
 ## 6. 단계별 권장 도입 순서
 
+### Phase 0. Agent Approval Protocol 기준화
+
+- 기존 hook adapter 문서를 `Agent Registry + Approval Request/Decision Protocol` 기준으로 현행화한다.
+- `POST /api/request`는 유지하지만 legacy ingress로 정의한다.
+- 승인 결과 전달은 Pull-first로 설계한다.
+- `git merge`는 decision이 아니라 executor action으로 분리한다.
+- goal 단위 실행 하네스는 `.agent/orchestration-*`와 `WORK_CONSOLE_BRANCH_HARNESS_PLAN.md`를 기준으로 추적한다.
+
 ### Phase A. Work Request Intake
 
 - 운영자가 작업 요청을 등록한다.
@@ -102,6 +110,8 @@ Maestro를 다음 역할로 확장한다.
 
 ## 9. 문서 맵
 
+- Agent adapter/protocol 기준: [`../../MAESTRO_AGENT_ADAPTERS_PLAN.md`](../../MAESTRO_AGENT_ADAPTERS_PLAN.md)
+- Agent approval protocol 실행 계획: [`../../superpowers/plans/2026-06-14-agent-approval-protocol-roadmap.md`](../../superpowers/plans/2026-06-14-agent-approval-protocol-roadmap.md)
 - Phase A 구현 계획: [`PHASE_A_WORK_REQUEST_INTAKE_PLAN.md`](./PHASE_A_WORK_REQUEST_INTAKE_PLAN.md)
 - Phase B-0 Shell UI 계획: [`PHASE_B0_WORK_CONSOLE_SHELL_PLAN.md`](./PHASE_B0_WORK_CONSOLE_SHELL_PLAN.md)
 - Session Core 계획: [`WORK_CONSOLE_SESSION_CORE_PLAN.md`](./WORK_CONSOLE_SESSION_CORE_PLAN.md)
@@ -114,3 +124,12 @@ Maestro를 다음 역할로 확장한다.
 - Work Console 리스크 검토: [`WORK_CONSOLE_RISK_REVIEW.md`](./WORK_CONSOLE_RISK_REVIEW.md)
 - 아키텍처 초안: [`OPENCLAW_MVP_ARCHITECTURE.md`](./OPENCLAW_MVP_ARCHITECTURE.md)
 - 데이터 모델/API 설계: [`WORK_REQUEST_WORK_APPROVAL_API.md`](./WORK_REQUEST_WORK_APPROVAL_API.md)
+
+## 10. 현재 확정된 결정
+
+- 문서 위치: 새 protocol 문서를 만들지 않고 기존 `docs/MAESTRO_AGENT_ADAPTERS_PLAN.md`를 확장한다.
+- Agent 등록 모델: `agentId + adapterType + repoRoot + token optional + capabilities`.
+- 승인 결과 전달: Pull-first.
+- `git merge`: decision이 아니라 executor action.
+- 기존 `/api/request`: 유지하되 legacy ingress로 정의.
+- 첫 MVP: 한 에이전트가 요청을 만들고, Maestro가 decision을 저장하고, 에이전트가 polling으로 가져가는 vertical slice.
