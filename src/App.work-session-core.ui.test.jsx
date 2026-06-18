@@ -150,6 +150,74 @@ describe('App UI regression - work session core', () => {
     });
   });
 
+  test('work console renders connected agent trust summary', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const url = String(input);
+
+      if (url.includes('/api/agents')) {
+        return Promise.resolve(createFetchResponse({
+          items: [
+            {
+              agentId: 'claude_code_local',
+              adapterType: 'claude-stop',
+              repoRoot: '/Users/Agent/ps-workspace/maestro',
+              displayName: 'Claude Code Local',
+              capabilities: ['approval-request', 'decision-polling'],
+              status: 'connected',
+              registeredAt: '2026-04-01T00:00:00.000Z',
+              updatedAt: '2026-04-01T00:02:30.000Z',
+              lastHeartbeatAt: '2026-04-01T00:02:30.000Z',
+              lastRequest: {
+                requestId: 'apr_agent_1',
+                status: 'pending_decision',
+                branchName: 'feature/history-export',
+                updatedAt: '2026-04-01T00:03:00.000Z',
+              },
+              lastDecision: {
+                decisionId: 'apd_agent_1',
+                requestId: 'apr_agent_1',
+                decision: 'approve',
+                executorAction: 'merge',
+                deliveryStatus: 'acknowledged',
+                acknowledgedAt: '2026-04-01T00:03:30.000Z',
+                createdAt: '2026-04-01T00:03:10.000Z',
+              },
+            },
+          ],
+          count: 1,
+        }));
+      }
+
+      if (url.includes('/api/history')) {
+        return Promise.resolve(createFetchResponse({ items: [], count: 0 }));
+      }
+
+      if (url.includes('/api/work-sessions')) {
+        return Promise.resolve(createFetchResponse({
+          items: [],
+          count: 0,
+          maxItems: 60,
+        }));
+      }
+
+      return Promise.resolve(createFetchResponse({}));
+    });
+
+    await startLiveSession({ strictMode: true });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Work Console 패널 토글' }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Claude Code Local')).toBeInTheDocument();
+      expect(screen.getByText('connected')).toBeInTheDocument();
+      expect(screen.getByText('pending_decision')).toBeInTheDocument();
+      expect(screen.getByText('acknowledged')).toBeInTheDocument();
+      expect(screen.getByText(/heartbeat/)).toBeInTheDocument();
+    });
+  });
+
   test('work console creates a new session from the empty state', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
       const url = String(input);

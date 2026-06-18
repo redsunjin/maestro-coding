@@ -18,6 +18,7 @@ import useBachPlayer from './hooks/useBachPlayer.js';
 import useProjectRegistryOps from './hooks/useProjectRegistryOps.js';
 import useWorkConsoleShell from './hooks/useWorkConsoleShell.js';
 import useWorkSessions from './hooks/useWorkSessions.js';
+import useAgentRegistry from './hooks/useAgentRegistry.js';
 import MaestroHeader from './components/maestro/MaestroHeader.jsx';
 import ProjectTabs from './components/maestro/ProjectTabs.jsx';
 import LaneBoard from './components/maestro/LaneBoard.jsx';
@@ -179,6 +180,17 @@ export default function App() {
   });
 
   const {
+    agents,
+    agentError,
+    isAgentLoading,
+    isAgentAuthRequired,
+    handleSocketEvent: handleAgentRegistrySocketEvent,
+  } = useAgentRegistry({
+    wsUrl: WS_URL,
+    enabled: isWorkConsoleOpen,
+  });
+
+  const {
     autoApproveStatus,
     autoApproveEvents,
     autoApproveError,
@@ -205,7 +217,8 @@ export default function App() {
     handleHistorySocketEvent(payload);
     handleAutoApproveSocketEvent(payload);
     handleWorkSessionsSocketEvent(payload);
-  }, [handleAutoApproveSocketEvent, handleHistorySocketEvent, handleProjectSocketEvent, handleWorkSessionsSocketEvent]);
+    handleAgentRegistrySocketEvent(payload);
+  }, [handleAgentRegistrySocketEvent, handleAutoApproveSocketEvent, handleHistorySocketEvent, handleProjectSocketEvent, handleWorkSessionsSocketEvent]);
 
   const activeLaneCount = currentProject?.laneCount || DEFAULT_LANE_COUNT;
   const activeLanes = useMemo(() => getLaneDefinitions(activeLaneCount), [activeLaneCount]);
@@ -494,6 +507,10 @@ export default function App() {
         isSessionDetailLoading={isSessionDetailLoading}
         isSubmittingMessage={isSubmittingMessage}
         sessionError={workSessionError}
+        agents={agents}
+        isAgentLoading={isAgentLoading}
+        agentError={agentError}
+        isAgentAuthRequired={isAgentAuthRequired}
         onSelectSession={setSelectedWorkSessionId}
         onCreateSession={createSession}
         onSubmitMessage={submitMessage}

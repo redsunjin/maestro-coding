@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, vi } from 'vitest';
@@ -159,8 +160,14 @@ export function teardownAppUiEnvironment() {
   }
 }
 
-export async function startLiveSession() {
-  render(<App />);
+export async function startLiveSession({ strictMode = false } = {}) {
+  render(strictMode ? (
+    <StrictMode>
+      <App />
+    </StrictMode>
+  ) : (
+    <App />
+  ));
   await userEvent.click(screen.getByRole('button', { name: '지휘 시작' }));
   await waitFor(() => {
     expect(MockWebSocket.instances.length).toBe(1);

@@ -41,3 +41,12 @@
 - Added decision-driven `runDecisionExecutor()` for manual approve execution.
 - Added executor result recording for skipped, succeeded, and failed merge execution.
 - Validation passed: `npm run test:server`, `npm run build`, `npm run smoke:integration`.
+
+## 2026-06-18T22:30:11+0900
+
+- Implemented Goal 6 Work Console Agent Trust Surface.
+- Added `GET /api/agents` trust summaries with latest `ApprovalRequest` and `ApprovalDecision` delivery state.
+- Added Work Console `Agent Trust` read-only UI and `useAgentRegistry` refresh hook.
+- Added StrictMode regression coverage for registry fetch completion in the rendered Vite app path.
+- Validation passed: `npm run test:server`, `npm run test:ui`, `npm run build`, `npm run qa`.
+- Render validation passed with Playwright fallback on desktop 1280x720 and mobile 390x844. In-app Browser could load the app, but blocked direct `127.0.0.1:8080/api/agents` access with `ERR_BLOCKED_BY_CLIENT`.

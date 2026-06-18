@@ -1,7 +1,7 @@
 # Maestro Agent Adapters and Approval Protocol Plan
 
-기준일: 2026-06-14
-상태: Goal 5 구현 반영
+기준일: 2026-06-18
+상태: Goal 6 구현 반영
 
 ## 1. 목적
 
@@ -33,18 +33,20 @@ Maestro가 특정 CLI의 수동 훅 설정에만 묶이지 않도록, `에이전
 - `Claude Code Stop Hook`
 - `git post-commit hook`
 - `POST /api/agents/register`, `POST /api/agents/:agentId/heartbeat`
+- `GET /api/agents`, `GET /api/agents/:agentId`
 - `POST /api/approval-requests`
 - legacy ingress `POST /api/request`
 - `GET /api/approval-requests/:requestId/decision`
 - `POST /api/approval-decisions/:decisionId/ack`
+- Work Console `Agent Trust` read-only summary
 
 현재 한계:
 
 - CLI별 설치 절차가 사용자에게 분산되어 있다.
 - 완전한 “플러그인 마켓” 경험은 아니다.
 - 다른 에이전트 CLI에 대한 표준 어댑터 명세가 아직 없다.
-- 에이전트가 Maestro의 결정을 안정적으로 회수하는 API 계약이 없다.
-- 승인 결과가 `ApprovalDecision`으로 저장되기보다 서버의 merge 실행 결과로 보인다.
+- registry/request/decision store는 아직 서버 메모리 기반이므로 재시작 후 장기 상태 보존 범위가 제한된다.
+- Agent callback, SSE, WebSocket push 전달 모델은 MVP 이후 확장으로 둔다.
 
 ## 3. 어댑터 계층 정의
 
@@ -320,6 +322,14 @@ MVP에서는 토큰을 선택 필드로 두고, 기존 `MAESTRO_SERVER_TOKEN` �
 - Work Console 또는 별도 운영 패널에 agent connection summary 표시
 - 마지막 heartbeat, 마지막 request, 마지막 decision, ack 상태 표시
 - 화면 표시는 운영 가시성에 한정하고 adapter marketplace UI는 보류
+
+현재 구현:
+
+- `GET /api/agents` 응답에 `lastRequest`와 `lastDecision` 요약을 포함한다.
+- Work Console은 `Agent Trust` 섹션에서 display name/agentId, 연결 상태, heartbeat, request status, decision delivery status, executor action을 read-only로 표시한다.
+- token mode에서는 기존 브라우저 저장 토큰을 재사용한다.
+- Work Console이 열린 동안 15초 주기로 registry를 새로고침하고 관련 WebSocket 이벤트가 오면 즉시 갱신한다.
+- React StrictMode 개발 렌더에서도 registry 응답을 놓치지 않도록 hook mount 상태를 재설정한다.
 
 ## 6. 우선순위
 

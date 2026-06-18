@@ -476,6 +476,73 @@ test('agent registry APIs enforce bearer token when MAESTRO_SERVER_TOKEN is set'
   assert.equal(authorizedHeartbeat.status, 200);
 });
 
+test('agent registry list includes latest request and decision delivery summary', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const registerResponse = await postAgentRegistration(server.port, {
+    agentId: 'trust_agent',
+    adapterType: 'wrapper',
+    repoRoot: ROOT_DIR,
+    displayName: 'Trust Agent',
+    capabilities: ['approval-request', 'decision-polling'],
+  });
+  assert.equal(registerResponse.status, 200);
+
+  const heartbeatResponse = await postAgentHeartbeat(server.port, 'trust_agent');
+  assert.equal(heartbeatResponse.status, 200);
+
+  const requestId = `apr_agent_trust_${Date.now()}`;
+  const requestResponse = await postFirstClassApprovalRequest(server.port, {}, {
+    requestId,
+    agentId: 'trust_agent',
+    branchName: 'feature/trust-surface',
+    diffSummary: {
+      title: 'Trust surface request',
+      shortDescription: 'agent registry trust summary',
+    },
+  });
+  assert.equal(requestResponse.status, 200);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => {
+    ws.close();
+  });
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+
+  const rejectEventPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'AGENT_RESTARTED' && event.requestId === requestId,
+    3000,
+    'agent trust reject',
+  );
+  ws.send(JSON.stringify({
+    action: 'REJECT',
+    requestId,
+    agentId: 'trust_agent',
+    feedback: 'trust summary check',
+  }));
+  await rejectEventPromise;
+
+  const listResponse = await fetch(`http://127.0.0.1:${server.port}/api/agents`);
+  assert.equal(listResponse.status, 200);
+  const listBody = await listResponse.json();
+  const agent = listBody.items.find((item) => item.agentId === 'trust_agent');
+  assert.equal(agent.displayName, 'Trust Agent');
+  assert.equal(agent.status, 'connected');
+  assert.equal(agent.lastRequest.requestId, requestId);
+  assert.equal(agent.lastRequest.status, 'pending_decision');
+  assert.equal(agent.lastRequest.branchName, 'feature/trust-surface');
+  assert.equal(agent.lastDecision.requestId, requestId);
+  assert.equal(agent.lastDecision.decision, 'reject');
+  assert.equal(agent.lastDecision.executorAction, 'none');
+  assert.equal(agent.lastDecision.deliveryStatus, 'available');
+});
+
 test('POST /api/approval-requests stores pending request, broadcasts task ready, and appends history', async (t) => {
   const server = startServer();
   t.after(async () => {

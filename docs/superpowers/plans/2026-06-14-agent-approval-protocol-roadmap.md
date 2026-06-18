@@ -389,7 +389,7 @@ git commit -m "feat: separate approval decision executor"
 - Future Test: `src/App.work-session-core.ui.test.jsx` or a focused new UI test
 - Future Docs: `USER_GUIDE.md`
 
-- [ ] **Step 1: Add failing UI test for connected agent summary**
+- [x] **Step 1: Add failing UI test for connected agent summary**
 
 Required assertions:
 
@@ -398,7 +398,7 @@ Required assertions:
 - last request status appears
 - last decision delivery status appears
 
-- [ ] **Step 2: Add minimal frontend fetch hook**
+- [x] **Step 2: Add minimal frontend fetch hook**
 
 Implementation constraints:
 
@@ -406,14 +406,14 @@ Implementation constraints:
 - Reuse existing token handling patterns if authentication is enabled.
 - Keep UI read-only.
 
-- [ ] **Step 3: Add compact Work Console display**
+- [x] **Step 3: Add compact Work Console display**
 
 Implementation constraints:
 
 - Display only operational trust signals.
 - Do not add adapter marketplace, plugin installation, or broad configuration UI.
 
-- [ ] **Step 4: Run validation**
+- [x] **Step 4: Run validation**
 
 Run:
 
@@ -425,7 +425,7 @@ npm run qa
 
 Expected: UI regression and full QA pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 

@@ -434,9 +434,55 @@ function recordAgentHeartbeat(agentId) {
   return nextAgent;
 }
 
+function summarizeApprovalRequestForAgent(request = null) {
+  if (!request) return null;
+  return {
+    requestId: request.requestId,
+    status: request.status || APPROVAL_REQUEST_STATUS.PENDING_DECISION,
+    branchName: request.branchName || null,
+    projectId: request.projectId || null,
+    source: request.source || null,
+    updatedAt: request.updatedAt || request.createdAt || null,
+    createdAt: request.createdAt || null,
+  };
+}
+
+function summarizeApprovalDecisionForAgent(decision = null) {
+  if (!decision) return null;
+  return {
+    decisionId: decision.decisionId,
+    requestId: decision.requestId,
+    decision: decision.decision,
+    executorAction: decision.executorAction,
+    deliveryStatus: decision.delivery?.status || null,
+    acknowledgedAt: decision.delivery?.acknowledgedAt || null,
+    executorStatus: decision.executorResult?.status || null,
+    createdAt: decision.createdAt || null,
+  };
+}
+
+function getLatestAgentRequest(agentId) {
+  const normalizedAgentId = sanitizeHistoryText(agentId || '', 80);
+  if (!normalizedAgentId) return null;
+  return Array.from(approvalRequestsById.values())
+    .filter((request) => request.agentId === normalizedAgentId)
+    .sort((a, b) => Date.parse(b.updatedAt || b.createdAt || 0) - Date.parse(a.updatedAt || a.createdAt || 0))[0] || null;
+}
+
+function withAgentTrustSummary(agent) {
+  const lastRequest = getLatestAgentRequest(agent.agentId);
+  const lastDecision = lastRequest ? getApprovalDecisionByRequestId(lastRequest.requestId) : null;
+  return {
+    ...agent,
+    lastRequest: summarizeApprovalRequestForAgent(lastRequest),
+    lastDecision: summarizeApprovalDecisionForAgent(lastDecision),
+  };
+}
+
 function listAgents() {
   return Array.from(agentsById.values())
-    .sort((a, b) => Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0));
+    .sort((a, b) => Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0))
+    .map((agent) => withAgentTrustSummary(agent));
 }
 
 const WORK_SESSION_STATUS = {

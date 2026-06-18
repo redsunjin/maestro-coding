@@ -324,6 +324,22 @@ curl -s "http://localhost:8080/api/auto-approve/events?limit=20&decision=BLOCKED
 
 ---
 
+## Work Console Agent Trust 확인
+
+- 위치: 상단 헤더 `Work` 버튼을 눌러 Work Console을 엽니다.
+- `Agent Trust` 섹션에서 등록된 agent의 운영 신호를 read-only로 확인합니다.
+  - display name 또는 `agentId`
+  - 연결 상태(`registered`, `connected` 등)
+  - 마지막 heartbeat
+  - 마지막 approval request status
+  - 마지막 approval decision delivery status
+  - branch / executor action 보조 정보
+- Work Console이 열린 동안 15초 주기로 `GET /api/agents`를 다시 조회합니다.
+- token mode 서버(`MAESTRO_SERVER_TOKEN` 설정)에서는 AutoOps와 같은 브라우저 저장 토큰을 사용합니다.
+- 이 화면은 운영 가시성 전용입니다. adapter marketplace, plugin 설치, broad configuration UI는 아직 포함하지 않습니다.
+
+---
+
 ## 롤백(UNDO) 사용법
 
 대시보드에서 잘못 승인한 경우 **`Ctrl+Z`** 를 눌러 직전 병합을 취소할 수 있습니다.
