@@ -158,6 +158,7 @@ cp .env.example .env
 | `MAESTRO_AUTO_APPROVE_DRY_RUN` | `false` | 정책 매칭만 수행하고 실제 merge는 건너뜀 |
 | `MAESTRO_AUTO_APPROVE_LOG_MAX_ITEMS` | `500` | 자동승인 정책/실행 이벤트 로그 최대 저장 개수 (50~5000) |
 | `MAESTRO_HISTORY_MAX_ITEMS` | `300` | 승인 이력 링버퍼 최대 저장 개수 (40~2000) |
+| `MAESTRO_HISTORY_STORE_PATH` | `.maestro-history.json` | 승인 이력 영속 저장 파일 경로 |
 
 예시 `.env`:
 
@@ -178,6 +179,7 @@ MAESTRO_AUTO_APPROVE_COOLDOWN_MS=0
 MAESTRO_AUTO_APPROVE_DRY_RUN=false
 MAESTRO_AUTO_APPROVE_LOG_MAX_ITEMS=500
 MAESTRO_HISTORY_MAX_ITEMS=300
+MAESTRO_HISTORY_STORE_PATH=.maestro-history.json
 ```
 
 > ⚠️ `.env` 파일에는 실제 토큰이나 경로 등 민감 정보가 포함될 수 있습니다.  
@@ -357,6 +359,7 @@ curl -s "http://localhost:8080/api/auto-approve/events?limit=20&decision=BLOCKED
 - 기본 동작:
   - 서버 `GET /api/history`로 최근 이력 로드
   - 실시간 `HISTORY_APPEND` 이벤트를 패널에 즉시 추가
+  - 서버 재시작 후에도 `MAESTRO_HISTORY_STORE_PATH` 파일에서 최근 이력을 복구합니다.
 - 시각화:
   - 최근 이력을 현재 프로젝트 레인 수 기준 악보 overview로 축약해 보여줍니다.
   - 같은 시각대 이벤트는 밀도 점으로 묶여 표시됩니다.

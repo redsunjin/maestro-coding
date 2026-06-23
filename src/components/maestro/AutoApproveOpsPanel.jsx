@@ -89,6 +89,7 @@ function SummaryStat({ label, value, hint, toneClass = 'text-white' }) {
 
 export default function AutoApproveOpsPanel({
   isOpen,
+  panelTopOffset = 92,
   onClose,
   statusData,
   events,
@@ -141,7 +142,8 @@ export default function AutoApproveOpsPanel({
         isOpen
           ? 'pointer-events-auto opacity-100 translate-y-0 sm:translate-x-0'
           : 'pointer-events-none opacity-0 translate-y-2 sm:-translate-x-4'
-      } bottom-16 left-3 right-3 sm:bottom-auto sm:left-4 sm:right-auto sm:top-20 sm:w-[396px]`}
+      } bottom-16 left-3 right-3 sm:bottom-auto sm:left-4 sm:right-auto sm:top-[var(--panel-top-offset)] sm:w-[396px]`}
+      style={{ '--panel-top-offset': `${panelTopOffset}px` }}
     >
       <div className="rounded-2xl border border-gray-700/80 bg-gray-900/95 shadow-2xl backdrop-blur-md">
         <div className="flex items-center justify-between border-b border-gray-700/70 px-3 py-2">

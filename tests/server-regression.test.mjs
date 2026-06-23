@@ -43,6 +43,8 @@ async function waitForHealth(port, timeoutMs = 5000) {
 function startServer({ token = '', host = '127.0.0.1', allowedOrigins = '', extraEnv = {} } = {}) {
   const port = randomPort();
   let logs = '';
+  const historyStorePath = extraEnv.MAESTRO_HISTORY_STORE_PATH
+    || resolve(os.tmpdir(), `maestro-history-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`);
 
   const proc = spawn(process.execPath, [SERVER_ENTRY], {
     cwd: ROOT_DIR,
@@ -52,6 +54,7 @@ function startServer({ token = '', host = '127.0.0.1', allowedOrigins = '', extr
       HOST: host,
       MAESTRO_SERVER_TOKEN: token,
       ALLOWED_ORIGINS: allowedOrigins,
+      MAESTRO_HISTORY_STORE_PATH: historyStorePath,
       ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -67,6 +70,7 @@ function startServer({ token = '', host = '127.0.0.1', allowedOrigins = '', extr
   return {
     port,
     proc,
+    historyStorePath,
     getLogs: () => logs,
   };
 }
@@ -1961,6 +1965,57 @@ test('GET /api/history returns filtered entries', async (t) => {
   const projectHistory = await projectHistoryRes.json();
   assert.ok(projectHistory.items.length >= 1);
   assert.ok(projectHistory.items.every((item) => item.projectId === 'proj_b2c'));
+});
+
+test('history survives server restart when store path is persisted', async (t) => {
+  const tempDir = mkdtempSync(resolve(os.tmpdir(), 'maestro-history-store-'));
+  const historyStorePath = resolve(tempDir, 'history.json');
+  t.after(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  const requestId = `req_history_persist_${Date.now()}`;
+  const firstServer = startServer({
+    extraEnv: {
+      MAESTRO_HISTORY_STORE_PATH: historyStorePath,
+    },
+  });
+
+  await waitForHealth(firstServer.port);
+
+  const response = await postApprovalRequest(firstServer.port, {}, {
+    requestId,
+    projectId: 'proj_b2c',
+    laneIndex: 1,
+    diffSummary: {
+      title: 'Persisted History Item',
+      shortDescription: 'history persistence regression',
+    },
+  });
+  assert.equal(response.status, 200);
+
+  await stopServer(firstServer.proc);
+
+  const secondServer = startServer({
+    extraEnv: {
+      MAESTRO_HISTORY_STORE_PATH: historyStorePath,
+    },
+  });
+  t.after(async () => {
+    await stopServer(secondServer.proc);
+  });
+
+  await waitForHealth(secondServer.port);
+
+  const historyRes = await fetch(`http://127.0.0.1:${secondServer.port}/api/history?limit=20`);
+  assert.equal(historyRes.status, 200);
+  const historyBody = await historyRes.json();
+  assert.ok(historyBody.items.some((item) => item.requestId === requestId && item.result === 'REQUESTED'));
+
+  const persistedFile = JSON.parse(readFileSync(historyStorePath, 'utf8'));
+  assert.equal(persistedFile.version, 1);
+  assert.ok(Array.isArray(persistedFile.items));
+  assert.ok(persistedFile.items.some((item) => item.requestId === requestId && item.title === 'Persisted History Item'));
 });
 
 test('OPTIONS preflight allows configured origin and returns CORS headers', async (t) => {

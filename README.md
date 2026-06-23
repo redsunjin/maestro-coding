@@ -31,12 +31,14 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 - 프로젝트 연결 간소화: 등록된 로컬 Git 레포를 대시보드 `Repo` 패널이나 `project:use` 명령으로 즉시 전환
 - 프로젝트별 승인 레인 수(1~8) 저장/적용 지원
 - 승인 이력 악보뷰(`WP-009`): `GET /api/history` + `HISTORY_APPEND` + 레인 overview/밀도 표현/접근성 보강 완료
+- 승인 이력 영속 저장: 재시작 후 `.maestro-history.json` 또는 `MAESTRO_HISTORY_STORE_PATH` 기준으로 최근 이력 복구
 - `function bach`: 상단 미니 플레이어에서 YouTube 기반 BGM 재생/일시정지/볼륨/채널 URL 등록 + 상태 칩/고정 `Hz` 슬롯 제공
 - 조건부 자동승인(`WP-008`): explicit/cooldown/dry-run/중복승인 차단 + 운영 가시성 API + `AutoOps` 대시보드 패널 반영
 
-## 현재 개발 현황 (2026-03-13 기준)
+## 현재 개발 현황 (2026-03-29 기준)
 
-- 단계: 운영 가능한 MVP+
+- 버전: `0.95.0`
+- 단계: 파일럿 운영 가능한 MVP
 - 확인된 동작: `npm run qa` 통과, 서버 `/health` 응답 확인
 - 완료된 기반 작업
   - React + Vite + Tailwind 기반 대시보드
@@ -50,6 +52,7 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
     - WebSocket 실시간 이벤트: `HISTORY_APPEND`
     - 헤더 `History` 버튼/`H` 단축키 + 우측 패널 필터(프로젝트/결과/소스)
     - 레인 overview, 이벤트 밀도 표현, 범례, `dialog` 접근성, 라이브 상태 요약
+    - 파일 기반 영속 저장 + 서버 재시작 복구
   - 조건부 자동승인(`WP-008`) 운영 UI 완료
     - 헤더 `AutoOps` 버튼으로 정책 상태/런타임/최근 이벤트 로그 조회
     - `401 Unauthorized` 응답 시 토큰 입력/저장 후 재조회 지원
@@ -76,7 +79,7 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 - `start:app` 오류 조치 메시지/대시보드 URL 자동 감지 고도화
 - 확인된 개선 필요 항목
   - `KI-001` `function bach` Hz 미노출 환경 재현 데이터 확보 필요
-  - 승인 이력 영속 저장/export는 아직 범위 밖이며 후속 범위로 별도 검토 예정
+  - 승인 이력 export는 아직 범위 밖이며 후속 범위로 별도 검토 예정
   - 로컬 데모 중심이라 다중 사용자 운영/원격 배포용 runbook은 추가 정리가 필요
 
 ## 변경 필요 항목 및 작업계획

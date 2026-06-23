@@ -141,6 +141,7 @@ export default function useApprovalHistory({ wsUrl }) {
     hasMoreHistoryItems,
     loadMoreHistory,
     filteredHistoryCount: filteredHistoryItems.length,
+    historyBadgeCount: historyItems.length,
     handleSocketEvent,
   };
 }

@@ -21,7 +21,7 @@
 
 ## 1) 현재 상태 요약
 
-- 현재 단계: 운영 가능한 MVP+ (핵심 데모/운영 흐름 동작)
+- 현재 단계: 파일럿 운영 가능한 MVP (`v0.95.0` 기준)
 - 확인된 강점
   - 대시보드 빌드/실행 경로 확보
   - `POST /api/request` -> WebSocket 브로드캐스트 흐름 동작
@@ -48,12 +48,13 @@
 - QA 에이전트 설정 완료: `npm run qa` + 회귀 테스트 스위트 + QA 가이드 추가
 - `function bach` 운용성 보강 완료: 상태 칩(`booting/ready/queued/playing/paused/error`) + 고정 `Hz` 슬롯(`standby`/`~xxxHz`) + 좁은 뷰포트 래핑 개선
 - 터치 입력 대응 완료: 레인 승인/반려 버튼 + 터치 롤백 버튼 + UI 회귀 테스트 반영
+- 승인 이력 영속 저장 완료: 파일 기반 저장소(`MAESTRO_HISTORY_STORE_PATH`) + 재시작 복구 + 운영 문서 반영
 - 오픈 이슈 분리 추적: [`docs/KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) (`KI-001`: `function bach` Hz 미노출 환경 조사, 완화 조치 적용 완료)
 
 ## 1-2) 다음 작업 포인트 (즉시 실행)
 
 1. `KI-001` 분리 추적: 브라우저/줌/OS/YouTube player state 기준 재현 데이터 수집
-2. 승인 이력 후속 검토: 영속 저장/export는 별도 범위로 검토
+2. 승인 이력 후속 검토: export는 별도 범위로 검토
 3. 운영 가이드 보강: 토큰 모드/로컬 runbook/장애 대응 문서 지속 갱신
    - 현재 기준 runbook 초안 추가: [`docs/OPERATIONS_RUNBOOK.md`](./OPERATIONS_RUNBOOK.md)
 4. `WP-011` 후속 범위 분리: `Work Console Session Core`는 별도 계획으로 수립
