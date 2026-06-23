@@ -1,6 +1,6 @@
 # Maestro Coding 작업계획
 
-기준일: 2026-03-29
+기준일: 2026-03-31
 
 ## 0) 착수 순서 고정 + 비손상/비오염 선언 (2026-02-28)
 
@@ -44,6 +44,7 @@
 - `WP-008` 완료: 1차(정책 골격) + 2차(가드레일/중복승인 방지/운영스위치) + 3차(운영 가시성 API/로그) + 후속 UI화(운영 패널/이벤트 로그) 완료
 - `WP-009` 완료: 1차(서버 이력 버퍼/API) + 2차(히스토리 패널/필터/토글) + 3차(악보 시각화/밀도 표현) + 4차(접근성/회귀 보강) 완료
 - `WP-010` 완료: 동적 레인 스케일링 1차(공통 레인 설정 계층) + 2차(프로젝트 메타/환경변수/등록 UX) + 3차(서버 런타임 동적화) + 4차(대시보드/히스토리 동적 렌더링) + 후속(기존 등록 프로젝트 레인 수정 UI, 4/6레인 스모크 시나리오) 완료
+- `WP-011` 완료: `Work Console` Shell UI 1차(헤더 토글, 도킹 패널, localStorage 복원, placeholder 세션/타임라인/입력창, UI 회귀 테스트) 완료
 - QA 에이전트 설정 완료: `npm run qa` + 회귀 테스트 스위트 + QA 가이드 추가
 - `function bach` 운용성 보강 완료: 상태 칩(`booting/ready/queued/playing/paused/error`) + 고정 `Hz` 슬롯(`standby`/`~xxxHz`) + 좁은 뷰포트 래핑 개선
 - 터치 입력 대응 완료: 레인 승인/반려 버튼 + 터치 롤백 버튼 + UI 회귀 테스트 반영
@@ -56,6 +57,9 @@
 2. 승인 이력 후속 검토: export는 별도 범위로 검토
 3. 운영 가이드 보강: 토큰 모드/로컬 runbook/장애 대응 문서 지속 갱신
    - 현재 기준 runbook 초안 추가: [`docs/OPERATIONS_RUNBOOK.md`](./OPERATIONS_RUNBOOK.md)
+4. `WP-011` 후속 범위 분리: `Work Console Session Core`는 별도 계획으로 수립
+   - 구현 승격 문서: [`docs/WP-011_WORK_CONSOLE_SHELL_PLAN.md`](./WP-011_WORK_CONSOLE_SHELL_PLAN.md)
+   - 다음 설계 문서: [`docs/version-upgrades/vu-001-openclaw-work-orchestration/WORK_CONSOLE_SESSION_CORE_PLAN.md`](./version-upgrades/vu-001-openclaw-work-orchestration/WORK_CONSOLE_SESSION_CORE_PLAN.md)
 
 ## 1-6) `WP-009` 상세설계/전문가 검증 상태 (2026-03-04)
 

@@ -43,6 +43,8 @@ export default function MaestroHeader({
   historyCount,
   isHistoryPanelOpen,
   onToggleHistoryPanel,
+  isWorkConsoleOpen,
+  onToggleWorkConsole,
 }) {
   const [shouldCollapsePanelControls, setShouldCollapsePanelControls] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 1480 : false
@@ -89,6 +91,17 @@ export default function MaestroHeader({
   }, [isPanelMenuOpen]);
 
   const panelControls = useMemo(() => ([
+    {
+      key: 'work',
+      label: 'Work',
+      ariaLabel: 'Work Console 패널 토글',
+      panelId: 'work-console-panel',
+      isExpanded: isWorkConsoleOpen,
+      buttonClass: isWorkConsoleOpen
+        ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-100'
+        : 'border-gray-700 bg-gray-900/70 text-gray-300 hover:border-cyan-400/50 hover:text-cyan-100',
+      onClick: onToggleWorkConsole,
+    },
     {
       key: 'project',
       label: `Repo ${currentRuntimeProjectName || 'runtime'}`,
@@ -142,9 +155,11 @@ export default function MaestroHeader({
     isHistoryPanelOpen,
     isProjectAuthRequired,
     isProjectPanelOpen,
+    isWorkConsoleOpen,
     onToggleAutoApprovePanel,
     onToggleHistoryPanel,
     onToggleProjectPanel,
+    onToggleWorkConsole,
   ]);
 
   const renderPanelControlButton = (control, compact = false) => (
@@ -160,7 +175,7 @@ export default function MaestroHeader({
       aria-label={control.ariaLabel}
       aria-controls={control.panelId}
       aria-expanded={control.isExpanded}
-      data-testid={control.key === 'project' ? 'project-panel-toggle' : control.key === 'auto-approve' ? 'auto-approve-toggle' : undefined}
+      data-testid={control.key === 'work' ? 'work-console-toggle' : control.key === 'project' ? 'project-panel-toggle' : control.key === 'auto-approve' ? 'auto-approve-toggle' : undefined}
       className={`rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${
         compact ? 'w-full text-left' : ''
       } ${control.buttonClass}`}

@@ -16,6 +16,9 @@ import useApprovalHistory from './hooks/useApprovalHistory.js';
 import useAutoApproveOps from './hooks/useAutoApproveOps.js';
 import useBachPlayer from './hooks/useBachPlayer.js';
 import useProjectRegistryOps from './hooks/useProjectRegistryOps.js';
+import useWorkConsoleShell from './hooks/useWorkConsoleShell.js';
+import useWorkSessions from './hooks/useWorkSessions.js';
+import useAgentRegistry from './hooks/useAgentRegistry.js';
 import MaestroHeader from './components/maestro/MaestroHeader.jsx';
 import ProjectTabs from './components/maestro/ProjectTabs.jsx';
 import LaneBoard from './components/maestro/LaneBoard.jsx';
@@ -24,6 +27,7 @@ import PreviewModal from './components/maestro/PreviewModal.jsx';
 import HistoryScorePanel from './components/maestro/HistoryScorePanel.jsx';
 import AutoApproveOpsPanel from './components/maestro/AutoApproveOpsPanel.jsx';
 import ProjectRegistryPanel from './components/maestro/ProjectRegistryPanel.jsx';
+import WorkConsolePanel from './components/maestro/WorkConsolePanel.jsx';
 
 export default function App() {
   const headerRef = useRef(null);
@@ -176,6 +180,46 @@ export default function App() {
   });
 
   const {
+    isWorkConsoleOpen,
+    workConsoleDockSide,
+    selectedWorkSessionId,
+    setSelectedWorkSessionId,
+    toggleWorkConsole,
+    closeWorkConsole,
+    moveWorkConsoleLeft,
+    moveWorkConsoleRight,
+  } = useWorkConsoleShell();
+
+  const {
+    sessions: workSessions,
+    selectedSession: selectedWorkSession,
+    selectedSessionMessages,
+    sessionError: workSessionError,
+    isSessionListLoading,
+    isSessionDetailLoading,
+    isSubmittingMessage,
+    createSession,
+    submitMessage,
+    closeSession,
+    handleSocketEvent: handleWorkSessionsSocketEvent,
+  } = useWorkSessions({
+    wsUrl: WS_URL,
+    selectedSessionId: selectedWorkSessionId,
+    onSelectedSessionChange: setSelectedWorkSessionId,
+  });
+
+  const {
+    agents,
+    agentError,
+    isAgentLoading,
+    isAgentAuthRequired,
+    handleSocketEvent: handleAgentRegistrySocketEvent,
+  } = useAgentRegistry({
+    wsUrl: WS_URL,
+    enabled: isWorkConsoleOpen,
+  });
+
+  const {
     autoApproveStatus,
     autoApproveEvents,
     autoApproveError,
@@ -201,7 +245,9 @@ export default function App() {
     handleProjectSocketEvent(payload);
     handleHistorySocketEvent(payload);
     handleAutoApproveSocketEvent(payload);
-  }, [handleAutoApproveSocketEvent, handleHistorySocketEvent, handleProjectSocketEvent]);
+    handleWorkSessionsSocketEvent(payload);
+    handleAgentRegistrySocketEvent(payload);
+  }, [handleAgentRegistrySocketEvent, handleAutoApproveSocketEvent, handleHistorySocketEvent, handleProjectSocketEvent, handleWorkSessionsSocketEvent]);
 
   const activeLaneCount = currentProject?.laneCount || DEFAULT_LANE_COUNT;
   const activeLanes = useMemo(() => getLaneDefinitions(activeLaneCount), [activeLaneCount]);
@@ -406,6 +452,14 @@ export default function App() {
     setIsProjectPanelOpen(false);
   }, [setIsProjectPanelOpen]);
 
+  const handleWorkConsoleToggle = useCallback(() => {
+    toggleWorkConsole();
+  }, [toggleWorkConsole]);
+
+  const handleWorkConsoleClose = useCallback(() => {
+    closeWorkConsole();
+  }, [closeWorkConsole]);
+
   const autoApproveStatusLabel = isAutoApproveAuthRequired
     ? 'Locked'
     : autoApproveStatus.config.enabled
@@ -462,6 +516,8 @@ export default function App() {
         historyCount={historyBadgeCount}
         isHistoryPanelOpen={isHistoryPanelOpen}
         onToggleHistoryPanel={handleHistoryPanelToggle}
+        isWorkConsoleOpen={isWorkConsoleOpen}
+        onToggleWorkConsole={handleWorkConsoleToggle}
       />
 
       <ProjectTabs
@@ -485,6 +541,29 @@ export default function App() {
       />
 
       <FooterHelp lanes={activeLanes} />
+      <WorkConsolePanel
+        isOpen={isWorkConsoleOpen}
+        dockSide={workConsoleDockSide}
+        sessions={workSessions}
+        selectedSessionId={selectedWorkSessionId}
+        selectedSession={selectedWorkSession}
+        messages={selectedSessionMessages}
+        isSessionListLoading={isSessionListLoading}
+        isSessionDetailLoading={isSessionDetailLoading}
+        isSubmittingMessage={isSubmittingMessage}
+        sessionError={workSessionError}
+        agents={agents}
+        isAgentLoading={isAgentLoading}
+        agentError={agentError}
+        isAgentAuthRequired={isAgentAuthRequired}
+        onSelectSession={setSelectedWorkSessionId}
+        onCreateSession={createSession}
+        onSubmitMessage={submitMessage}
+        onCloseSession={closeSession}
+        onClose={handleWorkConsoleClose}
+        onMoveLeft={moveWorkConsoleLeft}
+        onMoveRight={moveWorkConsoleRight}
+      />
       <ProjectRegistryPanel
         isOpen={isProjectPanelOpen}
         panelTopOffset={panelTopOffset}
