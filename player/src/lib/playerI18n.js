@@ -59,6 +59,7 @@ const PLAYER_COPY = {
       empty: 'No golden listening scenarios are available.',
       actions: {
         autoplay: 'Autoplay Demo',
+        autoplayCompact: (label) => `Autoplay ${label}`,
         autoplayAria: (label) => `Autoplay demo for ${label}`,
       },
       labels: {
@@ -75,6 +76,15 @@ const PLAYER_COPY = {
       },
       signature: (motifId, key) => `${motifId} motif · ${key}`,
       tempo: (tempo) => `${tempo} BPM`,
+    },
+    extensionLauncher: {
+      kicker: 'Chrome extension',
+      title: 'Play a public repository',
+      description: 'Paste a public GitHub or GitLab repository, then load its replay directly into the player.',
+      publicOnly: 'Public URL only',
+      loadReplay: 'Load repo replay',
+      loading: 'Loading replay…',
+      demoHint: 'Or skip the network and start a fixed golden demo in autoplay below.',
     },
     sourceInput: {
       kicker: 'Replay Source',
@@ -398,6 +408,7 @@ const PLAYER_COPY = {
       empty: '사용 가능한 골든 리스닝 시나리오가 없습니다.',
       actions: {
         autoplay: '자동 데모 실행',
+        autoplayCompact: (label) => `${label} 자동 재생`,
         autoplayAria: (label) => `${label} 자동 데모 실행`,
       },
       labels: {
@@ -414,6 +425,15 @@ const PLAYER_COPY = {
       },
       signature: (motifId, key) => `${motifId} 모티프 · ${key}`,
       tempo: (tempo) => `${tempo} BPM`,
+    },
+    extensionLauncher: {
+      kicker: '크롬 익스텐션',
+      title: '공개 저장소 바로 재생',
+      description: '공개 GitHub 또는 GitLab 저장소를 넣으면 바로 리플레이를 불러옵니다.',
+      publicOnly: '공개 URL 전용',
+      loadReplay: '저장소 리플레이 불러오기',
+      loading: '리플레이 불러오는 중…',
+      demoHint: '네트워크 없이 아래의 고정 골든 데모를 자동 재생으로 바로 시작할 수도 있습니다.',
     },
     sourceInput: {
       kicker: '리플레이 소스',

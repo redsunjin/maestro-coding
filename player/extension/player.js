@@ -47,6 +47,7 @@ async function resolveLaunchSession(locationObject, storageArea) {
 function buildExtensionAppBootstrap(launch, locationObject) {
   if (!launch?.canonicalUrl) {
     return {
+      surface: 'extension',
       initialSourceMode: 'public',
       autoLoadPublicReplay: false,
     };
@@ -56,6 +57,7 @@ function buildExtensionAppBootstrap(launch, locationObject) {
   const shouldAutoLoad = !hasRequestedLaunchId || launch.launchMatched !== false;
 
   return {
+    surface: 'extension',
     initialSourceMode: 'public',
     initialDrafts: {
       public: {

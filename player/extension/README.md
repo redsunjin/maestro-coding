@@ -9,6 +9,7 @@
 - 마지막 launch session을 `chrome.storage.local`에 저장
 - extension player page에서 기존 React player shell 마운트
 - 저장된 public repo seed 자동 주입 및 자동 로드
+- extension 화면에서는 public URL launcher와 golden autoplay demo만 노출
 
 로드 방법:
 
@@ -33,6 +34,6 @@
 
 다음 단계:
 
-1. extension 안에서 `Public Repo URL` 중심 UI를 더 단순하게 줄인다.
-2. golden listening demo와 autoplay preview 진입을 extension flow에 더 직접 연결한다.
+1. 현재 탭 또는 붙여넣은 `Public Repo URL`에서 리플레이를 로드한다.
+2. 네트워크 없이 확인하려면 golden listening demo의 autoplay 버튼을 누른다.
 3. public flow가 안정화되면 token 기반 connected account mode를 extension에 노출한다.

@@ -3,8 +3,15 @@
 ## 현재 상태
 
 - `player/extension/` 아래에 MV3 scaffold를 둔다.
-- 첫 scaffold는 `popup + background + player page + public repo URL handoff`까지만 포함한다.
-- 실제 리듬 플레이어 React 셸 마운트는 다음 단계로 남긴다.
+- `popup + background + player page + public repo URL handoff`를 포함한다.
+- `player.html`에는 기존 React player 셸을 마운트하고, 저장된 public launch session은 자동 로드한다.
+- extension 전용 화면은 Public Repo URL과 golden autoplay demo로 한정한다. Local Repo와 Connected Account는 browser shell에만 남긴다.
+
+## 현재 extension flow
+
+1. popup이 현재 public GitHub/GitLab 저장소를 감지하거나, 사용자가 공개 URL을 붙여넣는다.
+2. player tab이 저장된 public URL과 branch를 읽고 바로 replay를 로드한다.
+3. forge 요청 없이 동작하는 golden demo도 compact autoplay action으로 즉시 실행할 수 있다.
 
 ## 결론
 

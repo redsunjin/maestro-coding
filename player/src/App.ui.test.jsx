@@ -149,6 +149,31 @@ describeIfApp('Player Shell UI', () => {
     expect(screen.getByLabelText('Account Token')).toBeVisible();
   });
 
+  test('extension surface keeps the public repo and golden autoplay entries direct', async () => {
+    const { user } = renderPlayerApp(App, {
+      appProps: {
+        bootstrap: {
+          surface: 'extension',
+          initialSourceMode: 'public',
+        },
+      },
+    });
+
+    expect(screen.getByRole('heading', { name: 'Play a public repository' })).toBeVisible();
+    expect(screen.getByLabelText('Public Repository URL')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Load repo replay' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Local Repo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Connected Account' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Choose the right input path' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Autoplay demo for GitHub Public PR Cadence' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Run active')).toBeVisible();
+      expect(screen.getByRole('tab', { name: 'Auto Preview' })).toHaveAttribute('aria-selected', 'true');
+    });
+  });
+
   test('loading connected account repos populates the select and then shows replay summary', async () => {
     const { fixtures, requestLog, user } = renderPlayerApp(App);
 

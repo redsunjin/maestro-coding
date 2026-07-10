@@ -1,5 +1,6 @@
 import React, { startTransition, useEffect, useState } from 'react';
 import GoldenListeningPanel from './components/GoldenListeningPanel.jsx';
+import ExtensionPublicLauncher from './components/ExtensionPublicLauncher.jsx';
 import PlayerRunPanel from './components/PlayerRunPanel.jsx';
 import ReplayEventTimeline from './components/ReplayEventTimeline.jsx';
 import ScoreHistoryPanel from './components/ScoreHistoryPanel.jsx';
@@ -42,6 +43,7 @@ const INITIAL_DRAFTS = {
 
 export default function App({ bootstrap = null }) {
   const resolvedBootstrap = resolveAppBootstrap(bootstrap, globalThis.navigator?.language);
+  const isExtensionSurface = resolvedBootstrap.surface === 'extension';
   const [language, setLanguage] = useState(() => resolvedBootstrap.initialLanguage);
   const [sourceMode, setSourceMode] = useState(() => resolvedBootstrap.initialSourceMode);
   const [drafts, setDrafts] = useState(() => resolvedBootstrap.initialDrafts);
@@ -364,7 +366,7 @@ export default function App({ bootstrap = null }) {
   };
 
   return (
-    <div className="player-shell">
+    <div className={`player-shell${isExtensionSurface ? ' player-shell--extension' : ''}`}>
       <div className="player-shell__inner">
         <header className="player-hero">
           <div className="player-hero__content">
@@ -401,55 +403,70 @@ export default function App({ bootstrap = null }) {
 
         <main className="player-grid">
           <div className="player-column">
-            <SourceModeTabs
-              mode={sourceMode}
-              modes={modeDefinitions}
-              onModeChange={setSourceMode}
-              ariaLabel={language === 'ko' ? '리플레이 소스 모드' : 'Replay source mode'}
-            />
-            <SourceModeGuide
-              mode={sourceMode}
-              sourceState={sourceGuideState}
-              language={language}
-            />
-            <SourceInputPanel
-              mode={sourceMode}
-              language={language}
-              repoPath={drafts.local.repoPath}
-              publicUrl={drafts.public.url}
-              branchName={drafts[sourceMode].branch}
-              accountProvider={drafts.account.provider}
-              accountToken={drafts.account.token}
-              selectedRepo={drafts.account.repoSlug}
-              repositories={accountRepositories}
-              onRepoPathChange={(value) => handleDraftChange('local', 'repoPath', value)}
-              onPublicUrlChange={(value) => handleDraftChange('public', 'url', value)}
-              onBranchNameChange={(value) => handleDraftChange(sourceMode, 'branch', value)}
-              onAccountProviderChange={(value) => {
-                setAccountRepositories([]);
-                setDrafts((currentDrafts) => ({
-                  ...currentDrafts,
-                  account: {
-                    ...currentDrafts.account,
-                    provider: value,
-                    repoSlug: '',
-                    branch: 'main',
-                  },
-                }));
-              }}
-              onAccountTokenChange={(value) => handleDraftChange('account', 'token', value)}
-              onSelectedRepoChange={(value) => handleDraftChange('account', 'repoSlug', value)}
-              onRefreshRepositories={handleRefreshRepositories}
-              onSubmit={handleLoadReplay}
-              submitLabel={copy.sourceInput.buttons.submit}
-              isSubmitting={isLoading}
-              isRefreshingRepositories={isRepoListLoading}
-            />
+            {isExtensionSurface ? (
+              <ExtensionPublicLauncher
+                language={language}
+                publicUrl={drafts.public.url}
+                branchName={drafts.public.branch}
+                onPublicUrlChange={(value) => handleDraftChange('public', 'url', value)}
+                onBranchNameChange={(value) => handleDraftChange('public', 'branch', value)}
+                onSubmit={handleLoadReplay}
+                isSubmitting={isLoading}
+              />
+            ) : (
+              <>
+                <SourceModeTabs
+                  mode={sourceMode}
+                  modes={modeDefinitions}
+                  onModeChange={setSourceMode}
+                  ariaLabel={language === 'ko' ? '리플레이 소스 모드' : 'Replay source mode'}
+                />
+                <SourceModeGuide
+                  mode={sourceMode}
+                  sourceState={sourceGuideState}
+                  language={language}
+                />
+                <SourceInputPanel
+                  mode={sourceMode}
+                  language={language}
+                  repoPath={drafts.local.repoPath}
+                  publicUrl={drafts.public.url}
+                  branchName={drafts[sourceMode].branch}
+                  accountProvider={drafts.account.provider}
+                  accountToken={drafts.account.token}
+                  selectedRepo={drafts.account.repoSlug}
+                  repositories={accountRepositories}
+                  onRepoPathChange={(value) => handleDraftChange('local', 'repoPath', value)}
+                  onPublicUrlChange={(value) => handleDraftChange('public', 'url', value)}
+                  onBranchNameChange={(value) => handleDraftChange(sourceMode, 'branch', value)}
+                  onAccountProviderChange={(value) => {
+                    setAccountRepositories([]);
+                    setDrafts((currentDrafts) => ({
+                      ...currentDrafts,
+                      account: {
+                        ...currentDrafts.account,
+                        provider: value,
+                        repoSlug: '',
+                        branch: 'main',
+                      },
+                    }));
+                  }}
+                  onAccountTokenChange={(value) => handleDraftChange('account', 'token', value)}
+                  onSelectedRepoChange={(value) => handleDraftChange('account', 'repoSlug', value)}
+                  onRefreshRepositories={handleRefreshRepositories}
+                  onSubmit={handleLoadReplay}
+                  submitLabel={copy.sourceInput.buttons.submit}
+                  isSubmitting={isLoading}
+                  isRefreshingRepositories={isRepoListLoading}
+                />
+              </>
+            )}
             <GoldenListeningPanel
               entries={goldenListeningEntries}
               activeScenarioId={activeGoldenScenarioId}
               onAutoplay={handleAutoplayGoldenScenario}
               language={language}
+              compact={isExtensionSurface}
             />
           </div>
           <div className="player-column">
@@ -507,6 +524,7 @@ function resolveAppBootstrap(bootstrap, navigatorLanguage) {
   const initialDrafts = mergeInitialDrafts(bootstrap?.initialDrafts);
 
   return {
+    surface: bootstrap?.surface === 'extension' ? 'extension' : 'web',
     initialLanguage,
     initialSourceMode,
     initialDrafts,

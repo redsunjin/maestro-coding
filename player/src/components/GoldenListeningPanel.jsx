@@ -6,11 +6,12 @@ export default function GoldenListeningPanel({
   activeScenarioId = '',
   onAutoplay = null,
   language = 'en',
+  compact = false,
 }) {
   const copy = getPlayerCopy(language);
 
   return (
-    <section className="player-card golden-listening-panel" aria-labelledby="golden-listening-panel-title">
+    <section className={`player-card golden-listening-panel${compact ? ' golden-listening-panel--compact' : ''}`} aria-labelledby="golden-listening-panel-title">
       <div className="player-card__header">
         <div>
           <p className="player-kicker">{copy.goldenListening.kicker}</p>
@@ -23,6 +24,35 @@ export default function GoldenListeningPanel({
         <div className="golden-listening-panel__list">
           {entries.map((entry) => {
             const isActive = activeScenarioId === entry.id;
+
+            if (compact) {
+              return (
+                <article
+                  key={entry.id}
+                  className={`golden-listening-panel__quick-card${isActive ? ' is-active' : ''}`}
+                  aria-label={entry.label}
+                >
+                  <div>
+                    <div className="golden-listening-panel__quick-meta">
+                      <span className="player-pill">{copy.goldenListening.providers[entry.provider] || entry.provider}</span>
+                      <span>{copy.goldenListening.tempo(entry.tempo)}</span>
+                    </div>
+                    <h3 className="golden-listening-panel__title">{entry.label}</h3>
+                    <p className="golden-listening-panel__signature">
+                      {copy.goldenListening.signature(entry.motifId, entry.key)}
+                    </p>
+                  </div>
+                  <button
+                    className="player-button"
+                    type="button"
+                    aria-label={copy.goldenListening.actions.autoplayAria(entry.label)}
+                    onClick={() => onAutoplay?.(entry)}
+                  >
+                    {copy.goldenListening.actions.autoplayCompact(entry.label)}
+                  </button>
+                </article>
+              );
+            }
 
             return (
               <article
