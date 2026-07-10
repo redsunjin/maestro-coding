@@ -4,71 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Maestro Player Extension</title>
-    <link rel="stylesheet" href="styles.css" />
   </head>
-  <body class="player-body">
-    <main class="shell shell-player">
-      <header class="hero">
-        <p class="eyebrow" id="player-eyebrow"></p>
-        <h1 class="hero-title" id="player-title"></h1>
-        <p class="hero-copy" id="player-subtitle"></p>
-      </header>
-
-      <section class="card stack">
-        <div class="section-heading">
-          <div>
-            <h2 class="section-title" id="selected-repo-title"></h2>
-            <p class="section-copy" id="selected-repo-copy"></p>
-          </div>
-          <span class="pill" id="repo-provider-pill">pending</span>
-        </div>
-
-        <dl class="repo-grid">
-          <div class="repo-item">
-            <dt id="repo-label"></dt>
-            <dd id="repo-slug">-</dd>
-          </div>
-          <div class="repo-item">
-            <dt id="branch-label"></dt>
-            <dd id="repo-branch">-</dd>
-          </div>
-          <div class="repo-item">
-            <dt id="source-label"></dt>
-            <dd id="repo-source">-</dd>
-          </div>
-          <div class="repo-item repo-item-wide">
-            <dt id="url-title"></dt>
-            <dd id="repo-url-display">-</dd>
-          </div>
-        </dl>
-
-        <div class="button-row">
-          <button class="button button-primary" id="open-repo-button" type="button"></button>
-          <button class="button button-secondary" id="refresh-button" type="button"></button>
-          <button class="button button-secondary" id="clear-button" type="button"></button>
-        </div>
-
-        <p class="status" id="player-status" role="status"></p>
-      </section>
-
-      <div class="panel-grid">
-        <section class="card stack">
-          <h2 class="section-title" id="scaffold-title"></h2>
-          <ul class="feature-list" id="scaffold-list"></ul>
-        </section>
-
-        <section class="card stack">
-          <h2 class="section-title" id="next-title"></h2>
-          <ul class="feature-list" id="next-list"></ul>
-        </section>
-      </div>
-
-      <section class="card stack">
-        <h2 class="section-title" id="session-title"></h2>
-        <pre class="session-dump" id="session-json">{}</pre>
-      </section>
-    </main>
-
+  <body>
+    <div id="root">Maestro Player extension is loading…</div>
     <script type="module" src="player.js"></script>
   </body>
 </html>

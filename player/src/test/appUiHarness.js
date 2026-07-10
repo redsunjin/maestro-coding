@@ -442,11 +442,12 @@ export function teardownPlayerAppUiEnvironment() {
 
 export function renderPlayerApp(AppComponent, options = {}) {
   const harness = setupPlayerAppUiEnvironment(options);
+  const appProps = options.appProps || {};
 
   return {
     ...harness,
     user: userEvent.setup(),
-    ...render(createElement(AppComponent)),
+    ...render(createElement(AppComponent, appProps)),
   };
 }
 

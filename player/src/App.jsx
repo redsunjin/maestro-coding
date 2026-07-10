@@ -1,4 +1,4 @@
-import React, { startTransition, useEffect, useMemo, useState } from 'react';
+import React, { startTransition, useEffect, useState } from 'react';
 import GoldenListeningPanel from './components/GoldenListeningPanel.jsx';
 import PlayerRunPanel from './components/PlayerRunPanel.jsx';
 import ReplayEventTimeline from './components/ReplayEventTimeline.jsx';
@@ -40,10 +40,11 @@ const INITIAL_DRAFTS = {
   },
 };
 
-export default function App() {
-  const [language, setLanguage] = useState(() => resolveInitialPlayerLanguage(globalThis.navigator?.language));
-  const [sourceMode, setSourceMode] = useState('public');
-  const [drafts, setDrafts] = useState(INITIAL_DRAFTS);
+export default function App({ bootstrap = null }) {
+  const resolvedBootstrap = resolveAppBootstrap(bootstrap, globalThis.navigator?.language);
+  const [language, setLanguage] = useState(() => resolvedBootstrap.initialLanguage);
+  const [sourceMode, setSourceMode] = useState(() => resolvedBootstrap.initialSourceMode);
+  const [drafts, setDrafts] = useState(() => resolvedBootstrap.initialDrafts);
   const [activeSource, setActiveSource] = useState(null);
   const [loadedEvents, setLoadedEvents] = useState([]);
   const [musicPlan, setMusicPlan] = useState([]);
@@ -55,17 +56,15 @@ export default function App() {
   const [performanceHistory, setPerformanceHistory] = useState(() => loadPerformanceHistory(globalThis));
   const [pendingRunRequest, setPendingRunRequest] = useState(null);
   const [runRequest, setRunRequest] = useState(null);
+  const [bootstrapAutoLoadPending, setBootstrapAutoLoadPending] = useState(() => resolvedBootstrap.autoLoadPublicReplay);
   const localBridgeAvailable = hasLocalRepoBridge(globalThis);
-  const copy = useMemo(() => getPlayerCopy(language), [language]);
-  const modeDefinitions = useMemo(() => copy.modeDefinitions, [copy]);
-  const goldenListeningEntries = useMemo(() => buildGoldenListeningPackEntries(), []);
+  const copy = getPlayerCopy(language);
+  const modeDefinitions = copy.modeDefinitions;
+  const goldenListeningEntries = buildGoldenListeningPackEntries();
 
-  const latestEvents = useMemo(
-    () => loadedEvents.slice(-6).reverse(),
-    [loadedEvents],
-  );
+  const latestEvents = loadedEvents.slice(-6).reverse();
 
-  const replaySummary = useMemo(() => {
+  const replaySummary = (() => {
     const mergeCount = loadedEvents.filter((event) => event.eventType === 'merge').length;
     const reviewCount = loadedEvents.filter((event) => event.eventType.startsWith('review')).length;
 
@@ -76,9 +75,9 @@ export default function App() {
       reviewCount,
       loadedAt: activeSource ? new Date().toISOString() : null,
     };
-  }, [activeSource, loadedEvents]);
+  })();
 
-  const chartSummary = useMemo(() => {
+  const chartSummary = (() => {
     if (!activeSource) {
       return null;
     }
@@ -94,32 +93,23 @@ export default function App() {
       tempoLabel: musicPlan[0]?.tempo ? `${musicPlan[0].tempo} BPM` : copy.common.pending,
       maxDensity: hasNotes ? copy.app.density(Math.max(...summarizeBeatDensity(chart.notes))) : copy.common.pending,
     };
-  }, [activeSource, chart, copy, musicPlan]);
+  })();
 
-  const sourceGuideState = useMemo(() => buildSourceGuideState({
+  const sourceGuideState = buildSourceGuideState({
     activeSource,
     replaySummary,
     drafts,
     accountRepositories,
     localBridgeAvailable,
     language,
-  }), [accountRepositories, activeSource, drafts, language, localBridgeAvailable, replaySummary]);
+  });
 
-  const activeSourceKey = useMemo(
-    () => buildPerformanceSourceKey(activeSource),
-    [activeSource],
-  );
+  const activeSourceKey = buildPerformanceSourceKey(activeSource);
 
-  const activeChartId = useMemo(
-    () => buildPerformanceChartId(activeSourceKey, chart, loadedEvents, musicPlan),
-    [activeSourceKey, chart, loadedEvents, musicPlan],
-  );
-  const activeGoldenScenarioId = useMemo(
-    () => (activeSource?.sourceType === 'golden-listening-demo' ? activeSource.targetPathOrId || '' : ''),
-    [activeSource],
-  );
+  const activeChartId = buildPerformanceChartId(activeSourceKey, chart, loadedEvents, musicPlan);
+  const activeGoldenScenarioId = activeSource?.sourceType === 'golden-listening-demo' ? activeSource.targetPathOrId || '' : '';
 
-  const visiblePerformanceHistory = useMemo(() => {
+  const visiblePerformanceHistory = (() => {
     if (!performanceHistory.length) {
       return [];
     }
@@ -131,7 +121,7 @@ export default function App() {
     return performanceHistory
       .filter((record) => record.sourceKey === activeSourceKey)
       .slice(0, 6);
-  }, [activeSourceKey, performanceHistory]);
+  })();
 
   useEffect(() => {
     if (!pendingRunRequest || !activeSource || !chart?.notes?.length) {
@@ -153,6 +143,19 @@ export default function App() {
     });
     setPendingRunRequest(null);
   }, [activeSource, chart?.notes?.length, pendingRunRequest]);
+
+  useEffect(() => {
+    if (!bootstrapAutoLoadPending) {
+      return;
+    }
+
+    if (sourceMode !== 'public' || !drafts.public.url?.trim()) {
+      return;
+    }
+
+    setBootstrapAutoLoadPending(false);
+    void handleLoadReplay();
+  }, [bootstrapAutoLoadPending, drafts.public.branch, drafts.public.url, sourceMode]);
 
   const handleDraftChange = (mode, field, value) => {
     setDrafts((currentDrafts) => ({
@@ -495,6 +498,40 @@ function buildSourceGuideState({
     local: buildLocalGuideState(drafts.local, activeSource, replaySummary, localBridgeAvailable, language),
     public: buildPublicGuideState(drafts.public, activeSource, replaySummary, language),
     account: buildAccountGuideState(drafts.account, accountRepositories, activeSource, replaySummary, language),
+  };
+}
+
+function resolveAppBootstrap(bootstrap, navigatorLanguage) {
+  const initialLanguage = bootstrap?.initialLanguage || resolveInitialPlayerLanguage(navigatorLanguage);
+  const initialSourceMode = normalizeInitialSourceMode(bootstrap?.initialSourceMode);
+  const initialDrafts = mergeInitialDrafts(bootstrap?.initialDrafts);
+
+  return {
+    initialLanguage,
+    initialSourceMode,
+    initialDrafts,
+    autoLoadPublicReplay: Boolean(bootstrap?.autoLoadPublicReplay && initialDrafts.public.url?.trim()),
+  };
+}
+
+function normalizeInitialSourceMode(sourceMode) {
+  return ['local', 'public', 'account'].includes(sourceMode) ? sourceMode : 'public';
+}
+
+function mergeInitialDrafts(initialDrafts) {
+  return {
+    local: {
+      ...INITIAL_DRAFTS.local,
+      ...(initialDrafts?.local || {}),
+    },
+    public: {
+      ...INITIAL_DRAFTS.public,
+      ...(initialDrafts?.public || {}),
+    },
+    account: {
+      ...INITIAL_DRAFTS.account,
+      ...(initialDrafts?.account || {}),
+    },
   };
 }
 

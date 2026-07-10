@@ -81,3 +81,10 @@ Original prompt: 좋아 계속 작업을 진행해보자
 - Scoped the first handoff to `Public Repo URL Mode`: popup reads the active tab, canonicalizes supported GitHub/GitLab repository URLs, persists the selected repo seed, and opens the extension player page.
 - Tightened GitLab public URL parsing in `publicRepoAdapter` so `/-/merge_requests/...` and similar forge paths normalize back to the repository root instead of breaking repo detection.
 - Next recommended step: mount the existing React run shell into `player/extension/player.html`, then wire the stored repo seed into the current public replay loader for autoplay preview.
+
+2026-07-10
+- Continued the extension pass by replacing the placeholder `player/extension/player.html` surface with the real React player shell mount.
+- Added `App` bootstrap support so extension launch state can seed the initial source mode, public repo URL, branch, and one-shot auto-load behavior without changing the default browser-shell flow.
+- Rewired `player/extension/player.js` to read `chrome.storage.local`, validate the `launch` query against the stored session, and render the existing player app with public replay preload semantics.
+- Added a dedicated `vite.extension.config.js` plus `npm run build:extension` so the extension can be loaded from `player/dist-extension/` instead of the raw source tree.
+- Added UI coverage for bootstrap-driven public replay preload and kept the next focus on simplifying the extension-specific surface around public mode.

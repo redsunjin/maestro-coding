@@ -115,6 +115,40 @@ describeIfApp('Player Shell UI', () => {
     });
   });
 
+  test('bootstrap public repo launch preloads the draft and auto-loads the replay', async () => {
+    const publicRepoUrl = 'https://gitlab.com/openai/maestro-player';
+    const publicBranch = 'feature/cadence';
+    const { fixtures, user } = renderPlayerApp(App, {
+      publicProvider: 'gitlab',
+      gitlabPublicRepoSlug: 'openai/maestro-player',
+      publicRepoUrl,
+      gitlabPublicBranch: publicBranch,
+      appProps: {
+        bootstrap: {
+          initialSourceMode: 'public',
+          initialDrafts: {
+            public: {
+              url: publicRepoUrl,
+              branch: publicBranch,
+            },
+          },
+          autoLoadPublicReplay: true,
+        },
+      },
+    });
+
+    await waitFor(() => {
+      expect(findSourceSummaryText([publicRepoUrl, 'openai/maestro-player'])).toBeVisible();
+      expect(findEventCountSummary(fixtures.gitlabPublicEventCount)).toBeVisible();
+    });
+
+    expect(screen.getByLabelText('Public Repository URL')).toHaveValue(publicRepoUrl);
+    expect(screen.getByLabelText('Branch')).toHaveValue(publicBranch);
+
+    await user.click(getSourceModeControl('Connected Account'));
+    expect(screen.getByLabelText('Account Token')).toBeVisible();
+  });
+
   test('loading connected account repos populates the select and then shows replay summary', async () => {
     const { fixtures, requestLog, user } = renderPlayerApp(App);
 
@@ -281,6 +315,7 @@ describeIfApp('Player Shell UI', () => {
     await user.click(screen.getByRole('button', { name: 'Load Replay' }));
 
     await waitFor(() => {
+      expect(screen.getByText('Filtered')).toBeVisible();
       expect(screen.getByRole('heading', { name: 'Recent score history' })).toBeVisible();
       expect(screen.getByText('9,870 pts')).toBeVisible();
       expect(screen.getByText('18 max combo')).toBeVisible();
