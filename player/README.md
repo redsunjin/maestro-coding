@@ -10,10 +10,9 @@
 
 현재 상태:
 
-- browser shell 구현 진행 중
-- public/account replay adapter, golden demo, run screen polish, bilingual copy가 이미 들어가 있다.
-- Chrome extension MVP scaffold는 `player/extension/` 아래에서 관리한다.
-- 구현 기준 문서는 계속 `docs/maestro-player/`를 본다.
+- browser shell core와 public/account replay adapter, golden demo, run screen, bilingual copy가 구현되어 있다.
+- Chrome extension은 `player/extension/`에서 public URL launch와 golden autoplay를 검증하는 단계다.
+- 현재 실행 Goal과 완료 evidence는 `docs/maestro-player/goal-roadmap.md`를 기준으로 한다.
 
 작업 경계:
 
@@ -25,6 +24,7 @@
 문서:
 
 - [Project Overview](../docs/maestro-player/README.md)
+- [Goal Roadmap](../docs/maestro-player/goal-roadmap.md)
 - [MVP Spec](../docs/maestro-player/mvp-spec.md)
 - [Music Mapping Spec](../docs/maestro-player/music-mapping-spec.md)
 - [Chrome Extension Strategy](../docs/maestro-player/chrome-extension-strategy.md)

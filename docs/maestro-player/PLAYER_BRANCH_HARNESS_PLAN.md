@@ -85,9 +85,15 @@ assumptions:
 - public repo URL은 GitHub와 GitLab 둘 다 지원해야 한다.
 - connected account mode는 GitHub/GitLab private/public repo 선택 UX를 포함한다.
 
+현재 extension delivery override:
+
+- `goal-roadmap.md`의 G1–G3에서는 Public Repo URL과 golden autoplay만 release scope로 취급한다.
+- Local Repo와 Connected Account는 browser shell 자산으로 유지하되, extension completion 조건에는 섞지 않는다.
+
 ### 3-3. Record System
 
 - source_of_truth_docs:
+  - `docs/maestro-player/goal-roadmap.md`
   - `docs/maestro-player/README.md`
   - `docs/maestro-player/mvp-spec.md`
   - `docs/maestro-player/music-mapping-spec.md`
@@ -96,6 +102,7 @@ assumptions:
   - `docs/maestro-player/test-plan.md`
   - `docs/maestro-player/PLAYER_BRANCH_HARNESS_PLAN.md`
 - execution_doc:
+  - 현재 Goal과 completion evidence는 `docs/maestro-player/goal-roadmap.md`에 남긴다.
   - 플레이어 구현 변경은 이 브랜치 커밋과 PR 설명에 남긴다.
 - handoff_doc_updates:
   - 알고리즘 규칙 변경 시 `music-mapping-spec.md`를 먼저 갱신한다.

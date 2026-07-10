@@ -1,5 +1,14 @@
 # Maestro Player MVP Spec
 
+## 0. 현재 delivery boundary
+
+이 문서는 제품의 도메인 계약을 정의한다. 현재 구현 순서와 완료 증거는 [Goal Roadmap](./goal-roadmap.md)을 기준으로 한다.
+
+- 브라우저 셸의 public/local/account source 모델과 music/play core는 제품 자산으로 유지한다.
+- 현재 extension delivery는 **Public Repo URL + golden autoplay**만 검증한다.
+- Local Repo bridge, Connected Account/token/OAuth, side panel, Web Store 공개는 현재 extension Goal의 비범위다.
+- 실제 Chrome runtime proof 없이 extension MVP가 완료되었다고 판단하지 않는다.
+
 ## 1. 제품 정의
 
 `Maestro Player`는 완료된 Git 활동과 Maestro 이력을
@@ -49,6 +58,8 @@
 - 이 모드는 플레이어의 공유/데모/바이럴 진입점으로 중요하다.
 
 ## 5. MVP 입력 소스
+
+아래는 브라우저 셸의 도메인 입력 계약이다. Chrome extension은 현재 Public Repo URL만 노출하며, 나머지 source mode를 extension release 조건에 포함하지 않는다.
 
 ### A. Git Replay Source
 
@@ -178,15 +189,8 @@
 - 기존 `MaestroWorks` 업무 경로를 전혀 건드리지 않는다.
 - 앱 전체가 read-only 모드로 동작한다.
 
-## 10. 다음 코딩 단계
+## 10. 현재 다음 구현 단계
 
-첫 코딩 단계는 `player/` 서브프로젝트 셸을 만들고,
-`git log` 기반 `ReplayEvent` adapter와 `MusicIntent` mapping layer를 붙이는 것이다.
+코어 셸, deterministic mapping, public GitHub/GitLab adapter, golden autoplay, extension bundle은 이미 구현되어 있다.
 
-핵심 작곡 규칙은 [Music Mapping Spec](./music-mapping-spec.md)를 기준으로 한다.
-
-그 다음 입력 단계 우선순위는 아래 순서가 적절하다.
-
-1. Local Repo Mode
-2. Public Repo URL Mode
-3. Connected Account Mode
+다음 구현 단계는 [Goal Roadmap](./goal-roadmap.md)의 `G1 — Unpacked Chrome runtime proof`다. 목표는 기능 확장이 아니라 실제 Chrome에서 public launch handoff와 autoplay가 작동한다는 증거를 남기는 것이다.

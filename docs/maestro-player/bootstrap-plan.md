@@ -1,5 +1,7 @@
 # Maestro Player Bootstrap Plan
 
+> Historical setup record. 현재 구현 순서와 완료 조건은 [Goal Roadmap](./goal-roadmap.md)을 따른다.
+
 ## 1. 구조 결정
 
 초기 구조는 `같은 레포 + 하위 서브프로젝트`로 고정한다.

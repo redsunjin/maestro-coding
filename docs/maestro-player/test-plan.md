@@ -131,3 +131,31 @@
 - UI smoke green
 - read-only guard 확인
 - 샘플 replay 1개 이상 데모 가능
+
+## 6. Goal별 검증 경계
+
+현재 Goal과 evidence 형식은 [Goal Roadmap](./goal-roadmap.md)을 따른다.
+
+### G1 — Unpacked Chrome runtime proof
+
+자동 검증:
+
+```bash
+cd player
+npm run qa
+npm run build:extension
+```
+
+수동 Chrome 검증:
+
+1. `dist-extension/`을 unpacked extension으로 load한다.
+2. GitHub public repository 탭에서 popup의 `Play This Repo`를 실행하고 player tab의 auto-load를 확인한다.
+3. GitLab public URL을 직접 입력하고 replay load 또는 recoverable error를 확인한다.
+4. golden demo가 forge 요청 없이 autoplay로 시작하는지 확인한다.
+5. player tab, popup, service worker의 console/CSP/permission 오류를 기록한다.
+
+주의:
+
+- UI harness와 build 성공은 Chrome runtime 검증을 대체하지 않는다.
+- 실제 Chrome 확인만으로 unit/UI/harness 회귀 검증을 생략하지 않는다.
+- G1은 public URL flow만 다루며 account token, OAuth, local bridge를 추가하지 않는다.

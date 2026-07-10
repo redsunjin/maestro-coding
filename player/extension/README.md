@@ -1,5 +1,7 @@
 # Maestro Player Extension Scaffold
 
+현재 실행 Goal과 완료 evidence는 [Goal Roadmap](../../docs/maestro-player/goal-roadmap.md)의 `G1 — Unpacked Chrome runtime proof`를 따른다.
+
 현재 스캐폴드 범위:
 
 - Manifest V3
@@ -34,6 +36,6 @@
 
 다음 단계:
 
-1. 현재 탭 또는 붙여넣은 `Public Repo URL`에서 리플레이를 로드한다.
-2. 네트워크 없이 확인하려면 golden listening demo의 autoplay 버튼을 누른다.
-3. public flow가 안정화되면 token 기반 connected account mode를 extension에 노출한다.
+1. `dist-extension/`을 실제 Chrome에 unpacked로 load한다.
+2. 현재 GitHub 탭, GitLab URL, golden autoplay 세 흐름의 runtime evidence를 남긴다.
+3. public flow가 안정화된 뒤에만 token 기반 connected account mode를 별도 Goal로 검토한다.

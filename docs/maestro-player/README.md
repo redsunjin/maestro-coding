@@ -1,6 +1,8 @@
 # Maestro Player
 
-상태: planning
+상태: extension validation active (`G1 — Unpacked Chrome runtime proof`)
+
+현재 실행 기준은 [Goal Roadmap](./goal-roadmap.md)이다. 이 문서는 제품 범위와 문서의 역할을 설명하고, Goal Roadmap은 다음 구현 단위와 완료 증거를 고정한다.
 
 `Maestro Player`는 `MaestroWorks` 본체와 분리된 별도 제품이 아니라,
 같은 `maestro` 레포 안에서 시작하는 read-only 스핀오프 서브프로젝트다.
@@ -43,6 +45,7 @@
 
 문서 세트:
 
+- [Goal Roadmap](./goal-roadmap.md) — 현재 Goal, 완료 조건, evidence ledger
 - [MVP Spec](./mvp-spec.md)
 - [Music Mapping Spec](./music-mapping-spec.md)
 - [Chrome Extension Strategy](./chrome-extension-strategy.md)
@@ -64,7 +67,8 @@
 제품 입력 방향:
 
 - `MaestroWorks`에 이미 있는 프로젝트 선택/등록 경험은 플레이어 입력 UX의 참고 모델로 재사용한다.
-- 플레이어는 최소 3가지 입력 경로를 가져야 한다.
+- 브라우저 셸은 아래 3가지 입력 경로를 지원하는 도메인 모델을 유지한다.
   1. 로컬 Git 레포 선택
   2. 연결된 Git 계정의 레포 목록에서 선택
   3. 공개 퍼블릭 레포 URL 직접 등록
+- Chrome extension의 현재 검증 범위는 3번 Public Repo URL과 golden autoplay로만 제한한다.

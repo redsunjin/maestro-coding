@@ -14,6 +14,7 @@ test('player harness keeps required docs and source files in sync', () => {
   const requiredPaths = [
     '../README.md',
     '../../docs/maestro-player/README.md',
+    '../../docs/maestro-player/goal-roadmap.md',
     '../../docs/maestro-player/mvp-spec.md',
     '../../docs/maestro-player/music-mapping-spec.md',
     '../../docs/maestro-player/music-validation-plan.md',

@@ -1,5 +1,7 @@
 # Maestro Player Chrome Extension Strategy
 
+현재 Goal, 완료 조건, evidence는 [Goal Roadmap](./goal-roadmap.md)을 기준으로 한다. 이 문서는 MV3 구조와 의도된 제품 경계를 설명한다.
+
 ## 현재 상태
 
 - `player/extension/` 아래에 MV3 scaffold를 둔다.
@@ -21,13 +23,13 @@
 가장 빠른 형태:
 
 - `Public Repo URL Mode`
-- `Connected Account Mode`
 - `Golden Listening Demo`
 - `Autoplay Preview`
 
 초기 제외:
 
 - `Local Repo Mode`
+- `Connected Account/token Mode`
 - 데스크톱 Git bridge
 - OAuth 정식 연결
 - 웹스토어 정식 공개 전 심사 대응 항목
@@ -187,24 +189,24 @@ player-extension/
 
 ## 기능 우선순위
 
-### Phase 1
+### G1 — Runtime proof
 
 - Public Repo URL autoplay
 - 현재 탭 URL 자동 주입
 - Golden Listening Demo
-- Account token 수동 입력
+- actual Chrome unpacked runtime evidence
 
-### Phase 2
+### G2 — Public replay beta hardening
 
-- score history를 `chrome.storage.local`로 이전
-- side panel 모드
-- GitHub/GitLab 페이지에서 `Play in Maestro Player` 컨텍스트 액션
+- public source failure/retry UX
+- score history와 launch session의 extension storage 정책
+- 반복 public-repo regression
 
-### Phase 3
+### G3+ — 선택적 확장
 
-- OAuth
-- self-hosted forge
-- richer page integration
+- side panel, page context action, private distribution/Web Store 준비
+- account token 또는 OAuth는 별도 trust-boundary Goal로 진행
+- self-hosted forge는 public flow 안정화 뒤 별도 판단
 
 ## 제품상 장점
 
