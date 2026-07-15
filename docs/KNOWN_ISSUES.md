@@ -4,7 +4,7 @@
 
 ## KI-001: `function bach` 주파수(Hz) 표시가 일부 환경에서 미노출
 
-- 상태: Open
+- 상태: Resolved (2026-07-14)
 - 우선순위: P2
 - 최초 보고: 2026-02-27
 - 현상:
@@ -29,3 +29,8 @@
   2. 사용자 환경 브라우저/OS/줌 비율/해상도 수집
   3. 문제 재현 세션에서 DOM 스냅샷 + computed style 확인
   4. 재현 조건 확정 후 패치 및 회귀 테스트 케이스 추가
+- 2026-07-14 근본 원인 및 해결:
+  - 근본 원인: `bachHzLabel`이 `isBachPlaybackRequested`(재생 의도)에 결합돼 있는데, `onStateChange`의 `PAUSED`/`ENDED` 분기가 involuntary `PAUSED`(자동재생 차단 시 YouTube가 `PLAYING` 대신 방출)에서도 해당 플래그를 리셋함. 그 결과 재생 요청 직후 `bachVizHz`가 0으로 초기화되어 라벨이 `standby`로 되돌아감.
+  - 테스트가 재현하지 못한 이유: mock 플레이어의 `loadVideoById`/`loadPlaylist`가 동기적으로 `PLAYING`을 강제 방출해 자동재생 차단 경로를 타지 않았음.
+  - 조치: `onStateChange`에서 involuntary `PAUSED`/`CUED`는 `isBachPlaying`만 내리고 `isBachPlaybackRequested`(재생 의도)는 유지하도록 분리. 사용자 명시적 일시정지는 `pauseBach()`가 계속 의도 플래그를 정리함. `ENDED`는 실제 재생 종료이므로 둘 다 해제.
+  - 회귀 테스트: `src/App.function-bach.ui.test.jsx` — 자동재생 차단(재생 요청 후 `PAUSED`) 시에도 Hz가 `~xxxHz`로 유지되는지 검증하는 케이스 추가.

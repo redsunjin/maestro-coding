@@ -118,11 +118,16 @@ export default function useBachPlayer() {
                 setIsBachPlaying(true);
                 setIsBachPlaybackRequested(true);
               }
-              if (event.data === playerState.PAUSED || event.data === playerState.ENDED || event.data === playerState.CUED) {
+              if (event.data === playerState.ENDED) {
+                // Playback genuinely finished: drop both playing and intent.
                 setIsBachPlaying(false);
-                if (event.data !== playerState.CUED) {
-                  setIsBachPlaybackRequested(false);
-                }
+                setIsBachPlaybackRequested(false);
+              } else if (event.data === playerState.PAUSED || event.data === playerState.CUED) {
+                // Involuntary pause/cue (e.g. blocked autoplay) must not clear the
+                // operator's playback intent — otherwise the Hz indicator collapses
+                // back to `standby` even though the operator pressed play (KI-001).
+                // A user-initiated pause clears the intent in pauseBach().
+                setIsBachPlaying(false);
               }
             },
             onError: () => {

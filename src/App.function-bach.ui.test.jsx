@@ -84,4 +84,57 @@ describe('App UI regression - function bach', () => {
 
     expect(window.localStorage.getItem('maestro.function-bach.channel-url')).toBe('https://www.youtube.com/channel/UC2kF6qdHRTM_hDYfEmzkS9w');
   });
+
+  test('function bach keeps Hz visible after a play request even when autoplay is blocked (KI-001)', async () => {
+    const playerInstances = [];
+
+    // Simulates a real browser that blocks autoplay: a play request does NOT
+    // reach PLAYING, the player settles into PAUSED instead.
+    class BlockedAutoplayYTPlayer {
+      constructor(_element, options) {
+        this.options = options;
+        this.cuePlaylist = vi.fn();
+        this.loadPlaylist = vi.fn(() => {
+          this.options.events.onStateChange({ data: window.YT.PlayerState.PAUSED });
+        });
+        this.cueVideoById = vi.fn();
+        this.loadVideoById = vi.fn(() => {
+          this.options.events.onStateChange({ data: window.YT.PlayerState.PAUSED });
+        });
+        this.pauseVideo = vi.fn(() => {
+          this.options.events.onStateChange({ data: window.YT.PlayerState.PAUSED });
+        });
+        this.setVolume = vi.fn();
+        this.destroy = vi.fn();
+        playerInstances.push(this);
+        this.options.events.onReady({ target: this });
+      }
+    }
+
+    window.YT = {
+      Player: BlockedAutoplayYTPlayer,
+      PlayerState: {
+        ENDED: 0,
+        PLAYING: 1,
+        PAUSED: 2,
+        CUED: 5,
+      },
+    };
+
+    await act(async () => {
+      render(<App />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('function-bach-hz')).toHaveTextContent('standby');
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: '배경음악 재생' }));
+
+    // The operator requested playback; the Hz indicator must reflect that intent
+    // and not collapse back to standby because of the involuntary PAUSED event.
+    await waitFor(() => {
+      expect(screen.getByTestId('function-bach-hz')).toHaveTextContent(/Hz/);
+    });
+  });
 });
