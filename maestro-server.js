@@ -85,6 +85,7 @@ const WORKFLOW_STORE_PATH = path.resolve(
   ROOT_DIR,
   process.env.MAESTRO_WORKFLOW_STORE_PATH || '.maestro-workflows.json',
 );
+const WORKFLOW_ENABLED = parseBoolean(process.env.MAESTRO_WORKFLOW_ENABLED, false);
 const persistedEnvValues = readEnvFile(ENV_PATH).values;
 let runtimeProjectState = createRuntimeProjectState({
   path: process.env.MAIN_REPO_PATH || persistedEnvValues.MAIN_REPO_PATH || process.cwd(),
@@ -655,6 +656,206 @@ function pruneClosedWorkSessions() {
   }
 }
 
+// ── Work Request Intake (VU-001 Phase A) ─────────────────────────────────────
+const WORK_REQUEST_PRIORITY = {
+  LOW: 'low',
+  NORMAL: 'normal',
+  HIGH: 'high',
+  URGENT: 'urgent',
+};
+
+const WORK_REQUEST_STATE = {
+  SUBMITTED: 'submitted',
+  REQUEST_APPROVED: 'request_approved',
+  REQUEST_REJECTED: 'request_rejected',
+  CANCELLED: 'cancelled',
+};
+
+const WORK_REQUEST_DECISION_STATE = {
+  approve: WORK_REQUEST_STATE.REQUEST_APPROVED,
+  reject: WORK_REQUEST_STATE.REQUEST_REJECTED,
+  cancel: WORK_REQUEST_STATE.CANCELLED,
+};
+
+const WORK_REQUEST_DEFAULT_LIMIT = 40;
+const WORK_REQUEST_MAX_ITEMS = Math.min(
+  500,
+  Math.max(20, parsePositiveInt(process.env.MAESTRO_WORK_REQUEST_MAX_ITEMS, 100)),
+);
+
+const workRequestsById = new Map();
+
+function createWorkRequestId() {
+  return `wrk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeWorkRequestPriority(value) {
+  const allowed = new Set(Object.values(WORK_REQUEST_PRIORITY));
+  return allowed.has(value) ? value : WORK_REQUEST_PRIORITY.NORMAL;
+}
+
+function normalizeWorkRequestState(value) {
+  const allowed = new Set(Object.values(WORK_REQUEST_STATE));
+  return allowed.has(value) ? value : WORK_REQUEST_STATE.SUBMITTED;
+}
+
+function isTerminalWorkRequestState(state) {
+  return state !== WORK_REQUEST_STATE.SUBMITTED;
+}
+
+function sanitizeWorkRequestStringList(value, { maxItems = 20, maxLength = 240 } = {}) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => sanitizeHistoryText(item || '', maxLength))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+// Resolve a projectId to { id, laneCount } from the active runtime project or
+// the registered project list. Returns null when the id is unknown.
+function resolveWorkflowProject(projectId) {
+  const normalized = sanitizeHistoryText(projectId || '', 64);
+  if (!normalized || normalized === runtimeProjectState.id) {
+    return {
+      id: runtimeProjectState.id,
+      laneCount: sanitizeLaneCount(runtimeProjectState.laneCount, DEFAULT_LANE_COUNT),
+    };
+  }
+  const registered = readProjectRegistry().find((project) => project.id === normalized);
+  if (!registered) return null;
+  return {
+    id: registered.id,
+    laneCount: sanitizeLaneCount(registered.laneCount, DEFAULT_LANE_COUNT),
+  };
+}
+
+function sortWorkRequests(items) {
+  return items
+    .slice()
+    .sort((a, b) => Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0));
+}
+
+function pruneWorkRequests() {
+  sortWorkRequests(Array.from(workRequestsById.values()))
+    .slice(WORK_REQUEST_MAX_ITEMS)
+    .forEach((item) => {
+      workRequestsById.delete(item.workRequestId);
+    });
+}
+
+function listWorkRequests({ projectId = null, workflowState = null, limit = WORK_REQUEST_DEFAULT_LIMIT } = {}) {
+  const normalizedProjectId = sanitizeHistoryText(projectId || '', 64) || null;
+  const normalizedState = workflowState ? normalizeWorkRequestState(workflowState) : null;
+  return sortWorkRequests(Array.from(workRequestsById.values()))
+    .filter((item) => {
+      if (normalizedProjectId && item.projectId !== normalizedProjectId) return false;
+      if (normalizedState && item.workflowState !== normalizedState) return false;
+      return true;
+    })
+    .slice(0, parseWorkLimit(limit, WORK_REQUEST_DEFAULT_LIMIT, WORK_REQUEST_MAX_ITEMS));
+}
+
+function getWorkRequest(workRequestId) {
+  const normalized = sanitizeHistoryText(workRequestId || '', 80);
+  if (!normalized) return null;
+  return workRequestsById.get(normalized) || null;
+}
+
+// Returns { ok, code, error } or { ok: true, item }.
+function createWorkRequest(input = {}) {
+  const title = sanitizeHistoryText(input.title || '', 120);
+  const goal = sanitizeHistoryText(input.goal || '', 1000);
+  if (!title || !goal) {
+    return { ok: false, code: 400, error: 'WORK_REQUEST_INVALID' };
+  }
+
+  const project = resolveWorkflowProject(input.projectId);
+  if (!project) {
+    return { ok: false, code: 400, error: 'PROJECT_ID_INVALID' };
+  }
+
+  let laneIndex = null;
+  if (input.laneIndex !== undefined && input.laneIndex !== null && input.laneIndex !== '') {
+    laneIndex = normalizeConfiguredLaneIndex(input.laneIndex, project.laneCount);
+    if (!laneIndex) {
+      return { ok: false, code: 400, error: 'LANE_INDEX_INVALID' };
+    }
+  }
+
+  const now = new Date().toISOString();
+  const item = {
+    workRequestId: createWorkRequestId(),
+    projectId: project.id,
+    laneIndex,
+    requestedBy: sanitizeHistoryText(input.requestedBy || '', 64) || 'operator',
+    preferredAgent: sanitizeHistoryText(input.preferredAgent || '', 64) || 'openclaw',
+    title,
+    goal,
+    constraints: sanitizeWorkRequestStringList(input.constraints),
+    acceptanceCriteria: sanitizeWorkRequestStringList(input.acceptanceCriteria),
+    priority: normalizeWorkRequestPriority(input.priority),
+    targetBranch: sanitizeHistoryText(input.targetBranch || '', 200) || 'main',
+    workflowState: WORK_REQUEST_STATE.SUBMITTED,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  workRequestsById.set(item.workRequestId, item);
+  pruneWorkRequests();
+  persistWorkflowStore();
+  return { ok: true, item };
+}
+
+// Returns { ok, code, error } or { ok: true, item, decision }.
+function decideWorkRequest(workRequestId, decision) {
+  const existing = getWorkRequest(workRequestId);
+  if (!existing) {
+    return { ok: false, code: 404, error: 'WORK_REQUEST_NOT_FOUND' };
+  }
+  const normalizedDecision = sanitizeHistoryText(decision || '', 20).toLowerCase();
+  const nextState = WORK_REQUEST_DECISION_STATE[normalizedDecision];
+  if (!nextState) {
+    return { ok: false, code: 400, error: 'WORK_REQUEST_DECISION_INVALID' };
+  }
+  if (isTerminalWorkRequestState(existing.workflowState)) {
+    return { ok: false, code: 409, error: 'WORK_REQUEST_ALREADY_DECIDED' };
+  }
+
+  const item = {
+    ...existing,
+    workflowState: nextState,
+    updatedAt: new Date().toISOString(),
+  };
+  workRequestsById.set(item.workRequestId, item);
+  persistWorkflowStore();
+  return { ok: true, item, decision: normalizedDecision };
+}
+
+function normalizeStoredWorkRequest(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const workRequestId = sanitizeHistoryText(raw.workRequestId || '', 80);
+  const title = sanitizeHistoryText(raw.title || '', 120);
+  const goal = sanitizeHistoryText(raw.goal || '', 1000);
+  if (!workRequestId || !title || !goal) return null;
+  const now = new Date().toISOString();
+  return {
+    workRequestId,
+    projectId: sanitizeHistoryText(raw.projectId || '', 64) || runtimeProjectState.id,
+    laneIndex: normalizeConfiguredLaneIndex(raw.laneIndex, MAX_LANE_COUNT),
+    requestedBy: sanitizeHistoryText(raw.requestedBy || '', 64) || 'operator',
+    preferredAgent: sanitizeHistoryText(raw.preferredAgent || '', 64) || 'openclaw',
+    title,
+    goal,
+    constraints: sanitizeWorkRequestStringList(raw.constraints),
+    acceptanceCriteria: sanitizeWorkRequestStringList(raw.acceptanceCriteria),
+    priority: normalizeWorkRequestPriority(raw.priority),
+    targetBranch: sanitizeHistoryText(raw.targetBranch || '', 200) || 'main',
+    workflowState: normalizeWorkRequestState(raw.workflowState),
+    createdAt: raw.createdAt || now,
+    updatedAt: raw.updatedAt || raw.createdAt || now,
+  };
+}
+
 function persistWorkflowStore() {
   const storeDir = path.dirname(WORKFLOW_STORE_PATH);
   mkdirSync(storeDir, { recursive: true });
@@ -668,6 +869,7 @@ function persistWorkflowStore() {
         items.slice(-WORK_MESSAGE_MAX_ITEMS),
       ]),
     ),
+    workRequests: sortWorkRequests(Array.from(workRequestsById.values())),
   };
 
   writeFileSync(WORKFLOW_STORE_PATH, JSON.stringify(payload, null, 2));
@@ -721,7 +923,16 @@ function loadWorkflowStore() {
       workMessagesBySessionId.set(normalizedSessionId, normalizedItems.slice(-WORK_MESSAGE_MAX_ITEMS));
     });
 
+    const workRequests = Array.isArray(parsed.workRequests) ? parsed.workRequests : [];
+    workRequests.forEach((raw) => {
+      const normalized = normalizeStoredWorkRequest(raw);
+      if (normalized) {
+        workRequestsById.set(normalized.workRequestId, normalized);
+      }
+    });
+
     pruneClosedWorkSessions();
+    pruneWorkRequests();
   } catch (error) {
     console.error('workflow store load failed:', error.message);
   }
@@ -1023,7 +1234,9 @@ const server = http.createServer((req, res) => {
         laneCount: runtimeProjectState.laneCount,
       },
       workflow: {
+        enabled: WORKFLOW_ENABLED,
         sessionCount: workSessionsById.size,
+        requestCount: workRequestsById.size,
         storePath: WORKFLOW_STORE_PATH,
       },
     }));
@@ -1322,6 +1535,122 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
       }
     });
+    return;
+  }
+
+  // ── Work Request Intake routes (VU-001 Phase A, gated by MAESTRO_WORKFLOW_ENABLED) ──
+  if (pathname === '/api/work-requests' || pathname.startsWith('/api/work-requests/')) {
+    if (!WORKFLOW_ENABLED) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'WORKFLOW_DISABLED' }));
+      return;
+    }
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+  }
+
+  if (req.method === 'GET' && pathname === '/api/work-requests') {
+    const items = listWorkRequests({
+      projectId: requestUrl.searchParams.get('projectId'),
+      workflowState: requestUrl.searchParams.get('workflowState'),
+      limit: requestUrl.searchParams.get('limit'),
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      items,
+      count: items.length,
+      maxItems: WORK_REQUEST_MAX_ITEMS,
+    }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/work-requests') {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const result = createWorkRequest({
+          projectId: data.projectId,
+          laneIndex: data.laneIndex,
+          requestedBy: data.requestedBy,
+          preferredAgent: data.preferredAgent,
+          title: data.title,
+          goal: data.goal,
+          constraints: data.constraints,
+          acceptanceCriteria: data.acceptanceCriteria,
+          priority: data.priority,
+          targetBranch: data.targetBranch,
+        });
+
+        if (!result.ok) {
+          res.writeHead(result.code || 400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: result.error || 'WORK_REQUEST_INVALID' }));
+          return;
+        }
+
+        broadcastToClients({
+          event: 'WORK_REQUEST_CREATED',
+          item: result.item,
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, item: result.item }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
+  const workRequestDecisionMatch = pathname.match(/^\/api\/work-requests\/([^/]+)\/decision$/);
+  if (req.method === 'POST' && workRequestDecisionMatch) {
+    const workRequestId = decodeURIComponent(workRequestDecisionMatch[1]);
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const result = decideWorkRequest(workRequestId, data.decision);
+
+        if (!result.ok) {
+          res.writeHead(result.code || 400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: result.error || 'WORK_REQUEST_DECISION_INVALID' }));
+          return;
+        }
+
+        broadcastToClients({
+          event: 'WORK_REQUEST_DECIDED',
+          item: result.item,
+          decision: result.decision,
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, item: result.item, decision: result.decision }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
+  const workRequestDetailMatch = pathname.match(/^\/api\/work-requests\/([^/]+)$/);
+  if (req.method === 'GET' && workRequestDetailMatch) {
+    const workRequestId = decodeURIComponent(workRequestDetailMatch[1]);
+    const item = getWorkRequest(workRequestId);
+    if (!item) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'WORK_REQUEST_NOT_FOUND' }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ item }));
     return;
   }
 

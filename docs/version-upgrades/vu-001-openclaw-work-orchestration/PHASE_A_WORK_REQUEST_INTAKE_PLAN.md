@@ -2,7 +2,21 @@
 
 기준일: 2026-03-15
 대상 트랙: `VU-001`
-상태: 구현 계획 초안
+상태: 구현 완료 (2026-07-15)
+
+## 0. 구현 결과 요약 (2026-07-15)
+
+- 기능 플래그 `MAESTRO_WORKFLOW_ENABLED`(기본 OFF) 뒤에서 Work Request Intake 도입.
+- 저장 전략은 계획의 별도 `shared` 모듈 대신, Session Core가 이미 사용하는 `.maestro-workflows.json`(`MAESTRO_WORKFLOW_STORE_PATH`)에 `workRequests` 배열을 통합하고 `maestro-server.js` 인라인 스토어로 구현(계획 대비 조정, 파일 충돌 회피).
+- API: `GET/POST /api/work-requests`, `GET /api/work-requests/:id`, `POST /api/work-requests/:id/decision`. 플래그 OFF 시 404 `WORKFLOW_DISABLED`.
+- 검증: `title`/`goal` 필수, `projectId`는 활성/등록 프로젝트만 허용, `laneIndex`는 프로젝트 레인 범위 내. 오류 코드는 계획의 표를 따름.
+- 결정: `approve/reject/cancel` → `request_approved/request_rejected/cancelled`, 중복 결정 409.
+- 브로드캐스트: `WORK_REQUEST_CREATED`, `WORK_REQUEST_DECIDED`.
+- UI: 헤더 토글 라벨은 기존 `Work`(Work Console)와 충돌을 피해 **`Requests`**로 도입(플래그 ON일 때만 노출, `/health.workflow.enabled`로 감지). `WorkRequestPanel`에 생성 폼 + 요청 카드 목록 + 승인/반려/취소 액션.
+- 프로젝트 선택 UI는 1차 단일 프로젝트 롤아웃 기준으로 활성 프로젝트 기본값으로 단순화(계획의 프로젝트 선택 드롭다운은 다중 프로젝트 단계에서 재도입).
+- 테스트: 서버 회귀 5종(`tests/server-regression.test.mjs`), UI 회귀 2종(`src/App.work-request.ui.test.jsx`). `npm run qa` + `npm run smoke:lanes` 통과.
+
+원 계획(아래)은 설계 기준으로 보존한다.
 
 ## 1. 목적
 

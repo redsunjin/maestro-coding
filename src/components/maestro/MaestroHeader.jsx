@@ -45,6 +45,9 @@ export default function MaestroHeader({
   onToggleHistoryPanel,
   isWorkConsoleOpen,
   onToggleWorkConsole,
+  isWorkflowEnabled = false,
+  isWorkRequestPanelOpen = false,
+  onToggleWorkRequestPanel,
 }) {
   const [shouldCollapsePanelControls, setShouldCollapsePanelControls] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 1480 : false
@@ -102,6 +105,17 @@ export default function MaestroHeader({
         : 'border-gray-700 bg-gray-900/70 text-gray-300 hover:border-cyan-400/50 hover:text-cyan-100',
       onClick: onToggleWorkConsole,
     },
+    ...(isWorkflowEnabled ? [{
+      key: 'work-request',
+      label: 'Requests',
+      ariaLabel: '작업 요청 패널 토글',
+      panelId: 'work-request-panel',
+      isExpanded: isWorkRequestPanelOpen,
+      buttonClass: isWorkRequestPanelOpen
+        ? 'border-amber-400/60 bg-amber-500/20 text-amber-100'
+        : 'border-gray-700 bg-gray-900/70 text-gray-300 hover:border-amber-400/50 hover:text-amber-100',
+      onClick: onToggleWorkRequestPanel,
+    }] : []),
     {
       key: 'project',
       label: `Repo ${currentRuntimeProjectName || 'runtime'}`,
@@ -156,10 +170,13 @@ export default function MaestroHeader({
     isProjectAuthRequired,
     isProjectPanelOpen,
     isWorkConsoleOpen,
+    isWorkflowEnabled,
+    isWorkRequestPanelOpen,
     onToggleAutoApprovePanel,
     onToggleHistoryPanel,
     onToggleProjectPanel,
     onToggleWorkConsole,
+    onToggleWorkRequestPanel,
   ]);
 
   const renderPanelControlButton = (control, compact = false) => (

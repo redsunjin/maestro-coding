@@ -18,6 +18,7 @@ import useBachPlayer from './hooks/useBachPlayer.js';
 import useProjectRegistryOps from './hooks/useProjectRegistryOps.js';
 import useWorkConsoleShell from './hooks/useWorkConsoleShell.js';
 import useWorkSessions from './hooks/useWorkSessions.js';
+import useWorkRequests from './hooks/useWorkRequests.js';
 import useAgentRegistry from './hooks/useAgentRegistry.js';
 import MaestroHeader from './components/maestro/MaestroHeader.jsx';
 import ProjectTabs from './components/maestro/ProjectTabs.jsx';
@@ -28,6 +29,7 @@ import HistoryScorePanel from './components/maestro/HistoryScorePanel.jsx';
 import AutoApproveOpsPanel from './components/maestro/AutoApproveOpsPanel.jsx';
 import ProjectRegistryPanel from './components/maestro/ProjectRegistryPanel.jsx';
 import WorkConsolePanel from './components/maestro/WorkConsolePanel.jsx';
+import WorkRequestPanel from './components/maestro/WorkRequestPanel.jsx';
 
 export default function App() {
   const headerRef = useRef(null);
@@ -208,6 +210,25 @@ export default function App() {
     onSelectedSessionChange: setSelectedWorkSessionId,
   });
 
+  const [isWorkRequestPanelOpen, setIsWorkRequestPanelOpen] = useState(false);
+  const [selectedWorkRequestId, setSelectedWorkRequestId] = useState(null);
+
+  const {
+    isWorkflowEnabled,
+    requests: workRequests,
+    selectedRequest: selectedWorkRequest,
+    requestError: workRequestError,
+    isRequestListLoading,
+    isSubmittingRequest,
+    createRequest,
+    decideRequest,
+    handleSocketEvent: handleWorkRequestsSocketEvent,
+  } = useWorkRequests({
+    wsUrl: WS_URL,
+    selectedRequestId: selectedWorkRequestId,
+    onSelectedRequestChange: setSelectedWorkRequestId,
+  });
+
   const {
     agents,
     agentError,
@@ -246,8 +267,9 @@ export default function App() {
     handleHistorySocketEvent(payload);
     handleAutoApproveSocketEvent(payload);
     handleWorkSessionsSocketEvent(payload);
+    handleWorkRequestsSocketEvent(payload);
     handleAgentRegistrySocketEvent(payload);
-  }, [handleAgentRegistrySocketEvent, handleAutoApproveSocketEvent, handleHistorySocketEvent, handleProjectSocketEvent, handleWorkSessionsSocketEvent]);
+  }, [handleAgentRegistrySocketEvent, handleAutoApproveSocketEvent, handleHistorySocketEvent, handleProjectSocketEvent, handleWorkRequestsSocketEvent, handleWorkSessionsSocketEvent]);
 
   const activeLaneCount = currentProject?.laneCount || DEFAULT_LANE_COUNT;
   const activeLanes = useMemo(() => getLaneDefinitions(activeLaneCount), [activeLaneCount]);
@@ -460,6 +482,14 @@ export default function App() {
     closeWorkConsole();
   }, [closeWorkConsole]);
 
+  const handleWorkRequestPanelToggle = useCallback(() => {
+    setIsWorkRequestPanelOpen((open) => !open);
+  }, [setIsWorkRequestPanelOpen]);
+
+  const handleWorkRequestPanelClose = useCallback(() => {
+    setIsWorkRequestPanelOpen(false);
+  }, [setIsWorkRequestPanelOpen]);
+
   const autoApproveStatusLabel = isAutoApproveAuthRequired
     ? 'Locked'
     : autoApproveStatus.config.enabled
@@ -518,6 +548,9 @@ export default function App() {
         onToggleHistoryPanel={handleHistoryPanelToggle}
         isWorkConsoleOpen={isWorkConsoleOpen}
         onToggleWorkConsole={handleWorkConsoleToggle}
+        isWorkflowEnabled={isWorkflowEnabled === true}
+        isWorkRequestPanelOpen={isWorkRequestPanelOpen}
+        onToggleWorkRequestPanel={handleWorkRequestPanelToggle}
       />
 
       <ProjectTabs
@@ -564,6 +597,22 @@ export default function App() {
         onMoveLeft={moveWorkConsoleLeft}
         onMoveRight={moveWorkConsoleRight}
       />
+      {isWorkflowEnabled === true && (
+        <WorkRequestPanel
+          isOpen={isWorkRequestPanelOpen}
+          requests={workRequests}
+          selectedRequestId={selectedWorkRequestId}
+          selectedRequest={selectedWorkRequest}
+          isLoading={isRequestListLoading}
+          isSubmitting={isSubmittingRequest}
+          error={workRequestError}
+          laneCount={activeLaneCount}
+          onSelectRequest={setSelectedWorkRequestId}
+          onCreateRequest={createRequest}
+          onDecide={decideRequest}
+          onClose={handleWorkRequestPanelClose}
+        />
+      )}
       <ProjectRegistryPanel
         isOpen={isProjectPanelOpen}
         panelTopOffset={panelTopOffset}
