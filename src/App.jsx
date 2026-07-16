@@ -475,16 +475,27 @@ export default function App() {
   }, [setIsProjectPanelOpen]);
 
   const handleWorkConsoleToggle = useCallback(() => {
+    // Work Console and Work Requests share the right dock; opening one closes the other.
+    if (!isWorkConsoleOpen) {
+      setIsWorkRequestPanelOpen(false);
+    }
     toggleWorkConsole();
-  }, [toggleWorkConsole]);
+  }, [isWorkConsoleOpen, toggleWorkConsole]);
 
   const handleWorkConsoleClose = useCallback(() => {
     closeWorkConsole();
   }, [closeWorkConsole]);
 
   const handleWorkRequestPanelToggle = useCallback(() => {
-    setIsWorkRequestPanelOpen((open) => !open);
-  }, [setIsWorkRequestPanelOpen]);
+    setIsWorkRequestPanelOpen((open) => {
+      const next = !open;
+      // Opening Work Requests closes the overlapping Work Console panel.
+      if (next && isWorkConsoleOpen) {
+        closeWorkConsole();
+      }
+      return next;
+    });
+  }, [closeWorkConsole, isWorkConsoleOpen, setIsWorkRequestPanelOpen]);
 
   const handleWorkRequestPanelClose = useCallback(() => {
     setIsWorkRequestPanelOpen(false);

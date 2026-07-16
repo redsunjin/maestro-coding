@@ -87,6 +87,47 @@ describe('App UI regression - work request intake', () => {
     });
   });
 
+  test('Work Console and Work Requests panels are mutually exclusive (no right-dock overlap)', async () => {
+    globalThis.fetch = vi.fn(async (input) => {
+      const url = String(input);
+      if (url.includes('/health')) {
+        return { ok: true, status: 200, json: async () => ({ status: 'ok', workflow: { enabled: true } }) };
+      }
+      if (url.includes('/api/work-requests')) {
+        return { ok: true, status: 200, json: async () => ({ items: [], count: 0, maxItems: 100 }) };
+      }
+      if (url.includes('/api/work-sessions')) {
+        return { ok: true, status: 200, json: async () => ({ items: [], count: 0, maxItems: 60 }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    await act(async () => {
+      render(<App />);
+    });
+
+    const workConsoleToggle = await screen.findByRole('button', { name: 'Work Console 패널 토글' });
+    const requestsToggle = await screen.findByRole('button', { name: '작업 요청 패널 토글' });
+
+    // Open Work Console first.
+    await userEvent.click(workConsoleToggle);
+    await waitFor(() => expect(workConsoleToggle).toHaveAttribute('aria-expanded', 'true'));
+
+    // Opening Work Requests must close Work Console (same right-dock real estate).
+    await userEvent.click(requestsToggle);
+    await waitFor(() => {
+      expect(requestsToggle).toHaveAttribute('aria-expanded', 'true');
+      expect(workConsoleToggle).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    // And reopening Work Console must close Work Requests.
+    await userEvent.click(workConsoleToggle);
+    await waitFor(() => {
+      expect(workConsoleToggle).toHaveAttribute('aria-expanded', 'true');
+      expect(requestsToggle).toHaveAttribute('aria-expanded', 'false');
+    });
+  });
+
   test('hides the Requests toggle when the workflow feature is disabled', async () => {
     await act(async () => {
       render(<App />);
