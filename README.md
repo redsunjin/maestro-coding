@@ -34,12 +34,23 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 - 승인 이력 영속 저장: 재시작 후 `.maestro-history.json` 또는 `MAESTRO_HISTORY_STORE_PATH` 기준으로 최근 이력 복구
 - `function bach`: 상단 미니 플레이어에서 YouTube 기반 BGM 재생/일시정지/볼륨/채널 URL 등록 + 상태 칩/고정 `Hz` 슬롯 제공
 - 조건부 자동승인(`WP-008`): explicit/cooldown/dry-run/중복승인 차단 + 운영 가시성 API + `AutoOps` 대시보드 패널 반영
+- 에이전트 어댑터/승인 프로토콜: `Agent Registry`(`POST /api/agents/register`, heartbeat) + 1급 `ApprovalRequest`/`ApprovalDecision` 저장 + Pull-first 결정 전달(`ack`), `git merge`는 결정 이후 executor action으로 분리
+- `Work Console`(Session Core): 대시보드에서 작업 세션 생성/조회, 운영자·에이전트 메시지 기록, 최소 명령(`/status`·`/ask`·`/close`), 재시작 복구
+- `Work Request Intake`(VU-001 Phase A, `MAESTRO_WORKFLOW_ENABLED` 플래그): 작업 요청 등록 + `approve/reject/cancel` 결정 + `Requests` 패널 (플래그 OFF 시 기존 동작 그대로)
 
-## 현재 개발 현황 (2026-03-29 기준)
+## 현재 개발 현황 (2026-07-16 기준)
 
 - 버전: `0.95.0`
-- 단계: 파일럿 운영 가능한 MVP
+- 단계: 파일럿 운영 가능한 MVP + VU-001(작업 오케스트레이션) 진행 중
 - 확인된 동작: `npm run qa` 통과, 서버 `/health` 응답 확인
+- VU-001 OpenClaw Work Orchestration 진척 (상세: [`docs/version-upgrades/vu-001-openclaw-work-orchestration/README.md`](docs/version-upgrades/vu-001-openclaw-work-orchestration/README.md))
+  - Phase 0 Agent Approval Protocol: ✅ 완료 (Agent Registry + ApprovalRequest/Decision 저장 + Pull-first `ack` + executor 분리)
+  - Phase A Work Request Intake: ✅ 완료 (`MAESTRO_WORKFLOW_ENABLED` 플래그 뒤 `/api/work-requests` + `Requests` 패널)
+  - Work Console Session Core: ✅ 완료 (세션/메시지/`/status`·`/ask`·`/close`/재시작 복구)
+  - Phase B Plan Review(계획 제출/승인): ⬜ 미착수
+  - Phase C Delivery Bridge(결과물→머지 승격): ◐ 세션까지 완료, 결과물 승격 미구현
+  - Phase D Operability(검색/필터/재시도): ⬜ 미착수
+  - 참고: 실제 외부 에이전트 커넥터는 아직 없음(어댑터 계약은 hook/wrapper/native로 일반화됨, 현 단계는 mock/운영자 기준)
 - 완료된 기반 작업
   - React + Vite + Tailwind 기반 대시보드
   - WebSocket 기반 승인 요청 수신 및 표시
@@ -77,8 +88,10 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 - 원클릭 실행 경로(`npm run start:app`, `npm run check:env`) 제공
 - 훅 설치 자동화(`npm run install:hook`) 제공
 - `start:app` 오류 조치 메시지/대시보드 URL 자동 감지 고도화
+  - `KI-001` `function bach` Hz 미노출 해결(자동재생 차단 시 재생 의도 유지, 회귀 테스트 추가) — [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md)
+  - Work Console과 Work Requests 패널 우측 도킹 겹침 해소(상호 배타 토글)
 - 확인된 개선 필요 항목
-  - `KI-001` `function bach` Hz 미노출 환경 재현 데이터 확보 필요
+  - 에이전트 레지스트리/승인 요청·결정 스토어가 메모리 기반 — 다중 에이전트 실운영을 위한 영속화 필요
   - 승인 이력 export는 아직 범위 밖이며 후속 범위로 별도 검토 예정
   - 로컬 데모 중심이라 다중 사용자 운영/원격 배포용 runbook은 추가 정리가 필요
 
@@ -88,8 +101,8 @@ Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인
 
 즉시 진행할 핵심 3가지:
 
-1. P1 `KI-001` 재현 환경 수집: 브라우저/줌/OS/플레이어 상태 로그 확보
-2. P2 승인 이력 후속 범위 정의: 영속 저장/export 필요성 검토
+1. P1 다중 에이전트 연결 방향 확정 + 에이전트 레지스트리/승인 스토어 영속화
+2. P1 VU-001 Phase C Delivery Bridge: 세션 결과물을 기존 승인 요청으로 승격하는 수직 슬라이스 완성
 3. P2 운영 가이드 보강: 토큰 모드/실행 표준 경로/장애 대응 runbook 지속 업데이트
 
 설치 단순화 1차 상세 계획은 [`docs/INSTALL_SIMPLIFICATION_PHASE1.md`](docs/INSTALL_SIMPLIFICATION_PHASE1.md)를 참고하세요.
@@ -199,6 +212,7 @@ E2E 최소 시나리오는 `npm run test:e2e`로 실행합니다.
 
 기획 및 아키텍처 문서는 [`docs/PLAN.md`](docs/PLAN.md)에 보관되어 있습니다.
 진행 현황 기반 작업계획은 [`docs/WORK_PLAN.md`](docs/WORK_PLAN.md)를 참고하세요.
+VU-001 작업 오케스트레이션(에이전트 어댑터/작업 요청/세션/계획/전달) 트랙은 [`docs/version-upgrades/vu-001-openclaw-work-orchestration/README.md`](docs/version-upgrades/vu-001-openclaw-work-orchestration/README.md), 에이전트 어댑터/승인 프로토콜은 [`docs/MAESTRO_AGENT_ADAPTERS_PLAN.md`](docs/MAESTRO_AGENT_ADAPTERS_PLAN.md)를 참고하세요.
 QA 실행 가이드는 [`docs/QA_AGENT.md`](docs/QA_AGENT.md)를 참고하세요.
 
 ## 기여 방법 (Contributing)
