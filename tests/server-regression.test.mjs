@@ -184,6 +184,32 @@ async function postWorkSessionMessage(port, workSessionId, body, headers = {}) {
   return response;
 }
 
+async function postWorkRequest(port, payload = {}, headers = {}) {
+  const response = await fetch(`http://127.0.0.1:${port}/api/work-requests`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return response;
+}
+
+async function postWorkRequestDecision(port, workRequestId, decision, headers = {}) {
+  const response = await fetch(`http://127.0.0.1:${port}/api/work-requests/${workRequestId}/decision`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify({ decision }),
+  });
+
+  return response;
+}
+
 async function waitForWebSocketEvent(ws, predicate, timeoutMs = 5000, label = 'websocket event') {
   return withTimeout(new Promise((resolve) => {
     const onMessage = (payload) => {
@@ -367,6 +393,223 @@ test('work session store restores sessions and messages after restart', async (t
   const detailBody = await detailResponse.json();
   assert.equal(detailBody.item.title, 'Persistent Work Session');
   assert.equal(detailBody.messages.some((message) => message.body === '운영자 메모'), true);
+});
+
+test('work request APIs are hidden when MAESTRO_WORKFLOW_ENABLED is off', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const listResponse = await fetch(`http://127.0.0.1:${server.port}/api/work-requests`);
+  assert.equal(listResponse.status, 404);
+  const listBody = await listResponse.json();
+  assert.equal(listBody.error, 'WORKFLOW_DISABLED');
+
+  const createResponse = await postWorkRequest(server.port, {
+    title: 'blocked when flag off',
+    goal: 'should not be created',
+    priority: 'normal',
+  });
+  assert.equal(createResponse.status, 404);
+});
+
+test('work request intake creates, lists, details, and emits websocket events', async (t) => {
+  const fixture = createProjectRegistryFixture([]);
+  const workflowStorePath = resolve(fixture.tempDir, 'workflows.json');
+  t.after(() => {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  });
+
+  const server = startServer({
+    extraEnv: {
+      MAESTRO_WORKFLOW_ENABLED: 'true',
+      MAESTRO_WORKFLOW_STORE_PATH: workflowStorePath,
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => ws.close());
+  await once(ws, 'open');
+  const createdEventPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'WORK_REQUEST_CREATED',
+    5000,
+    'WORK_REQUEST_CREATED',
+  );
+
+  const createResponse = await postWorkRequest(server.port, {
+    title: 'UI 패널 설계',
+    goal: '승인 이력 export 설계를 진행한다',
+    priority: 'high',
+    laneIndex: 2,
+    constraints: ['기존 승인 흐름 유지'],
+    acceptanceCriteria: ['qa 통과'],
+  });
+  assert.equal(createResponse.status, 200);
+  const createBody = await createResponse.json();
+  assert.equal(createBody.success, true);
+  assert.match(createBody.item.workRequestId, /^wrk_/);
+  assert.equal(createBody.item.title, 'UI 패널 설계');
+  assert.equal(createBody.item.goal, '승인 이력 export 설계를 진행한다');
+  assert.equal(createBody.item.priority, 'high');
+  assert.equal(createBody.item.laneIndex, 2);
+  assert.equal(createBody.item.workflowState, 'submitted');
+  assert.equal(createBody.item.requestedBy, 'operator');
+  assert.equal(createBody.item.preferredAgent, 'openclaw');
+  assert.equal(createBody.item.targetBranch, 'main');
+  assert.deepEqual(createBody.item.constraints, ['기존 승인 흐름 유지']);
+  assert.deepEqual(createBody.item.acceptanceCriteria, ['qa 통과']);
+
+  const createdEvent = await createdEventPromise;
+  assert.equal(createdEvent.item.workRequestId, createBody.item.workRequestId);
+
+  const listResponse = await fetch(`http://127.0.0.1:${server.port}/api/work-requests?limit=10`);
+  assert.equal(listResponse.status, 200);
+  const listBody = await listResponse.json();
+  assert.equal(listBody.items.length, 1);
+  assert.equal(listBody.items[0].workRequestId, createBody.item.workRequestId);
+
+  const detailResponse = await fetch(`http://127.0.0.1:${server.port}/api/work-requests/${createBody.item.workRequestId}`);
+  assert.equal(detailResponse.status, 200);
+  const detailBody = await detailResponse.json();
+  assert.equal(detailBody.item.workRequestId, createBody.item.workRequestId);
+  assert.equal(detailBody.item.goal, '승인 이력 export 설계를 진행한다');
+});
+
+test('work request intake validates title, goal, projectId, and laneIndex', async (t) => {
+  const server = startServer({
+    extraEnv: {
+      MAESTRO_WORKFLOW_ENABLED: 'true',
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const missingTitle = await postWorkRequest(server.port, { goal: 'no title provided' });
+  assert.equal(missingTitle.status, 400);
+  assert.equal((await missingTitle.json()).error, 'WORK_REQUEST_INVALID');
+
+  const missingGoal = await postWorkRequest(server.port, { title: 'no goal provided' });
+  assert.equal(missingGoal.status, 400);
+  assert.equal((await missingGoal.json()).error, 'WORK_REQUEST_INVALID');
+
+  const badProject = await postWorkRequest(server.port, {
+    title: 'bad project',
+    goal: 'unknown project id',
+    projectId: 'project_that_does_not_exist',
+  });
+  assert.equal(badProject.status, 400);
+  assert.equal((await badProject.json()).error, 'PROJECT_ID_INVALID');
+
+  const badLane = await postWorkRequest(server.port, {
+    title: 'bad lane',
+    goal: 'lane index out of range',
+    laneIndex: 99,
+  });
+  assert.equal(badLane.status, 400);
+  assert.equal((await badLane.json()).error, 'LANE_INDEX_INVALID');
+});
+
+test('work request decision approves once and blocks duplicate decisions', async (t) => {
+  const server = startServer({
+    extraEnv: {
+      MAESTRO_WORKFLOW_ENABLED: 'true',
+    },
+  });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+
+  await waitForHealth(server.port);
+
+  const createResponse = await postWorkRequest(server.port, {
+    title: 'decision flow',
+    goal: 'approve then block duplicate',
+    priority: 'normal',
+  });
+  assert.equal(createResponse.status, 200);
+  const createBody = await createResponse.json();
+
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  t.after(() => ws.close());
+  await once(ws, 'open');
+  const decidedEventPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'WORK_REQUEST_DECIDED' && event.item?.workRequestId === createBody.item.workRequestId,
+    5000,
+    'WORK_REQUEST_DECIDED',
+  );
+
+  const approveResponse = await postWorkRequestDecision(server.port, createBody.item.workRequestId, 'approve');
+  assert.equal(approveResponse.status, 200);
+  const approveBody = await approveResponse.json();
+  assert.equal(approveBody.success, true);
+  assert.equal(approveBody.item.workflowState, 'request_approved');
+
+  const decidedEvent = await decidedEventPromise;
+  assert.equal(decidedEvent.decision, 'approve');
+
+  const duplicate = await postWorkRequestDecision(server.port, createBody.item.workRequestId, 'reject');
+  assert.equal(duplicate.status, 409);
+  assert.equal((await duplicate.json()).error, 'WORK_REQUEST_ALREADY_DECIDED');
+
+  const unknown = await postWorkRequestDecision(server.port, 'wrk_missing', 'approve');
+  assert.equal(unknown.status, 404);
+});
+
+test('work request store restores submitted requests after restart', async (t) => {
+  const fixture = createProjectRegistryFixture([]);
+  const workflowStorePath = resolve(fixture.tempDir, 'workflows.json');
+  t.after(() => {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  });
+
+  const firstServer = startServer({
+    extraEnv: {
+      MAESTRO_WORKFLOW_ENABLED: 'true',
+      MAESTRO_WORKFLOW_STORE_PATH: workflowStorePath,
+    },
+  });
+  await waitForHealth(firstServer.port);
+
+  const createResponse = await postWorkRequest(firstServer.port, {
+    title: 'persistent request',
+    goal: 'survive a restart',
+    priority: 'urgent',
+  });
+  assert.equal(createResponse.status, 200);
+  const createBody = await createResponse.json();
+  await stopServer(firstServer.proc);
+
+  const secondServer = startServer({
+    extraEnv: {
+      MAESTRO_WORKFLOW_ENABLED: 'true',
+      MAESTRO_WORKFLOW_STORE_PATH: workflowStorePath,
+    },
+  });
+  t.after(async () => {
+    await stopServer(secondServer.proc);
+  });
+
+  await waitForHealth(secondServer.port);
+
+  const detailResponse = await fetch(`http://127.0.0.1:${secondServer.port}/api/work-requests/${createBody.item.workRequestId}`);
+  assert.equal(detailResponse.status, 200);
+  const detailBody = await detailResponse.json();
+  assert.equal(detailBody.item.title, 'persistent request');
+  assert.equal(detailBody.item.priority, 'urgent');
+  assert.equal(detailBody.item.workflowState, 'submitted');
 });
 
 test('agent registry registers, upserts, lists, and records heartbeat', async (t) => {

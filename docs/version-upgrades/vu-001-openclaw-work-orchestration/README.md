@@ -72,11 +72,12 @@ Maestro를 다음 역할로 확장한다.
 - `git merge`는 decision이 아니라 executor action으로 분리한다.
 - goal 단위 실행 하네스는 `.agent/orchestration-*`와 `WORK_CONSOLE_BRANCH_HARNESS_PLAN.md`를 기준으로 추적한다.
 
-### Phase A. Work Request Intake
+### Phase A. Work Request Intake ✅ 완료 (2026-07-15)
 
 - 운영자가 작업 요청을 등록한다.
 - OpenClaw에 작업 착수 허가를 보내기 전 사람이 요청 자체를 승인/반려한다.
 - 이 단계에서는 기존 머지 승인 기능을 손대지 않는다.
+- 구현: `MAESTRO_WORKFLOW_ENABLED` 플래그 뒤 `/api/work-requests` API + 헤더 `Requests` 패널. 상세는 [`PHASE_A_WORK_REQUEST_INTAKE_PLAN.md`](./PHASE_A_WORK_REQUEST_INTAKE_PLAN.md) 참조.
 
 ### Phase B. Plan Review
 
