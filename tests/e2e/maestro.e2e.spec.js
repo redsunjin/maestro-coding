@@ -94,7 +94,7 @@ test.beforeEach(async ({ page }) => {
 test('approval/reject flow and function bach overlay work end-to-end', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '지휘 시작' }).click();
-  await expect(page.getByText('LIVE')).toBeVisible();
+  await expect(page.getByText('LIVE', { exact: true })).toBeVisible();
 
   const approveRequestId = `req_e2e_approve_${Date.now()}`;
   broadcast({
