@@ -86,6 +86,10 @@ const WORKFLOW_STORE_PATH = path.resolve(
   process.env.MAESTRO_WORKFLOW_STORE_PATH || '.maestro-workflows.json',
 );
 const WORKFLOW_ENABLED = parseBoolean(process.env.MAESTRO_WORKFLOW_ENABLED, false);
+const AGENT_STORE_PATH = path.resolve(
+  ROOT_DIR,
+  process.env.MAESTRO_AGENT_STORE_PATH || '.maestro-agents.json',
+);
 const persistedEnvValues = readEnvFile(ENV_PATH).values;
 let runtimeProjectState = createRuntimeProjectState({
   path: process.env.MAIN_REPO_PATH || persistedEnvValues.MAIN_REPO_PATH || process.cwd(),
@@ -455,6 +459,7 @@ function registerAgent(input = {}) {
   const agent = normalizeAgentRegistration(input);
   if (!agent) return null;
   agentsById.set(agent.agentId, agent);
+  persistAgentStore();
   return agent;
 }
 
@@ -475,6 +480,7 @@ function recordAgentHeartbeat(agentId) {
     lastHeartbeatAt: now,
   };
   agentsById.set(nextAgent.agentId, nextAgent);
+  persistAgentStore();
   return nextAgent;
 }
 
@@ -2159,6 +2165,125 @@ const approvalHistory = loadPersistedHistory();
 const historyDedupByKey = new Map();
 let lastAutoApproveAt = 0;
 
+// ── Agent + Approval store persistence ───────────────────────────────────────
+// Agent registry, approval requests, and approval decisions live in memory; a
+// server restart would drop every connected agent and pending pull-decision.
+// Persist them to a JSON snapshot so multi-agent connection state survives.
+function persistAgentStore() {
+  try {
+    mkdirSync(path.dirname(AGENT_STORE_PATH), { recursive: true });
+    const payload = {
+      savedAt: new Date().toISOString(),
+      agents: Array.from(agentsById.values()),
+      approvalRequests: Array.from(approvalRequestsById.values()),
+      approvalDecisions: Array.from(approvalDecisionsByRequestId.values()),
+    };
+    writeFileSync(AGENT_STORE_PATH, JSON.stringify(payload, null, 2));
+  } catch (error) {
+    console.error('agent store persist failed:', error.message);
+  }
+}
+
+function loadAgentStore() {
+  if (!existsSync(AGENT_STORE_PATH)) return;
+  try {
+    const raw = readFileSync(AGENT_STORE_PATH, 'utf8');
+    if (!raw.trim()) return;
+    const parsed = JSON.parse(raw);
+    const now = new Date().toISOString();
+
+    const allowedAgentStatus = new Set(Object.values(AGENT_STATUS));
+    (Array.isArray(parsed.agents) ? parsed.agents : []).forEach((item) => {
+      const agentId = sanitizeHistoryText(item?.agentId || '', 80);
+      if (!agentId) return;
+      const repoRootRaw = typeof item.repoRoot === 'string' ? item.repoRoot.trim() : '';
+      agentsById.set(agentId, {
+        agentId,
+        adapterType: sanitizeHistoryText(item.adapterType || '', 40) || 'unknown',
+        repoRoot: repoRootRaw ? path.resolve(repoRootRaw) : runtimeProjectState.path,
+        displayName: sanitizeHistoryText(item.displayName || '', 120) || agentId,
+        capabilities: normalizeAgentCapabilities(item.capabilities),
+        tokenId: sanitizeHistoryText(item.tokenId || '', 80) || null,
+        status: allowedAgentStatus.has(item.status) ? item.status : AGENT_STATUS.REGISTERED,
+        registeredAt: item.registeredAt || now,
+        updatedAt: item.updatedAt || now,
+        lastHeartbeatAt: item.lastHeartbeatAt || null,
+        metadata: sanitizeAgentMetadata(item.metadata),
+      });
+    });
+
+    const allowedRequestStatus = new Set(Object.values(APPROVAL_REQUEST_STATUS));
+    (Array.isArray(parsed.approvalRequests) ? parsed.approvalRequests : []).forEach((item) => {
+      const requestId = sanitizeHistoryText(item?.requestId || '', 80);
+      if (!requestId) return;
+      const repoRootRaw = typeof item.repoRoot === 'string' ? item.repoRoot.trim() : '';
+      const restored = {
+        requestId,
+        agentId: sanitizeHistoryText(item.agentId || '', 64) || 'unknown_agent',
+        projectId: sanitizeHistoryText(item.projectId || '', 64) || null,
+        repoRoot: repoRootRaw ? path.resolve(repoRootRaw) : runtimeProjectState.path,
+        branchName: sanitizeHistoryText(item.branchName || '', 120) || null,
+        laneIndex: Number.isInteger(item.laneIndex) ? item.laneIndex : null,
+        diffSummary: normalizeDiffSummary(item.diffSummary || {}),
+        source: sanitizeHistoryText(item.source || '', 32) || 'agent',
+        legacyRequestId: sanitizeHistoryText(item.legacyRequestId || '', 80) || null,
+        status: allowedRequestStatus.has(item.status) ? item.status : APPROVAL_REQUEST_STATUS.PENDING_DECISION,
+        autoApprove: item.autoApprove === true,
+        timestamp: item.timestamp || item.createdAt || now,
+        createdAt: item.createdAt || now,
+        updatedAt: item.updatedAt || now,
+      };
+      approvalRequestsById.set(requestId, restored);
+      setRequestMeta(requestId, {
+        requestId,
+        projectId: restored.projectId,
+        laneIndex: restored.laneIndex,
+        agentId: restored.agentId,
+        branchName: restored.branchName,
+        title: restored.diffSummary?.title,
+      });
+      setRequestState(requestId, REQUEST_STATUS.READY, restored.source === 'legacy' ? 'request' : 'approval-request');
+    });
+
+    const allowedDelivery = new Set(Object.values(DECISION_DELIVERY_STATUS));
+    (Array.isArray(parsed.approvalDecisions) ? parsed.approvalDecisions : []).forEach((item) => {
+      const requestId = sanitizeHistoryText(item?.requestId || '', 80);
+      const decisionId = sanitizeHistoryText(item?.decisionId || '', 80);
+      if (!requestId || !decisionId) return;
+      const delivery = item.delivery && typeof item.delivery === 'object' ? item.delivery : {};
+      const executorResult = item.executorResult && typeof item.executorResult === 'object' ? item.executorResult : null;
+      const restored = {
+        decisionId,
+        requestId,
+        agentId: sanitizeHistoryText(item.agentId || '', 64) || null,
+        decision: normalizeApprovalDecisionValue(item.decision),
+        comment: sanitizeHistoryText(item.comment || '', 500) || null,
+        executorAction: normalizeExecutorAction(item.executorAction),
+        delivery: {
+          mode: 'pull',
+          status: allowedDelivery.has(delivery.status) ? delivery.status : DECISION_DELIVERY_STATUS.AVAILABLE,
+          acknowledgedAt: delivery.acknowledgedAt || null,
+          acknowledgedBy: sanitizeHistoryText(delivery.acknowledgedBy || '', 64) || null,
+        },
+        decidedBy: sanitizeHistoryText(item.decidedBy || '', 64) || 'operator',
+        createdAt: item.createdAt || now,
+        executorResult: executorResult ? {
+          status: sanitizeHistoryText(executorResult.status || '', 32) || 'skipped',
+          reason: sanitizeHistoryText(executorResult.reason || '', 80) || null,
+          event: sanitizeHistoryText(executorResult.event || '', 80) || null,
+          finishedAt: executorResult.finishedAt || null,
+        } : null,
+      };
+      approvalDecisionsByRequestId.set(requestId, restored);
+      approvalDecisionsById.set(decisionId, restored);
+    });
+  } catch (error) {
+    console.error('agent store load failed:', error.message);
+  }
+}
+
+loadAgentStore();
+
 function persistHistoryStore(storePath = HISTORY_STORE_PATH) {
   const tempPath = `${storePath}.${process.pid}.${Date.now()}.tmp`;
   try {
@@ -2439,6 +2564,7 @@ function storeApprovalRequest(input = {}, options = {}) {
     approvalRequest.source === 'legacy' ? 'request' : 'approval-request',
   );
 
+  persistAgentStore();
   return approvalRequest;
 }
 
@@ -2537,6 +2663,7 @@ function storeApprovalDecision(input = {}) {
 
   approvalDecisionsByRequestId.set(requestId, decisionItem);
   approvalDecisionsById.set(decisionItem.decisionId, decisionItem);
+  persistAgentStore();
   return decisionItem;
 }
 
@@ -2544,6 +2671,7 @@ function updateApprovalDecision(decision) {
   if (!decision?.decisionId || !decision?.requestId) return null;
   approvalDecisionsByRequestId.set(decision.requestId, decision);
   approvalDecisionsById.set(decision.decisionId, decision);
+  persistAgentStore();
   return decision;
 }
 

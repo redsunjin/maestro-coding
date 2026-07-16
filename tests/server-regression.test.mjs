@@ -688,6 +688,110 @@ test('agent registry registers, upserts, lists, and records heartbeat', async (t
   assert.equal(detailBody.item.lastHeartbeatAt, heartbeatBody.item.lastHeartbeatAt);
 });
 
+test('agent registry survives restart via persisted store', async (t) => {
+  const fixture = createProjectRegistryFixture([]);
+  const agentStorePath = resolve(fixture.tempDir, 'agents.json');
+  t.after(() => {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  });
+
+  const firstServer = startServer({
+    extraEnv: { MAESTRO_AGENT_STORE_PATH: agentStorePath },
+  });
+  await waitForHealth(firstServer.port);
+
+  const registerResponse = await postAgentRegistration(firstServer.port, {
+    agentId: 'persist_agent',
+    adapterType: 'wrapper',
+    repoRoot: ROOT_DIR,
+    displayName: 'Persist Agent',
+    capabilities: ['approval-request', 'decision-polling'],
+  });
+  assert.equal(registerResponse.status, 200);
+  const heartbeatResponse = await postAgentHeartbeat(firstServer.port, 'persist_agent');
+  assert.equal(heartbeatResponse.status, 200);
+  await stopServer(firstServer.proc);
+
+  const secondServer = startServer({
+    extraEnv: { MAESTRO_AGENT_STORE_PATH: agentStorePath },
+  });
+  t.after(async () => {
+    await stopServer(secondServer.proc);
+  });
+  await waitForHealth(secondServer.port);
+
+  const listResponse = await fetch(`http://127.0.0.1:${secondServer.port}/api/agents`);
+  assert.equal(listResponse.status, 200);
+  const listBody = await listResponse.json();
+  const agent = listBody.items.find((item) => item.agentId === 'persist_agent');
+  assert.ok(agent, 'registered agent should survive restart');
+  assert.equal(agent.adapterType, 'wrapper');
+  assert.equal(agent.displayName, 'Persist Agent');
+  assert.deepEqual(agent.capabilities, ['approval-request', 'decision-polling']);
+  assert.equal(agent.status, 'connected');
+});
+
+test('approval request and decision survive restart for pull-based agents', async (t) => {
+  const fixture = createProjectRegistryFixture([]);
+  const agentStorePath = resolve(fixture.tempDir, 'agents.json');
+  t.after(() => {
+    rmSync(fixture.tempDir, { recursive: true, force: true });
+  });
+
+  const firstServer = startServer({
+    extraEnv: { MAESTRO_AGENT_STORE_PATH: agentStorePath },
+  });
+  await waitForHealth(firstServer.port);
+
+  const requestId = `apr_persist_${Date.now()}`;
+  const createResponse = await postFirstClassApprovalRequest(firstServer.port, {}, {
+    requestId,
+    agentId: 'qa_agent',
+    branchName: 'feature/persist-decision',
+    diffSummary: { title: 'Persisted decision', shortDescription: 'survive restart' },
+  });
+  assert.equal(createResponse.status, 200);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${firstServer.port}`);
+  await withTimeout(once(ws, 'open'), 3000, 'websocket open');
+  const decidedPromise = waitForWebSocketEvent(
+    ws,
+    (event) => event.event === 'MERGE_SKIPPED' && event.requestId === requestId,
+    3000,
+    'approve skip',
+  );
+  ws.send(JSON.stringify({
+    action: 'APPROVE',
+    requestId,
+    agentId: 'qa_agent',
+    branchName: 'feature/persist-decision',
+    executorAction: 'none',
+  }));
+  await decidedPromise;
+  ws.close();
+
+  const beforeResponse = await fetch(`http://127.0.0.1:${firstServer.port}/api/approval-requests/${requestId}/decision`);
+  const beforeBody = await beforeResponse.json();
+  assert.equal(beforeBody.status, 'available');
+  await stopServer(firstServer.proc);
+
+  const secondServer = startServer({
+    extraEnv: { MAESTRO_AGENT_STORE_PATH: agentStorePath },
+  });
+  t.after(async () => {
+    await stopServer(secondServer.proc);
+  });
+  await waitForHealth(secondServer.port);
+
+  const afterResponse = await fetch(`http://127.0.0.1:${secondServer.port}/api/approval-requests/${requestId}/decision`);
+  assert.equal(afterResponse.status, 200);
+  const afterBody = await afterResponse.json();
+  assert.equal(afterBody.status, 'available');
+  assert.equal(afterBody.item.requestId, requestId);
+  assert.equal(afterBody.item.decision, 'approve');
+  assert.equal(afterBody.item.executorAction, 'none');
+});
+
 test('agent registry APIs enforce bearer token when MAESTRO_SERVER_TOKEN is set', async (t) => {
   const server = startServer({ token: 'secret-token' });
   t.after(async () => {

@@ -6,5 +6,6 @@ dist/
 .maestro-projects.json
 .maestro-history.json
 .maestro-workflows.json
+.maestro-agents.json
 playwright-report/
 test-results/
