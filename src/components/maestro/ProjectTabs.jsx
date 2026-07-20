@@ -15,7 +15,7 @@ export default function ProjectTabs({
           <button
             key={project.id}
             onClick={() => onSelectProject(project.id)}
-            className={`flex items-center px-6 py-3 border-b-2 font-medium text-sm transition-colors relative ${
+            className={`maestro-touch-control flex items-center px-6 py-3 border-b-2 font-medium text-sm transition-colors relative ${
               isActive ? 'border-purple-500 text-purple-400 bg-gray-800/50' : 'border-transparent text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
             }`}
           >

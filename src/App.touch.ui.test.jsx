@@ -74,6 +74,35 @@ describe('App UI regression - touch controls', () => {
     expect(rejectPayload.feedback).toBe('Touch reject feedback');
   });
 
+  test('primary touch controls carry maestro-touch-control press feedback class', async () => {
+    const socket = await startLiveSession();
+
+    await act(async () => {
+      socket.emitMessage({
+        event: 'AGENT_TASK_READY',
+        requestId: 'req_touch_class_1',
+        laneIndex: 1,
+        diffSummary: {
+          title: 'Touch Class Note',
+          shortDescription: 'touch control class regression',
+        },
+      });
+    });
+
+    expect(await screen.findByText('Touch Class Note')).toBeInTheDocument();
+
+    const primaryControls = [
+      screen.getByRole('button', { name: 'Frontend Agent 승인' }),
+      screen.getByRole('button', { name: 'Frontend Agent 반려' }),
+      screen.getByRole('button', { name: '롤백 실행' }),
+      screen.getByTestId('project-panel-toggle'),
+    ];
+
+    primaryControls.forEach((control) => {
+      expect(control.classList.contains('maestro-touch-control')).toBe(true);
+    });
+  });
+
   test('touch undo button sends UNDO payload in live mode', async () => {
     const socket = await startLiveSession();
 

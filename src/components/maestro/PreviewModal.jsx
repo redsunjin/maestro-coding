@@ -12,7 +12,7 @@ export default function PreviewModal({ previewNote, onClose }) {
             <GitCommit className="w-5 h-5 text-purple-400" />
             <h3 className="font-semibold text-gray-100">{previewNote.title}</h3>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button onClick={onClose} aria-label="미리보기 닫기" className="maestro-touch-control flex items-center justify-center rounded-md text-gray-400 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -33,7 +33,7 @@ export default function PreviewModal({ previewNote, onClose }) {
         </div>
         <div className="p-3 border-t border-gray-800 bg-gray-900 text-right">
           <span className="text-xs text-gray-500 mr-4"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded">Esc</kbd> 로 닫기</span>
-          <button onClick={onClose} className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-sm transition-colors">
+          <button onClick={onClose} className="maestro-touch-control px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-sm transition-colors">
             확인
           </button>
         </div>
