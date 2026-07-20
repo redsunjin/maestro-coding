@@ -35,7 +35,8 @@ Maestro가 "특정 에이전트(예: OpenClaw)"가 아니라 **여러 에이전�
 | `GET /api/approval-requests/:id/decision` | 에이전트 토큰 | 자기 요청만 폴링 |
 | `POST /api/approval-decisions/:id/ack` | 에이전트 토큰 | |
 | `POST /api/agents/:id/revoke` | 서버 토큰 | 토큰 회수(신규) |
-| `GET /api/agents`, `/api/history`, `/api/projects`, `/api/work-*`, WS `APPROVE/REJECT/UNDO` | 서버 토큰 | 대시보드/운영자 |
+| `GET /api/agents`, `/api/history`, `/api/projects`, `/api/work-*` | 서버 토큰 | 대시보드/운영자 |
+| WS `APPROVE/REJECT/UNDO` | **현행 유지(무인증)** | 현재 WS 연결은 토큰 검증이 없음. WS 인증 신설은 대시보드(프론트) 변경을 수반하므로 §8 스코프에 따라 **후속 스펙**으로 분리 |
 | `POST /api/request` (legacy) | 기존 그대로 | 하위호환, 격상 안 함 |
 
 ## 4. 부트스트랩(발급) 흐름
@@ -51,6 +52,10 @@ Maestro가 "특정 에이전트(예: OpenClaw)"가 아니라 **여러 에이전�
 
 - 평문 토큰은 응답에서 1회만 노출. 서버는 평문을 저장하지 않는다.
 - 에이전트가 토큰 저장에 실패하면 재등록으로 재발급(회전).
+- **재등록(upsert) = 무조건 토큰 회전.** 같은 `agentId`로 `register`를 다시 호출하면
+  `tokenHash`를 항상 새로 발급·교체한다(이것이 §7의 회전 메커니즘). 기존 토큰은 즉시
+  무효화되므로, 살아있는 에이전트가 있는 `agentId`를 재등록하면 그 에이전트는 `401`을
+  받게 됨을 운영자가 인지해야 한다(설치 스크립트 재실행 시 주의 문구 출력).
 
 ## 5. 토큰 저장 (해시 방식)
 
@@ -66,6 +71,10 @@ Maestro가 "특정 에이전트(예: OpenClaw)"가 아니라 **여러 에이전�
   - 관대(기본): 에이전트 토큰 있으면 검증, 없으면 서버 토큰 grace 허용.
   - 엄격(`true`): 에이전트 엔드포인트는 반드시 유효한 per-agent 토큰 요구.
 - 이로써 안전하게 점진 이행하고, 언제든 관대 모드로 롤백 가능.
+- **grace 모드의 한계(명시)**: 서버 토큰에는 "주인 에이전트"가 없으므로, grace 경로로
+  통과한 호출에는 §3의 `agentId` 일치 검증을 적용할 수 없다. 즉 **per-agent 격리는
+  엄격 모드(`MAESTRO_AGENT_AUTH_ENFORCE=true`)에서만 성립**하며, 관대 모드는 현행과
+  동일한 신뢰 수준(서버 토큰 = 전권)이라는 점을 운영 문서에 함께 기재한다.
 
 ## 7. 회수 / 회전
 
@@ -76,7 +85,10 @@ Maestro가 "특정 에이전트(예: OpenClaw)"가 아니라 **여러 에이전�
 
 포함:
 - `maestro-server.js` 서버측 인증 로직 + 신규 `revoke` 엔드포인트
-- 훅/설치 스크립트(`scripts/install-maestro-hook.mjs`, `hooks/notify-maestro.sh`)가 발급된 에이전트 토큰을 사용하도록 갱신
+- **훅의 1급 프로토콜 이행**: `hooks/notify-maestro.sh`는 현재 legacy `POST /api/request`로만
+  전송하므로(에이전트 토큰을 쓸 자리가 없음), 훅/설치 스크립트(`scripts/install-maestro-hook.mjs`)를
+  **`POST /api/approval-requests` + 에이전트 토큰** 사용으로 이행한다. legacy `/api/request`는
+  §3대로 하위호환용으로 남긴다(훅 구버전 사용자 무영향).
 - 서버 회귀 테스트
 
 제외:
@@ -97,6 +109,7 @@ Maestro가 "특정 에이전트(예: OpenClaw)"가 아니라 **여러 에이전�
 - `register`가 per-agent 토큰을 1회 반환하고 `tokenHash`만 저장한다.
 - 발급된 에이전트 토큰으로 heartbeat / approval-request / decision 폴링 / ack 성공.
 - 남의 토큰·틀린 토큰·토큰 누락 → `401`.
+- **자기(유효한) 토큰으로 남의 승인 요청 decision 폴링 → 차단(`403` 또는 `404`)** — §3 "자기 요청만 폴링"의 직접 검증.
 - `MAESTRO_SERVER_TOKEN` 미설정 시 관대 모드로 기존 동작 유지.
 - `MAESTRO_AGENT_AUTH_ENFORCE=true` 엄격 모드에서 토큰 없는 에이전트 호출 `401`.
 - `revoke` 후 해당 토큰 `401`.
