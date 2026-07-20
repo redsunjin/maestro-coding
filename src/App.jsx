@@ -9,7 +9,7 @@ import {
   getLaneDefinitions,
 } from './constants/maestro.js';
 import { ensureSfxAudioContext, playBeep, playGradeBeep } from './utils/audio.js';
-import { gradeHit, JUDGMENT_GRADE_COLORS } from './utils/judgment.js';
+import { gradeHit, JUDGMENT_GRADE_COLORS, JUDGMENT_GRADE_FLASH_COLORS } from './utils/judgment.js';
 import { HAPTIC_PATTERNS, vibrate } from './utils/haptics.js';
 import useMaestroRealtime from './hooks/useMaestroRealtime.js';
 import useMaestroGameLoop from './hooks/useMaestroGameLoop.js';
@@ -46,6 +46,7 @@ export default function App() {
   const [maxCombo, setMaxCombo] = useState(0);
   const [feedbacks, setFeedbacks] = useState([]);
   const [sfxBursts, setSfxBursts] = useState([]);
+  const [lineFlashes, setLineFlashes] = useState([]);
   const [previewNote, setPreviewNote] = useState(null);
   const [rejectSheet, setRejectSheet] = useState(null);
 
@@ -100,6 +101,14 @@ export default function App() {
       vibrate(HAPTIC_PATTERNS.COMBO_MILESTONE);
     }
   }, [combo]);
+
+  const showLineFlash = useCallback((projectId, lane, colorClass) => {
+    const id = Date.now() + Math.random();
+    setLineFlashes((prev) => [...prev, { id, projectId, lane, colorClass }]);
+    setTimeout(() => {
+      setLineFlashes((prev) => prev.filter((flash) => flash.id !== id));
+    }, 320);
+  }, []);
 
   const showSfxBurst = useCallback((lane, freq) => {
     const id = Date.now() + Math.random();
@@ -382,6 +391,7 @@ export default function App() {
       playGradeBeep(selectedFreq, judgment.grade);
       vibrate(HAPTIC_PATTERNS[judgment.grade]);
       showFeedback(currentProjectId, laneMatch.id, judgment.grade, JUDGMENT_GRADE_COLORS[judgment.grade]);
+      showLineFlash(currentProjectId, laneMatch.id, JUDGMENT_GRADE_FLASH_COLORS[judgment.grade]);
     } else {
       vibrate(HAPTIC_PATTERNS.REJECT);
     }
@@ -435,7 +445,7 @@ export default function App() {
         return nextCombo;
       });
     }
-  }, [activeLanes, isPlaying, previewNote, sendSocketAction, showFeedback, showSfxBurst]);
+  }, [activeLanes, isPlaying, previewNote, sendSocketAction, showFeedback, showLineFlash, showSfxBurst]);
 
   const confirmRejectSheet = useCallback((reason) => {
     if (!rejectSheet) return;
@@ -624,6 +634,7 @@ export default function App() {
         combo={combo}
         feedbacks={feedbacks}
         sfxBursts={sfxBursts}
+        lineFlashes={lineFlashes}
         baseBottom={BASE_BOTTOM}
         noteStatus={NOTE_STATUS}
         onPreviewNote={setPreviewNote}

@@ -7,6 +7,14 @@ export const JUDGMENT_GRADE_COLORS = {
   LATE: 'text-gray-400',
 };
 
+// 판정선 플래시용 배경색 (등급별)
+export const JUDGMENT_GRADE_FLASH_COLORS = {
+  PERFECT: 'bg-yellow-300',
+  GREAT: 'bg-green-400',
+  EARLY: 'bg-blue-300',
+  LATE: 'bg-gray-400',
+};
+
 export const JUDGMENT_GRADES = {
   PERFECT: 'PERFECT',
   GREAT: 'GREAT',

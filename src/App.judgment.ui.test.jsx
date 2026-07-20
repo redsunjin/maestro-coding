@@ -58,6 +58,58 @@ describe('App UI regression - timing judgment (score-only)', () => {
     expect(payload.requestId).toBe('req_judgment_1');
   });
 
+  test('haptics toggle persists off state and suppresses vibration', async () => {
+    const socket = await startLiveSession();
+
+    const toggle = screen.getByRole('button', { name: '햅틱 토글' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(window.localStorage.getItem('maestro.haptics')).toBe('off');
+
+    vibrateSpy.mockClear();
+
+    await act(async () => {
+      socket.emitMessage({
+        event: 'AGENT_TASK_READY',
+        requestId: 'req_haptics_off_1',
+        laneIndex: 1,
+        diffSummary: {
+          title: 'Haptics Off Note',
+          shortDescription: 'haptics toggle regression',
+        },
+      });
+    });
+
+    expect(await screen.findByText('Haptics Off Note')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Frontend Agent 승인' }));
+
+    expect(await screen.findByText('EARLY')).toBeInTheDocument();
+    expect(vibrateSpy).not.toHaveBeenCalled();
+  });
+
+  test('approve tap flashes the judgment line with the grade color', async () => {
+    const socket = await startLiveSession();
+
+    await act(async () => {
+      socket.emitMessage({
+        event: 'AGENT_TASK_READY',
+        requestId: 'req_flash_1',
+        laneIndex: 1,
+        diffSummary: {
+          title: 'Flash Note',
+          shortDescription: 'line flash regression',
+        },
+      });
+    });
+
+    expect(await screen.findByText('Flash Note')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Frontend Agent 승인' }));
+
+    expect(await screen.findByTestId('judgment-line-flash')).toBeInTheDocument();
+  });
+
   test('merge success applies grade-based score and separate merged count', async () => {
     const socket = await startLiveSession();
 
