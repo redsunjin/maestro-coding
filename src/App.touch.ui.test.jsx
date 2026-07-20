@@ -103,6 +103,18 @@ describe('App UI regression - touch controls', () => {
     });
   });
 
+  test('panel primary controls carry maestro-touch-control class', async () => {
+    await startLiveSession();
+
+    await userEvent.click(screen.getByTestId('project-panel-toggle'));
+    const projectPanelClose = await screen.findByRole('button', { name: '프로젝트 전환 패널 닫기' });
+    expect(projectPanelClose.classList.contains('maestro-touch-control')).toBe(true);
+
+    await userEvent.keyboard('h');
+    const historyPanelClose = await screen.findByRole('button', { name: '히스토리 패널 닫기' });
+    expect(historyPanelClose.classList.contains('maestro-touch-control')).toBe(true);
+  });
+
   test('touch undo button sends UNDO payload in live mode', async () => {
     const socket = await startLiveSession();
 

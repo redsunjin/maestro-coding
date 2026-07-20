@@ -118,7 +118,7 @@ export default function WorkRequestPanel({
               type="button"
               onClick={onClose}
               aria-label="작업 요청 패널 닫기"
-              className="rounded-md border border-gray-700 p-1.5 text-gray-300 transition-colors hover:border-amber-400/40 hover:text-white"
+              className="maestro-touch-control maestro-touch-control--compact rounded-md border border-gray-700 p-1.5 text-gray-300 transition-colors hover:border-amber-400/40 hover:text-white"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -201,7 +201,7 @@ export default function WorkRequestPanel({
             <button
               type="submit"
               disabled={!canSubmit}
-              className="w-full rounded-md border border-amber-400/50 bg-amber-500/10 px-2 py-1.5 text-[12px] font-semibold text-amber-100 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+              className="maestro-touch-control maestro-touch-control--compact w-full rounded-md border border-amber-400/50 bg-amber-500/10 px-2 py-1.5 text-[12px] font-semibold text-amber-100 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
               작업 요청 등록
             </button>
@@ -236,7 +236,7 @@ export default function WorkRequestPanel({
                     <button
                       type="button"
                       onClick={() => onSelectRequest?.(request.workRequestId)}
-                      className="w-full text-left"
+                      className="maestro-touch-control maestro-touch-control--compact w-full text-left"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate text-[12px] font-semibold text-white">{request.title}</span>
@@ -257,7 +257,7 @@ export default function WorkRequestPanel({
                           type="button"
                           onClick={() => onDecide?.(request.workRequestId, 'approve')}
                           aria-label="작업 요청 승인"
-                          className="flex-1 rounded border border-green-500/40 bg-green-500/10 px-1.5 py-1 text-[11px] font-medium text-green-200 hover:bg-green-500/20"
+                          className="maestro-touch-control maestro-touch-control--compact flex-1 rounded border border-green-500/40 bg-green-500/10 px-1.5 py-1 text-[11px] font-medium text-green-200 hover:bg-green-500/20"
                         >
                           승인
                         </button>
@@ -265,7 +265,7 @@ export default function WorkRequestPanel({
                           type="button"
                           onClick={() => onDecide?.(request.workRequestId, 'reject')}
                           aria-label="작업 요청 반려"
-                          className="flex-1 rounded border border-red-500/40 bg-red-500/10 px-1.5 py-1 text-[11px] font-medium text-red-200 hover:bg-red-500/20"
+                          className="maestro-touch-control maestro-touch-control--compact flex-1 rounded border border-red-500/40 bg-red-500/10 px-1.5 py-1 text-[11px] font-medium text-red-200 hover:bg-red-500/20"
                         >
                           반려
                         </button>
@@ -273,7 +273,7 @@ export default function WorkRequestPanel({
                           type="button"
                           onClick={() => onDecide?.(request.workRequestId, 'cancel')}
                           aria-label="작업 요청 취소"
-                          className="flex-1 rounded border border-gray-600 bg-gray-800/80 px-1.5 py-1 text-[11px] font-medium text-gray-300 hover:bg-gray-700"
+                          className="maestro-touch-control maestro-touch-control--compact flex-1 rounded border border-gray-600 bg-gray-800/80 px-1.5 py-1 text-[11px] font-medium text-gray-300 hover:bg-gray-700"
                         >
                           취소
                         </button>

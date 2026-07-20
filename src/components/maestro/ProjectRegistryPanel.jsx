@@ -102,7 +102,7 @@ export default function ProjectRegistryPanel({
               type="button"
               onClick={onRefresh}
               aria-label="프로젝트 목록 새로고침"
-              className="rounded-md border border-gray-700 p-1 text-gray-300 hover:border-gray-500 hover:text-white"
+              className="maestro-touch-control maestro-touch-control--compact rounded-md border border-gray-700 p-1 text-gray-300 hover:border-gray-500 hover:text-white"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
@@ -111,7 +111,7 @@ export default function ProjectRegistryPanel({
               type="button"
               onClick={onClose}
               aria-label="프로젝트 전환 패널 닫기"
-              className="rounded-md border border-gray-700 p-1 text-gray-300 hover:border-gray-500 hover:text-white"
+              className="maestro-touch-control maestro-touch-control--compact rounded-md border border-gray-700 p-1 text-gray-300 hover:border-gray-500 hover:text-white"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -222,7 +222,7 @@ export default function ProjectRegistryPanel({
                     type="button"
                     onClick={onUpdateLaneCount}
                     disabled={isUpdating || String(selectedProject.laneCount || 4) === String(selectedProjectLaneCount)}
-                    className="mt-5 inline-flex items-center gap-1.5 rounded-md bg-cyan-400 px-3 py-1.5 text-[11px] font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
+                    className="maestro-touch-control maestro-touch-control--compact mt-5 inline-flex items-center gap-1.5 rounded-md bg-cyan-400 px-3 py-1.5 text-[11px] font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Check className="h-3.5 w-3.5" />
                     {isUpdating ? '저장 중...' : '레인 저장'}
@@ -239,7 +239,7 @@ export default function ProjectRegistryPanel({
                 type="button"
                 onClick={onApply}
                 disabled={!selectedProjectId || isCurrentSelection || isApplying}
-                className="inline-flex items-center gap-1.5 rounded-md bg-cyan-400 px-3 py-1.5 text-[11px] font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
+                className="maestro-touch-control maestro-touch-control--compact inline-flex items-center gap-1.5 rounded-md bg-cyan-400 px-3 py-1.5 text-[11px] font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Check className="h-3.5 w-3.5" />
                 {isApplying ? '적용 중...' : isCurrentSelection ? '적용됨' : '적용'}
@@ -324,7 +324,7 @@ export default function ProjectRegistryPanel({
                 type="button"
                 onClick={onRegisterProject}
                 disabled={!newProjectPath.trim() || isRegistering}
-                className="inline-flex items-center gap-1.5 rounded-md bg-cyan-400 px-3 py-1.5 text-[11px] font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
+                className="maestro-touch-control maestro-touch-control--compact inline-flex items-center gap-1.5 rounded-md bg-cyan-400 px-3 py-1.5 text-[11px] font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Check className="h-3.5 w-3.5" />
                 {isRegistering ? '등록 중...' : '등록 후 적용'}
@@ -356,7 +356,7 @@ export default function ProjectRegistryPanel({
                   <button
                     type="button"
                     onClick={onClearToken}
-                    className="rounded-md border border-amber-500/40 px-2 py-1 text-[11px] text-amber-100 hover:bg-amber-500/10"
+                    className="maestro-touch-control maestro-touch-control--compact rounded-md border border-amber-500/40 px-2 py-1 text-[11px] text-amber-100 hover:bg-amber-500/10"
                   >
                     Clear
                   </button>
@@ -364,7 +364,7 @@ export default function ProjectRegistryPanel({
                 <button
                   type="button"
                   onClick={onSaveToken}
-                  className="rounded-md bg-amber-400 px-2 py-1 text-[11px] font-semibold text-black hover:bg-amber-300"
+                  className="maestro-touch-control maestro-touch-control--compact rounded-md bg-amber-400 px-2 py-1 text-[11px] font-semibold text-black hover:bg-amber-300"
                 >
                   저장
                 </button>

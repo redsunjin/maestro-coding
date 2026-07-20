@@ -142,7 +142,7 @@ export default function WorkConsolePanel({
                 type="button"
                 onClick={onMoveLeft}
                 aria-label="Work Console 왼쪽으로 이동"
-                className={`rounded-md border p-1.5 text-gray-300 transition-colors hover:text-white ${
+                className={`maestro-touch-control maestro-touch-control--compact rounded-md border p-1.5 text-gray-300 transition-colors hover:text-white ${
                   dockSide === 'left'
                     ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-100'
                     : 'border-gray-700 hover:border-cyan-400/40'
@@ -154,7 +154,7 @@ export default function WorkConsolePanel({
                 type="button"
                 onClick={onMoveRight}
                 aria-label="Work Console 오른쪽으로 이동"
-                className={`rounded-md border p-1.5 text-gray-300 transition-colors hover:text-white ${
+                className={`maestro-touch-control maestro-touch-control--compact rounded-md border p-1.5 text-gray-300 transition-colors hover:text-white ${
                   dockSide === 'right'
                     ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-100'
                     : 'border-gray-700 hover:border-cyan-400/40'
@@ -167,7 +167,7 @@ export default function WorkConsolePanel({
                 type="button"
                 onClick={onClose}
                 aria-label="Work Console 닫기"
-                className="rounded-md border border-gray-700 p-1.5 text-gray-300 transition-colors hover:border-gray-500 hover:text-white"
+                className="maestro-touch-control maestro-touch-control--compact rounded-md border border-gray-700 p-1.5 text-gray-300 transition-colors hover:border-gray-500 hover:text-white"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -257,7 +257,7 @@ export default function WorkConsolePanel({
               <button
                 type="button"
                 onClick={handleCreateSession}
-                className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[11px] font-medium text-cyan-100 hover:bg-cyan-500/15"
+                className="maestro-touch-control maestro-touch-control--compact rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[11px] font-medium text-cyan-100 hover:bg-cyan-500/15"
               >
                 새 작업 시작
               </button>
@@ -287,7 +287,7 @@ export default function WorkConsolePanel({
                     key={session.workSessionId}
                     type="button"
                     onClick={() => onSelectSession?.(session.workSessionId)}
-                    className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${
+                    className={`maestro-touch-control maestro-touch-control--compact w-full rounded-xl border px-3 py-2 text-left transition-colors ${
                       session.workSessionId === selectedSessionId
                         ? 'border-cyan-400/50 bg-cyan-500/10'
                         : 'border-gray-800 bg-gray-950/70 hover:border-gray-700'
@@ -324,7 +324,7 @@ export default function WorkConsolePanel({
                       type="button"
                       onClick={() => { void onCloseSession?.(); }}
                       disabled={selectedSession.status === 'completed' || selectedSession.status === 'cancelled' || isSubmittingMessage}
-                      className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="maestro-touch-control maestro-touch-control--compact rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Close Session
                     </button>
@@ -414,7 +414,7 @@ export default function WorkConsolePanel({
                   type="button"
                   onClick={() => { void handleSubmit(); }}
                   disabled={!selectedSession || !composerValue.trim() || isSubmittingMessage}
-                  className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="maestro-touch-control maestro-touch-control--compact rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isSubmittingMessage ? 'Sending...' : 'Send'}
                 </button>

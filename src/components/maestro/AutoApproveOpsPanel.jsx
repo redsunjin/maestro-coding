@@ -159,7 +159,7 @@ export default function AutoApproveOpsPanel({
               type="button"
               onClick={onRefresh}
               aria-label="자동승인 운영 데이터 새로고침"
-              className="rounded-md border border-gray-700 p-1 text-gray-300 hover:border-gray-500 hover:text-white"
+              className="maestro-touch-control maestro-touch-control--compact rounded-md border border-gray-700 p-1 text-gray-300 hover:border-gray-500 hover:text-white"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
@@ -168,7 +168,7 @@ export default function AutoApproveOpsPanel({
               type="button"
               onClick={onClose}
               aria-label="자동승인 운영 패널 닫기"
-              className="rounded-md border border-gray-700 p-1 text-gray-300 hover:border-gray-500 hover:text-white"
+              className="maestro-touch-control maestro-touch-control--compact rounded-md border border-gray-700 p-1 text-gray-300 hover:border-gray-500 hover:text-white"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -267,7 +267,7 @@ export default function AutoApproveOpsPanel({
                   <button
                     type="button"
                     onClick={onClearToken}
-                    className="rounded-md border border-gray-700 px-2 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
+                    className="maestro-touch-control maestro-touch-control--compact rounded-md border border-gray-700 px-2 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
                   >
                     비우기
                   </button>
@@ -275,7 +275,7 @@ export default function AutoApproveOpsPanel({
                 <button
                   type="button"
                   onClick={onSaveToken}
-                  className="rounded-md bg-amber-400 px-2 py-1 text-[11px] font-semibold text-black hover:bg-amber-300"
+                  className="maestro-touch-control maestro-touch-control--compact rounded-md bg-amber-400 px-2 py-1 text-[11px] font-semibold text-black hover:bg-amber-300"
                 >
                   저장
                 </button>

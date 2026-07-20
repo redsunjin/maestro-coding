@@ -251,7 +251,7 @@ export default function HistoryScorePanel({
             type="button"
             onClick={onClose}
             aria-label="히스토리 패널 닫기"
-            className="rounded-md border border-gray-700 p-1 text-gray-300 hover:border-gray-500 hover:text-white"
+            className="maestro-touch-control maestro-touch-control--compact rounded-md border border-gray-700 p-1 text-gray-300 hover:border-gray-500 hover:text-white"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -473,7 +473,7 @@ export default function HistoryScorePanel({
             <button
               type="button"
               onClick={onLoadMore}
-              className="w-full rounded-md border border-cyan-500/40 bg-cyan-500/10 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20"
+              className="maestro-touch-control maestro-touch-control--compact w-full rounded-md border border-cyan-500/40 bg-cyan-500/10 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20"
             >
               더보기
             </button>
