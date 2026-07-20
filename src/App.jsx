@@ -25,6 +25,7 @@ import ProjectTabs from './components/maestro/ProjectTabs.jsx';
 import LaneBoard from './components/maestro/LaneBoard.jsx';
 import FooterHelp from './components/maestro/FooterHelp.jsx';
 import PreviewModal from './components/maestro/PreviewModal.jsx';
+import RejectSheet from './components/maestro/RejectSheet.jsx';
 import HistoryScorePanel from './components/maestro/HistoryScorePanel.jsx';
 import AutoApproveOpsPanel from './components/maestro/AutoApproveOpsPanel.jsx';
 import ProjectRegistryPanel from './components/maestro/ProjectRegistryPanel.jsx';
@@ -43,6 +44,7 @@ export default function App() {
   const [feedbacks, setFeedbacks] = useState([]);
   const [sfxBursts, setSfxBursts] = useState([]);
   const [previewNote, setPreviewNote] = useState(null);
+  const [rejectSheet, setRejectSheet] = useState(null);
 
   const notesRef = useRef([]);
   const activeProjectRef = useRef(activeProjectId);
@@ -315,7 +317,7 @@ export default function App() {
   });
 
   const triggerLaneAction = useCallback((laneId, options = {}) => {
-    const { isRejectAction = false, promptFeedback = false } = options;
+    const { isRejectAction = false, promptFeedback = false, rejectFeedback: directRejectFeedback = '' } = options;
     if (!isPlaying || previewNote) return;
 
     const laneMatch = activeLanes.find((lane) => lane.id === laneId);
@@ -349,16 +351,14 @@ export default function App() {
     }
 
     const targetNote = laneNotes[0];
-    let rejectFeedback = '';
 
-    if (isRejectAction && promptFeedback && typeof window !== 'undefined' && typeof window.prompt === 'function') {
-      const input = window.prompt('반려 사유를 입력하세요 (선택, 취소 시 반려 취소)', '');
-      if (input === null) {
-        showFeedback(currentProjectId, laneMatch.id, 'REJECT CANCELED', 'text-gray-400');
-        return;
-      }
-      rejectFeedback = input.trim().slice(0, 300);
+    if (isRejectAction && promptFeedback) {
+      // 터치/키보드 공용: window.prompt 대신 반려 시트를 연다 (트랙 F4)
+      setRejectSheet({ laneId: laneMatch.id, laneName: laneMatch.name, noteTitle: targetNote.title });
+      return;
     }
+
+    const rejectFeedback = (directRejectFeedback || '').trim().slice(0, 300);
 
     const sent = sendSocketAction({
       action: isRejectAction ? 'REJECT' : 'APPROVE',
@@ -403,6 +403,18 @@ export default function App() {
     });
     showFeedback(currentProjectId, laneMatch.id, 'MERGED!', 'text-green-400');
   }, [activeLanes, isPlaying, previewNote, sendSocketAction, showFeedback, showSfxBurst]);
+
+  const confirmRejectSheet = useCallback((reason) => {
+    if (!rejectSheet) return;
+    setRejectSheet(null);
+    triggerLaneAction(rejectSheet.laneId, { isRejectAction: true, rejectFeedback: reason });
+  }, [rejectSheet, triggerLaneAction]);
+
+  const cancelRejectSheet = useCallback(() => {
+    if (!rejectSheet) return;
+    setRejectSheet(null);
+    showFeedback(activeProjectRef.current, rejectSheet.laneId, 'REJECT CANCELED', 'text-gray-400');
+  }, [rejectSheet, showFeedback]);
 
   const triggerUndoAction = useCallback(() => {
     if (!isPlaying || previewNote) return;
@@ -699,6 +711,14 @@ export default function App() {
       />
 
       <PreviewModal previewNote={previewNote} onClose={() => setPreviewNote(null)} />
+      {rejectSheet && (
+        <RejectSheet
+          laneName={rejectSheet.laneName}
+          noteTitle={rejectSheet.noteTitle}
+          onConfirm={confirmRejectSheet}
+          onCancel={cancelRejectSheet}
+        />
+      )}
     </div>
   );
 }

@@ -1,1 +1,30 @@
 @import "tailwindcss";
+
+/* --- 터치 우선 공통 컨트롤 (트랙 F1) ---
+   모든 1차 인터랙티브 컨트롤에 합성하는 단일 소스 유틸.
+   press 피드백 + 44px 탭 타깃 하한 + 터치 최적화 + 포커스 링. */
+.maestro-touch-control {
+  min-height: 44px;
+  min-width: 44px;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.08s ease, filter 0.08s ease;
+}
+
+.maestro-touch-control:active {
+  transform: scale(0.95);
+  filter: brightness(1.25);
+}
+
+.maestro-touch-control:focus-visible {
+  outline: 2px solid rgba(34, 211, 238, 0.7);
+  outline-offset: 2px;
+}
+
+/* 밀집 영역(헤더 칩 등)용: 탭 타깃 하한은 유지하되 시각 패딩만 축소 */
+.maestro-touch-control--compact {
+  min-height: 44px;
+  min-width: auto;
+}

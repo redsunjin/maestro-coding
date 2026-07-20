@@ -76,7 +76,7 @@ export default function LaneBoard({
                       <span className="text-sm font-medium truncate group-hover:underline">{note.title}</span>
                     </div>
                   </div>
-                  <Code className="w-4 h-4 text-gray-500 group-hover:text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <Code data-testid="note-preview-affordance" className="w-4 h-4 shrink-0 text-gray-400 transition-colors" />
                 </div>
               </div>
             ))}
@@ -111,7 +111,7 @@ export default function LaneBoard({
                   type="button"
                   onClick={() => onLaneAction(lane.id)}
                   aria-label={`${lane.name} 승인`}
-                  className={`h-16 w-16 rounded-xl border-2 bg-gray-900 ${lane.border} shadow-[0_0_15px_rgba(0,0,0,0.5)] touch-manipulation transition-transform active:scale-95`}
+                  className={`maestro-touch-control h-16 w-16 rounded-xl border-2 bg-gray-900 ${lane.border} shadow-[0_0_15px_rgba(0,0,0,0.5)]`}
                 >
                   <span className={`text-2xl font-bold uppercase ${lane.color}`}>{lane.key}</span>
                 </button>
@@ -119,7 +119,7 @@ export default function LaneBoard({
                   type="button"
                   onClick={() => onLaneAction(lane.id, { isRejectAction: true, promptFeedback: true })}
                   aria-label={`${lane.name} 반려`}
-                  className="min-h-[32px] rounded-md border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-[11px] font-semibold text-orange-200 transition-colors hover:bg-orange-500/20 touch-manipulation"
+                  className="maestro-touch-control rounded-md border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-[11px] font-semibold text-orange-200 transition-colors hover:bg-orange-500/20"
                 >
                   Reject
                 </button>

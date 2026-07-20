@@ -5,14 +5,25 @@ export default function PreviewModal({ previewNote, onClose }) {
   if (!previewNote) return null;
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+    <div
+      data-testid="preview-modal-backdrop"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={previewNote.title}
+        className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200"
+      >
         <div className="flex justify-between items-center p-4 border-b border-gray-800 bg-gray-800/50">
           <div className="flex items-center space-x-2">
             <GitCommit className="w-5 h-5 text-purple-400" />
             <h3 className="font-semibold text-gray-100">{previewNote.title}</h3>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button onClick={onClose} aria-label="미리보기 닫기" className="maestro-touch-control flex items-center justify-center rounded-md text-gray-400 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -33,7 +44,7 @@ export default function PreviewModal({ previewNote, onClose }) {
         </div>
         <div className="p-3 border-t border-gray-800 bg-gray-900 text-right">
           <span className="text-xs text-gray-500 mr-4"><kbd className="bg-gray-800 px-1.5 py-0.5 rounded">Esc</kbd> 로 닫기</span>
-          <button onClick={onClose} className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-sm transition-colors">
+          <button onClick={onClose} className="maestro-touch-control px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-sm transition-colors">
             확인
           </button>
         </div>

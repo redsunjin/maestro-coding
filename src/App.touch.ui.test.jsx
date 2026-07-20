@@ -44,8 +44,8 @@ describe('App UI regression - touch controls', () => {
     expect(approvePayload.requestId).toBe('req_touch_approve_1');
   });
 
-  test('touch reject button sends REJECT payload with feedback prompt', async () => {
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('Touch reject feedback');
+  test('touch reject opens sheet (not window.prompt) and sends REJECT with typed reason', async () => {
+    const promptSpy = vi.spyOn(window, 'prompt');
     const socket = await startLiveSession();
 
     await act(async () => {
@@ -64,14 +64,183 @@ describe('App UI regression - touch controls', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Frontend Agent 반려' }));
 
+    expect(await screen.findByTestId('reject-sheet')).toBeInTheDocument();
+    expect(promptSpy).not.toHaveBeenCalled();
+    expect(socket.sent.length).toBe(0);
+
+    await userEvent.type(screen.getByRole('textbox', { name: '반려 사유 입력' }), 'Touch reject feedback');
+    await userEvent.click(screen.getByRole('button', { name: '반려 확정' }));
+
     await waitFor(() => {
-      expect(promptSpy).toHaveBeenCalled();
       expect(socket.sent.length).toBe(1);
     });
 
     const rejectPayload = JSON.parse(socket.sent[0]);
     expect(rejectPayload.action).toBe('REJECT');
     expect(rejectPayload.feedback).toBe('Touch reject feedback');
+    expect(screen.queryByTestId('reject-sheet')).not.toBeInTheDocument();
+  });
+
+  test('reject sheet quick reason chip fills feedback', async () => {
+    const socket = await startLiveSession();
+
+    await act(async () => {
+      socket.emitMessage({
+        event: 'AGENT_TASK_READY',
+        requestId: 'req_touch_reject_chip_1',
+        laneIndex: 1,
+        diffSummary: {
+          title: 'Chip Reject Note',
+          shortDescription: 'chip reject flow',
+        },
+      });
+    });
+
+    expect(await screen.findByText('Chip Reject Note')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Frontend Agent 반려' }));
+    expect(await screen.findByTestId('reject-sheet')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '테스트 실패' }));
+    await userEvent.click(screen.getByRole('button', { name: '반려 확정' }));
+
+    await waitFor(() => {
+      expect(socket.sent.length).toBe(1);
+    });
+
+    const rejectPayload = JSON.parse(socket.sent[0]);
+    expect(rejectPayload.action).toBe('REJECT');
+    expect(rejectPayload.feedback).toContain('테스트 실패');
+  });
+
+  test('reject sheet cancel aborts reject without sending', async () => {
+    const socket = await startLiveSession();
+
+    await act(async () => {
+      socket.emitMessage({
+        event: 'AGENT_TASK_READY',
+        requestId: 'req_touch_reject_cancel_1',
+        laneIndex: 1,
+        diffSummary: {
+          title: 'Cancel Reject Note',
+          shortDescription: 'cancel reject flow',
+        },
+      });
+    });
+
+    expect(await screen.findByText('Cancel Reject Note')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Frontend Agent 반려' }));
+    expect(await screen.findByTestId('reject-sheet')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '반려 취소' }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('reject-sheet')).not.toBeInTheDocument();
+    });
+    expect(socket.sent.length).toBe(0);
+    expect(await screen.findByText('REJECT CANCELED')).toBeInTheDocument();
+    expect(screen.getByText('Cancel Reject Note')).toBeInTheDocument();
+  });
+
+  test('primary touch controls carry maestro-touch-control press feedback class', async () => {
+    const socket = await startLiveSession();
+
+    await act(async () => {
+      socket.emitMessage({
+        event: 'AGENT_TASK_READY',
+        requestId: 'req_touch_class_1',
+        laneIndex: 1,
+        diffSummary: {
+          title: 'Touch Class Note',
+          shortDescription: 'touch control class regression',
+        },
+      });
+    });
+
+    expect(await screen.findByText('Touch Class Note')).toBeInTheDocument();
+
+    const primaryControls = [
+      screen.getByRole('button', { name: 'Frontend Agent 승인' }),
+      screen.getByRole('button', { name: 'Frontend Agent 반려' }),
+      screen.getByRole('button', { name: '롤백 실행' }),
+      screen.getByTestId('project-panel-toggle'),
+    ];
+
+    primaryControls.forEach((control) => {
+      expect(control.classList.contains('maestro-touch-control')).toBe(true);
+    });
+  });
+
+  test('panel primary controls carry maestro-touch-control class', async () => {
+    await startLiveSession();
+
+    await userEvent.click(screen.getByTestId('project-panel-toggle'));
+    const projectPanelClose = await screen.findByRole('button', { name: '프로젝트 전환 패널 닫기' });
+    expect(projectPanelClose.classList.contains('maestro-touch-control')).toBe(true);
+
+    await userEvent.keyboard('h');
+    const historyPanelClose = await screen.findByRole('button', { name: '히스토리 패널 닫기' });
+    expect(historyPanelClose.classList.contains('maestro-touch-control')).toBe(true);
+  });
+
+  test('note preview affordance is visible without hover', async () => {
+    const socket = await startLiveSession();
+
+    await act(async () => {
+      socket.emitMessage({
+        event: 'AGENT_TASK_READY',
+        requestId: 'req_touch_preview_1',
+        laneIndex: 1,
+        diffSummary: {
+          title: 'Touch Preview Note',
+          shortDescription: 'preview affordance regression',
+        },
+      });
+    });
+
+    expect(await screen.findByText('Touch Preview Note')).toBeInTheDocument();
+
+    const affordance = screen.getByTestId('note-preview-affordance');
+    expect(affordance.getAttribute('class') || '').not.toContain('opacity-0');
+    expect(affordance.getAttribute('class') || '').not.toContain('group-hover');
+  });
+
+  test('bach state chip exposes YT state without mouse-only title tooltip', async () => {
+    await startLiveSession();
+
+    const stateChip = screen.getByTestId('function-bach-state');
+    expect(stateChip.hasAttribute('title')).toBe(false);
+    expect(stateChip.getAttribute('aria-label') || '').toContain('YT state');
+  });
+
+  test('preview modal closes on backdrop tap but not on dialog content tap', async () => {
+    const socket = await startLiveSession();
+
+    await act(async () => {
+      socket.emitMessage({
+        event: 'AGENT_TASK_READY',
+        requestId: 'req_touch_backdrop_1',
+        laneIndex: 1,
+        diffSummary: {
+          title: 'Backdrop Close Note',
+          shortDescription: 'backdrop close regression',
+        },
+      });
+    });
+
+    await userEvent.click(await screen.findByText('Backdrop Close Note'));
+    expect(await screen.findByTestId('preview-modal-backdrop')).toBeInTheDocument();
+
+    // 다이얼로그 내용 탭 → 닫히지 않음
+    await userEvent.click(screen.getByRole('heading', { name: 'Backdrop Close Note' }));
+    expect(screen.getByTestId('preview-modal-backdrop')).toBeInTheDocument();
+
+    // 백드롭 탭 → 닫힘
+    await userEvent.click(screen.getByTestId('preview-modal-backdrop'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('preview-modal-backdrop')).not.toBeInTheDocument();
+    });
   });
 
   test('touch undo button sends UNDO payload in live mode', async () => {

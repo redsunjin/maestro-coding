@@ -55,7 +55,7 @@ describe('App UI regression - approval/reject flow', () => {
   });
 
   test('reject sends typed feedback to websocket payload', async () => {
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('Need boundary checks');
+    const promptSpy = vi.spyOn(window, 'prompt');
     const socket = await startLiveSession();
 
     await act(async () => {
@@ -76,8 +76,16 @@ describe('App UI regression - approval/reject flow', () => {
       fireEvent.keyDown(window, { key: 'd', shiftKey: true });
     });
 
+    // Shift+레인키 반려도 window.prompt 대신 반려 시트를 연다 (F4)
+    expect(await screen.findByTestId('reject-sheet')).toBeInTheDocument();
+    expect(promptSpy).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByRole('textbox', { name: '반려 사유 입력' }), {
+      target: { value: 'Need boundary checks' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '반려 확정' }));
+
     await waitFor(() => {
-      expect(promptSpy).toHaveBeenCalled();
       expect(socket.sent.length).toBe(1);
     });
 
@@ -94,8 +102,7 @@ describe('App UI regression - approval/reject flow', () => {
     });
   });
 
-  test('reject can be canceled from prompt without sending websocket event', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue(null);
+  test('reject can be canceled from sheet without sending websocket event', async () => {
     const socket = await startLiveSession();
 
     await act(async () => {
@@ -116,9 +123,13 @@ describe('App UI regression - approval/reject flow', () => {
       fireEvent.keyDown(window, { key: 'd', shiftKey: true });
     });
 
+    expect(await screen.findByTestId('reject-sheet')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '반려 취소' }));
+
     await waitFor(() => {
       expect(screen.getByText('REJECT CANCELED')).toBeInTheDocument();
     });
+    expect(screen.queryByTestId('reject-sheet')).not.toBeInTheDocument();
     expect(socket.sent.length).toBe(0);
   });
 });
