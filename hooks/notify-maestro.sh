@@ -14,10 +14,14 @@
 #   MAESTRO_URL   서버 주소 (기본값: http://localhost:8080)
 #   AGENT_ID      에이전트 식별자 (기본값: terminal_agent)
 #   LANE_INDEX    UI 레인 번호 1~현재 프로젝트 레인 수 (기본값: 서버가 자동 배정)
-#   MAESTRO_SERVER_TOKEN  서버 인증 토큰 (설정 시 Authorization 헤더 자동 추가)
+#   MAESTRO_AGENT_TOKEN   per-agent 토큰 (권장 — 등록 시 1회 발급.
+#                         설정 시 1급 프로토콜 /api/approval-requests 사용)
+#   MAESTRO_SERVER_TOKEN  서버 인증 토큰 (레거시 grace — MAESTRO_AGENT_TOKEN이
+#                         없을 때 폴백으로 사용)
 
 MAESTRO_URL="${MAESTRO_URL:-http://localhost:8080}"
 AGENT_ID="${AGENT_ID:-terminal_agent}"
+MAESTRO_AGENT_TOKEN="${MAESTRO_AGENT_TOKEN:-}"
 MAESTRO_SERVER_TOKEN="${MAESTRO_SERVER_TOKEN:-}"
 
 # ── 인자 또는 git 상태에서 정보 수집 ─────────────────────────────────────────
@@ -47,13 +51,23 @@ fi
 
 PAYLOAD="{\"agentId\":\"${ESC_AGENT}\",\"branchName\":\"${ESC_BRANCH}\"${LANE_FIELD},\"diffSummary\":{\"title\":\"${ESC_TITLE}\",\"impact\":\"Medium\",\"shortDescription\":\"${ESC_DESC}\"}}"
 
-if [ -n "$MAESTRO_SERVER_TOKEN" ]; then
-  RESPONSE=$(curl -s -w '\n%{http_code}' -X POST "${MAESTRO_URL}/api/request" \
+# per-agent 토큰이 있으면 1급 프로토콜(/api/approval-requests)을,
+# 없으면 레거시(/api/request)를 사용한다 (하위호환).
+if [ -n "$MAESTRO_AGENT_TOKEN" ]; then
+  ENDPOINT="/api/approval-requests"
+  AUTH_TOKEN="$MAESTRO_AGENT_TOKEN"
+else
+  ENDPOINT="/api/request"
+  AUTH_TOKEN="$MAESTRO_SERVER_TOKEN"
+fi
+
+if [ -n "$AUTH_TOKEN" ]; then
+  RESPONSE=$(curl -s -w '\n%{http_code}' -X POST "${MAESTRO_URL}${ENDPOINT}" \
     -H "Content-Type: application/json" \
-    -H "Authorization: Bearer ${MAESTRO_SERVER_TOKEN}" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
     -d "$PAYLOAD")
 else
-  RESPONSE=$(curl -s -w '\n%{http_code}' -X POST "${MAESTRO_URL}/api/request" \
+  RESPONSE=$(curl -s -w '\n%{http_code}' -X POST "${MAESTRO_URL}${ENDPOINT}" \
     -H "Content-Type: application/json" \
     -d "$PAYLOAD")
 fi
@@ -62,10 +76,14 @@ HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
 BODY=$(echo "$RESPONSE" | head -1)
 
 if [ "$HTTP_STATUS" = "200" ]; then
-  echo "✅ Maestro 승인 요청 전송 완료 (branch: ${BRANCH})"
+  echo "✅ Maestro 승인 요청 전송 완료 (branch: ${BRANCH}, endpoint: ${ENDPOINT})"
   echo "   응답: ${BODY}"
 elif [ "$HTTP_STATUS" = "401" ]; then
-  echo "⛔ 인증 실패: MAESTRO_SERVER_TOKEN 값을 확인하세요."
+  echo "⛔ 인증 실패: MAESTRO_AGENT_TOKEN(또는 MAESTRO_SERVER_TOKEN) 값을 확인하세요."
+  echo "   에이전트 토큰은 등록(POST /api/agents/register) 응답에서 1회 발급됩니다."
+  echo "   응답: ${BODY}"
+elif [ "$HTTP_STATUS" = "403" ]; then
+  echo "⛔ 권한 불일치: AGENT_ID(${AGENT_ID})가 토큰 주인과 일치하는지 확인하세요."
   echo "   응답: ${BODY}"
 else
   echo "⚠️  Maestro 서버에 연결할 수 없습니다 (${MAESTRO_URL})"
