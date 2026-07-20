@@ -216,7 +216,7 @@ export default function MaestroHeader({
               <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${isBachPlaying ? 'bg-green-400' : isBachReady ? 'bg-amber-300' : 'bg-gray-500'}`} />
               <span
                 data-testid="function-bach-state"
-                title={`YT state: ${bachPlayerStateCode}`}
+                aria-label={`재생 상태 ${bachStatusLabel} (YT state: ${bachPlayerStateCode})`}
                 className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${
                   bachStatusLabel === 'playing'
                     ? 'border-green-500/40 bg-green-500/10 text-green-200'

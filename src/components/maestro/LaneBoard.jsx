@@ -76,7 +76,7 @@ export default function LaneBoard({
                       <span className="text-sm font-medium truncate group-hover:underline">{note.title}</span>
                     </div>
                   </div>
-                  <Code className="w-4 h-4 text-gray-500 group-hover:text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <Code data-testid="note-preview-affordance" className="w-4 h-4 shrink-0 text-gray-400 transition-colors" />
                 </div>
               </div>
             ))}

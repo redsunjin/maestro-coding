@@ -115,6 +115,36 @@ describe('App UI regression - touch controls', () => {
     expect(historyPanelClose.classList.contains('maestro-touch-control')).toBe(true);
   });
 
+  test('note preview affordance is visible without hover', async () => {
+    const socket = await startLiveSession();
+
+    await act(async () => {
+      socket.emitMessage({
+        event: 'AGENT_TASK_READY',
+        requestId: 'req_touch_preview_1',
+        laneIndex: 1,
+        diffSummary: {
+          title: 'Touch Preview Note',
+          shortDescription: 'preview affordance regression',
+        },
+      });
+    });
+
+    expect(await screen.findByText('Touch Preview Note')).toBeInTheDocument();
+
+    const affordance = screen.getByTestId('note-preview-affordance');
+    expect(affordance.getAttribute('class') || '').not.toContain('opacity-0');
+    expect(affordance.getAttribute('class') || '').not.toContain('group-hover');
+  });
+
+  test('bach state chip exposes YT state without mouse-only title tooltip', async () => {
+    await startLiveSession();
+
+    const stateChip = screen.getByTestId('function-bach-state');
+    expect(stateChip.hasAttribute('title')).toBe(false);
+    expect(stateChip.getAttribute('aria-label') || '').toContain('YT state');
+  });
+
   test('touch undo button sends UNDO payload in live mode', async () => {
     const socket = await startLiveSession();
 
