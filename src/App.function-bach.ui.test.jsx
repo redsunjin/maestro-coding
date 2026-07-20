@@ -78,12 +78,15 @@ describe('App UI regression - function bach', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '배경음악 채널 설정' }));
     const channelInput = screen.getByLabelText('유튜브 채널 경로');
-    await userEvent.clear(channelInput);
-    await userEvent.type(channelInput, 'https://www.youtube.com/channel/UC2kF6qdHRTM_hDYfEmzkS9w');
+    // 긴 URL을 글자 단위 userEvent.type으로 입력하면 느린 CI 러너에서
+    // 5초 타임아웃을 초과할 수 있어(플레이키) fireEvent.change로 즉시 입력한다.
+    fireEvent.change(channelInput, {
+      target: { value: 'https://www.youtube.com/channel/UC2kF6qdHRTM_hDYfEmzkS9w' },
+    });
     await userEvent.click(screen.getByRole('button', { name: '저장' }));
 
     expect(window.localStorage.getItem('maestro.function-bach.channel-url')).toBe('https://www.youtube.com/channel/UC2kF6qdHRTM_hDYfEmzkS9w');
-  });
+  }, 15000);
 
   test('function bach keeps Hz visible after a play request even when autoplay is blocked (KI-001)', async () => {
     const playerInstances = [];

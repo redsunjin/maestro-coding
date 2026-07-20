@@ -169,10 +169,14 @@ test('approval/reject flow and function bach overlay work end-to-end', async ({ 
   });
 
   await expect(page.getByText('E2E Reject Note')).toBeVisible();
-  page.once('dialog', (dialog) => dialog.accept('e2e reject reason'));
   await page.keyboard.down('Shift');
   await page.keyboard.press('d');
   await page.keyboard.up('Shift');
+
+  // F4: window.prompt 대신 반려 시트가 열린다
+  await expect(page.getByTestId('reject-sheet')).toBeVisible();
+  await page.getByRole('textbox', { name: '반려 사유 입력' }).fill('e2e reject reason');
+  await page.getByRole('button', { name: '반려 확정' }).click();
 
   await expect.poll(() => (
     receivedActions.some((action) => (
