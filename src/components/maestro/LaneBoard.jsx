@@ -13,6 +13,7 @@ export default function LaneBoard({
   noteStatus,
   onPreviewNote,
   onLaneAction,
+  isGripMode = false,
 }) {
   return (
     <main className="flex-1 relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black">
@@ -115,28 +116,32 @@ export default function LaneBoard({
                 />
               ))}
 
-              <div className="relative flex flex-col items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => onLaneAction(lane.id)}
-                  aria-label={`${lane.name} 승인`}
-                  className={`maestro-touch-control h-16 w-16 rounded-xl border-2 bg-gray-900 ${lane.border} shadow-[0_0_15px_rgba(0,0,0,0.5)]`}
-                >
-                  <span className={`text-2xl font-bold uppercase ${lane.color}`}>{lane.key}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onLaneAction(lane.id, { isRejectAction: true, promptFeedback: true })}
-                  aria-label={`${lane.name} 반려`}
-                  className="maestro-touch-control rounded-md border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-[11px] font-semibold text-orange-200 transition-colors hover:bg-orange-500/20"
-                >
-                  Reject
-                </button>
-              </div>
+              {!isGripMode && (
+                <>
+                  <div className="relative flex flex-col items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onLaneAction(lane.id)}
+                      aria-label={`${lane.name} 승인`}
+                      className={`maestro-touch-control h-16 w-16 rounded-xl border-2 bg-gray-900 ${lane.border} shadow-[0_0_15px_rgba(0,0,0,0.5)]`}
+                    >
+                      <span className={`text-2xl font-bold uppercase ${lane.color}`}>{lane.key}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onLaneAction(lane.id, { isRejectAction: true, promptFeedback: true })}
+                      aria-label={`${lane.name} 반려`}
+                      className="maestro-touch-control rounded-md border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-[11px] font-semibold text-orange-200 transition-colors hover:bg-orange-500/20"
+                    >
+                      Reject
+                    </button>
+                  </div>
 
-              <div className="mt-2 text-xs text-gray-500 font-mono">
-                <GitMerge className="mr-1 inline h-3 w-3" /> Tap: Approve / Reject
-              </div>
+                  <div className="mt-2 text-xs text-gray-500 font-mono">
+                    <GitMerge className="mr-1 inline h-3 w-3" /> Tap: Approve / Reject
+                  </div>
+                </>
+              )}
             </div>
           </div>
         ))}

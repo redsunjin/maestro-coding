@@ -28,6 +28,8 @@ export default function MaestroHeader({
   score,
   mergedCount = 0,
   maxCombo,
+  isGripMode = false,
+  onToggleGripMode,
   onStartGame,
   onStopGame,
   onUndo,
@@ -375,6 +377,19 @@ export default function MaestroHeader({
             <span className="text-2xl font-mono font-bold text-purple-400">{maxCombo}</span>
           </div>
 
+          <button
+            type="button"
+            aria-label="그립 토글"
+            aria-pressed={isGripMode}
+            onClick={onToggleGripMode}
+            className={`maestro-touch-control maestro-touch-control--compact rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
+              isGripMode
+                ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200'
+                : 'border-gray-700 bg-gray-900/70 text-gray-400'
+            }`}
+          >
+            그립 {isGripMode ? 'On' : 'Off'}
+          </button>
           <button
             type="button"
             aria-label="햅틱 토글"
