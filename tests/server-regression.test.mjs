@@ -45,6 +45,8 @@ function startServer({ token = '', host = '127.0.0.1', allowedOrigins = '', extr
   let logs = '';
   const historyStorePath = extraEnv.MAESTRO_HISTORY_STORE_PATH
     || resolve(os.tmpdir(), `maestro-history-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`);
+  const agentStorePath = extraEnv.MAESTRO_AGENT_STORE_PATH
+    || resolve(os.tmpdir(), `maestro-agents-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`);
 
   const proc = spawn(process.execPath, [SERVER_ENTRY], {
     cwd: ROOT_DIR,
@@ -55,6 +57,7 @@ function startServer({ token = '', host = '127.0.0.1', allowedOrigins = '', extr
       MAESTRO_SERVER_TOKEN: token,
       ALLOWED_ORIGINS: allowedOrigins,
       MAESTRO_HISTORY_STORE_PATH: historyStorePath,
+      MAESTRO_AGENT_STORE_PATH: agentStorePath,
       ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
