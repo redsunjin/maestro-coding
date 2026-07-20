@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Play, Pause, Square, Wifi, WifiOff } from 'lucide-react';
+import { isHapticsEnabled, setHapticsEnabled } from '../../utils/haptics.js';
 
 export default function MaestroHeader({
   headerRef,
@@ -25,6 +26,7 @@ export default function MaestroHeader({
   wsStatus,
   isPlaying,
   score,
+  mergedCount = 0,
   maxCombo,
   onStartGame,
   onStopGame,
@@ -52,6 +54,7 @@ export default function MaestroHeader({
   const [shouldCollapsePanelControls, setShouldCollapsePanelControls] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 1480 : false
   ));
+  const [isHapticsOn, setIsHapticsOn] = useState(() => isHapticsEnabled());
   const [isPanelMenuOpen, setIsPanelMenuOpen] = useState(false);
   const panelMenuRef = useRef(null);
 
@@ -361,13 +364,34 @@ export default function MaestroHeader({
         <div className="flex w-full flex-wrap items-center justify-end gap-4 2xl:w-auto">
           <div className="flex flex-col items-end">
             <span className="text-xs text-gray-400 uppercase tracking-wider">Merged PRs</span>
-            <span className="text-2xl font-mono font-bold text-green-400">{score / 100}</span>
+            <span data-testid="merged-count" className="text-2xl font-mono font-bold text-green-400">{mergedCount}</span>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-xs text-gray-400 uppercase tracking-wider">Score</span>
+            <span data-testid="rhythm-score" className="text-2xl font-mono font-bold text-amber-300">{score}</span>
           </div>
           <div className="flex flex-col items-end">
             <span className="text-xs text-gray-400 uppercase tracking-wider">Max Combo</span>
             <span className="text-2xl font-mono font-bold text-purple-400">{maxCombo}</span>
           </div>
 
+          <button
+            type="button"
+            aria-label="햅틱 토글"
+            aria-pressed={isHapticsOn}
+            onClick={() => {
+              const next = !isHapticsOn;
+              setIsHapticsOn(next);
+              setHapticsEnabled(next);
+            }}
+            className={`maestro-touch-control maestro-touch-control--compact rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
+              isHapticsOn
+                ? 'border-purple-400/50 bg-purple-500/15 text-purple-200'
+                : 'border-gray-700 bg-gray-900/70 text-gray-400'
+            }`}
+          >
+            진동 {isHapticsOn ? 'On' : 'Off'}
+          </button>
           {!isPlaying ? (
             <button onClick={onStartGame} className="maestro-touch-control flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-md font-medium transition-all shadow-[0_0_15px_rgba(168,85,247,0.5)]">
               <Play className="w-4 h-4 mr-2 fill-current" /> 지휘 시작

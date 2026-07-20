@@ -7,6 +7,7 @@ export default function useMaestroRealtime({
   notesRef,
   setNotes,
   setScore,
+  setMergedCount,
   setCombo,
   setMaxCombo,
   showFeedback,
@@ -77,12 +78,18 @@ export default function useMaestroRealtime({
           if (!mergedNote) return;
 
           setNotes((prev) => prev.filter((note) => note.requestId !== data.requestId));
-          setScore((score) => score + 100);
-          setCombo((combo) => {
-            const nextCombo = combo + 1;
-            setMaxCombo((maxCombo) => Math.max(maxCombo, nextCombo));
-            return nextCombo;
-          });
+          // 탭 시점의 타이밍 판정 보상을 머지 성공 시점에 적용 (판정 없으면 기본값)
+          setScore((score) => score + (mergedNote.gradeScore ?? 100));
+          setMergedCount((count) => count + 1);
+          if (mergedNote.gradeComboDelta === 0) {
+            setCombo(0);
+          } else {
+            setCombo((combo) => {
+              const nextCombo = combo + (mergedNote.gradeComboDelta ?? 1);
+              setMaxCombo((maxCombo) => Math.max(maxCombo, nextCombo));
+              return nextCombo;
+            });
+          }
           showFeedback(mergedNote.projectId, mergedNote.lane, 'MERGED!', 'text-green-400');
           return;
         }
@@ -113,6 +120,7 @@ export default function useMaestroRealtime({
 
         if (data.event === 'UNDO_SUCCESS') {
           setScore((score) => Math.max(0, score - 100));
+          setMergedCount((count) => Math.max(0, count - 1));
           setCombo(0);
           showFeedback(activeProjectRef.current, -1, '⏪ ROLLBACK OK', 'text-yellow-400');
           return;

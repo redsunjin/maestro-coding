@@ -8,7 +8,9 @@ import {
   LANE_HIT_FREQS,
   getLaneDefinitions,
 } from './constants/maestro.js';
-import { ensureSfxAudioContext, playBeep } from './utils/audio.js';
+import { ensureSfxAudioContext, playBeep, playGradeBeep } from './utils/audio.js';
+import { gradeHit, JUDGMENT_GRADE_COLORS, JUDGMENT_GRADE_FLASH_COLORS } from './utils/judgment.js';
+import { HAPTIC_PATTERNS, vibrate } from './utils/haptics.js';
 import useMaestroRealtime from './hooks/useMaestroRealtime.js';
 import useMaestroGameLoop from './hooks/useMaestroGameLoop.js';
 import useMaestroKeyboardControls from './hooks/useMaestroKeyboardControls.js';
@@ -39,10 +41,12 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState(PROJECTS[0].id);
   const [notes, setNotes] = useState([]);
   const [score, setScore] = useState(0);
+  const [mergedCount, setMergedCount] = useState(0);
   const [combo, setCombo] = useState(0);
   const [maxCombo, setMaxCombo] = useState(0);
   const [feedbacks, setFeedbacks] = useState([]);
   const [sfxBursts, setSfxBursts] = useState([]);
+  const [lineFlashes, setLineFlashes] = useState([]);
   const [previewNote, setPreviewNote] = useState(null);
   const [rejectSheet, setRejectSheet] = useState(null);
 
@@ -89,6 +93,21 @@ export default function App() {
     setTimeout(() => {
       setFeedbacks((prev) => prev.filter((feedback) => feedback.id !== id));
     }, 500);
+  }, []);
+
+  // 콤보 10단위 달성 축하 햅틱 (모크/실시간 경로 공통)
+  useEffect(() => {
+    if (combo > 0 && combo % 10 === 0) {
+      vibrate(HAPTIC_PATTERNS.COMBO_MILESTONE);
+    }
+  }, [combo]);
+
+  const showLineFlash = useCallback((projectId, lane, colorClass) => {
+    const id = Date.now() + Math.random();
+    setLineFlashes((prev) => [...prev, { id, projectId, lane, colorClass }]);
+    setTimeout(() => {
+      setLineFlashes((prev) => prev.filter((flash) => flash.id !== id));
+    }, 320);
   }, []);
 
   const showSfxBurst = useCallback((lane, freq) => {
@@ -302,6 +321,7 @@ export default function App() {
     notesRef,
     setNotes,
     setScore,
+    setMergedCount,
     setCombo,
     setMaxCombo,
     showFeedback,
@@ -360,6 +380,22 @@ export default function App() {
 
     const rejectFeedback = (directRejectFeedback || '').trim().slice(0, 300);
 
+    // 타이밍 판정 (점수전용) — 실제 승인/반려 전송에는 영향 없음
+    const judgment = isRejectAction ? null : gradeHit({
+      noteBottom: targetNote.currentBottom,
+      lineBottom: BASE_BOTTOM,
+      arrivedAt: targetNote.arrivedAt ?? null,
+      now: Date.now(),
+    });
+    if (judgment) {
+      playGradeBeep(selectedFreq, judgment.grade);
+      vibrate(HAPTIC_PATTERNS[judgment.grade]);
+      showFeedback(currentProjectId, laneMatch.id, judgment.grade, JUDGMENT_GRADE_COLORS[judgment.grade]);
+      showLineFlash(currentProjectId, laneMatch.id, JUDGMENT_GRADE_FLASH_COLORS[judgment.grade]);
+    } else {
+      vibrate(HAPTIC_PATTERNS.REJECT);
+    }
+
     const sent = sendSocketAction({
       action: isRejectAction ? 'REJECT' : 'APPROVE',
       requestId: targetNote.requestId,
@@ -371,15 +407,18 @@ export default function App() {
     if (sent) {
       setNotes((prev) => prev.map((note) => (
         note.id === targetNote.id
-          ? { ...note, status: isRejectAction ? NOTE_STATUS.REJECTING : NOTE_STATUS.APPROVING }
+          ? {
+            ...note,
+            status: isRejectAction ? NOTE_STATUS.REJECTING : NOTE_STATUS.APPROVING,
+            // 머지 성공 시점에 등급 보상을 적용하기 위해 노트에 판정을 실어 보낸다
+            gradeScore: judgment?.score,
+            gradeComboDelta: judgment?.comboDelta,
+          }
           : note
       )));
-      showFeedback(
-        currentProjectId,
-        laneMatch.id,
-        isRejectAction ? 'REJECTING...' : 'APPROVING...',
-        isRejectAction ? 'text-orange-300' : 'text-yellow-300',
-      );
+      if (isRejectAction) {
+        showFeedback(currentProjectId, laneMatch.id, 'REJECTING...', 'text-orange-300');
+      }
       return;
     }
 
@@ -395,14 +434,18 @@ export default function App() {
       return;
     }
 
-    setScore((prevScore) => prevScore + 100);
-    setCombo((prevCombo) => {
-      const nextCombo = prevCombo + 1;
-      setMaxCombo((currentMax) => Math.max(currentMax, nextCombo));
-      return nextCombo;
-    });
-    showFeedback(currentProjectId, laneMatch.id, 'MERGED!', 'text-green-400');
-  }, [activeLanes, isPlaying, previewNote, sendSocketAction, showFeedback, showSfxBurst]);
+    setScore((prevScore) => prevScore + judgment.score);
+    setMergedCount((prevCount) => prevCount + 1);
+    if (judgment.comboDelta === 0) {
+      setCombo(0);
+    } else {
+      setCombo((prevCombo) => {
+        const nextCombo = prevCombo + judgment.comboDelta;
+        setMaxCombo((currentMax) => Math.max(currentMax, nextCombo));
+        return nextCombo;
+      });
+    }
+  }, [activeLanes, isPlaying, previewNote, sendSocketAction, showFeedback, showLineFlash, showSfxBurst]);
 
   const confirmRejectSheet = useCallback((reason) => {
     if (!rejectSheet) return;
@@ -551,6 +594,7 @@ export default function App() {
         wsStatus={wsStatus}
         isPlaying={isPlaying}
         score={score}
+        mergedCount={mergedCount}
         maxCombo={maxCombo}
         onStartGame={startGame}
         onStopGame={stopGame}
@@ -590,6 +634,7 @@ export default function App() {
         combo={combo}
         feedbacks={feedbacks}
         sfxBursts={sfxBursts}
+        lineFlashes={lineFlashes}
         baseBottom={BASE_BOTTOM}
         noteStatus={NOTE_STATUS}
         onPreviewNote={setPreviewNote}

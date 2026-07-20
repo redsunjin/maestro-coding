@@ -8,6 +8,7 @@ export default function LaneBoard({
   combo,
   feedbacks,
   sfxBursts,
+  lineFlashes = [],
   baseBottom,
   noteStatus,
   onPreviewNote,
@@ -105,6 +106,14 @@ export default function LaneBoard({
 
             <div className="absolute w-full bottom-0 h-48 bg-gradient-to-t from-gray-900 to-transparent border-t border-gray-800 flex flex-col items-center justify-end pb-8">
               <div className="absolute w-full h-1 bg-gray-700 shadow-[0_0_10px_rgba(255,255,255,0.1)]" style={{ bottom: `${baseBottom - 15}px` }} />
+              {lineFlashes.filter((flash) => flash.lane === lane.id && flash.projectId === activeProjectId).map((flash) => (
+                <div
+                  key={flash.id}
+                  data-testid="judgment-line-flash"
+                  className={`absolute w-full h-1.5 ${flash.colorClass} opacity-90 shadow-[0_0_18px_currentColor] animate-pulse pointer-events-none`}
+                  style={{ bottom: `${baseBottom - 15}px` }}
+                />
+              ))}
 
               <div className="relative flex flex-col items-center gap-2">
                 <button

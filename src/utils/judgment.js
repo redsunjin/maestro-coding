@@ -1,0 +1,45 @@
+import { JUDGMENT } from '../constants/maestro.js';
+
+export const JUDGMENT_GRADE_COLORS = {
+  PERFECT: 'text-yellow-300',
+  GREAT: 'text-green-400',
+  EARLY: 'text-blue-300',
+  LATE: 'text-gray-400',
+};
+
+// 판정선 플래시용 배경색 (등급별)
+export const JUDGMENT_GRADE_FLASH_COLORS = {
+  PERFECT: 'bg-yellow-300',
+  GREAT: 'bg-green-400',
+  EARLY: 'bg-blue-300',
+  LATE: 'bg-gray-400',
+};
+
+export const JUDGMENT_GRADES = {
+  PERFECT: 'PERFECT',
+  GREAT: 'GREAT',
+  EARLY: 'EARLY',
+  LATE: 'LATE',
+};
+
+// 타이밍 판정 (점수전용). 도달 상태 판정이 거리 판정보다 항상 우선한다.
+// comboDelta 0은 콤보 리셋을 의미한다.
+export function gradeHit({ noteBottom, lineBottom, now, arrivedAt }) {
+  let grade;
+
+  if (arrivedAt != null) {
+    grade = (now - arrivedAt) <= JUDGMENT.LATE_GRACE_MS
+      ? JUDGMENT_GRADES.PERFECT
+      : JUDGMENT_GRADES.LATE;
+  } else {
+    grade = (noteBottom - lineBottom) <= JUDGMENT.GREAT_WINDOW_PX
+      ? JUDGMENT_GRADES.GREAT
+      : JUDGMENT_GRADES.EARLY;
+  }
+
+  return {
+    grade,
+    score: JUDGMENT.SCORES[grade],
+    comboDelta: grade === JUDGMENT_GRADES.LATE ? 0 : 1,
+  };
+}

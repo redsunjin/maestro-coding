@@ -33,6 +33,10 @@ export default function useMaestroGameLoop({ isPlaying, wsStatus, setNotes, lane
           hasChanges = true;
           let nextBottom = note.currentBottom - NOTE_SPEED;
           if (nextBottom < targetBottom) nextBottom = targetBottom;
+          // 맨 앞 노트가 판정선에 도달한 시각을 1회 기록 (타이밍 판정용)
+          if (nextBottom === BASE_BOTTOM && note.arrivedAt == null) {
+            return { ...note, currentBottom: nextBottom, arrivedAt: Date.now() };
+          }
           return { ...note, currentBottom: nextBottom };
         }
         return note;

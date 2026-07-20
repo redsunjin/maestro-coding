@@ -46,4 +46,16 @@ export const NOTE_STATUS = {
   REJECTING: 'rejecting',
 };
 
+// 타이밍 판정 튜닝 상수 — 게임 점수/콤보 전용, 실제 머지/반려에는 영향 없음
+export const JUDGMENT = {
+  GREAT_WINDOW_PX: 120, // 판정선까지 이 거리 이내면 GREAT
+  LATE_GRACE_MS: 4000, // 판정선 도달 후 이 시간 이내면 PERFECT, 초과 시 LATE
+  SCORES: {
+    PERFECT: 100,
+    GREAT: 70,
+    EARLY: 40,
+    LATE: 10,
+  },
+};
+
 export const LANE_HIT_FREQS = [261.63, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99, 880.00];
