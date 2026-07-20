@@ -25,6 +25,7 @@ export default function MaestroHeader({
   wsStatus,
   isPlaying,
   score,
+  mergedCount = 0,
   maxCombo,
   onStartGame,
   onStopGame,
@@ -361,7 +362,11 @@ export default function MaestroHeader({
         <div className="flex w-full flex-wrap items-center justify-end gap-4 2xl:w-auto">
           <div className="flex flex-col items-end">
             <span className="text-xs text-gray-400 uppercase tracking-wider">Merged PRs</span>
-            <span className="text-2xl font-mono font-bold text-green-400">{score / 100}</span>
+            <span data-testid="merged-count" className="text-2xl font-mono font-bold text-green-400">{mergedCount}</span>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-xs text-gray-400 uppercase tracking-wider">Score</span>
+            <span data-testid="rhythm-score" className="text-2xl font-mono font-bold text-amber-300">{score}</span>
           </div>
           <div className="flex flex-col items-end">
             <span className="text-xs text-gray-400 uppercase tracking-wider">Max Combo</span>

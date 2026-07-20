@@ -22,6 +22,27 @@ export const ensureSfxAudioContext = () => {
   return sfxAudioContext;
 };
 
+// 판정 등급별 타격음 — 등급을 귀로도 구분할 수 있게 한다
+export const playGradeBeep = (baseFreq, grade) => {
+  switch (grade) {
+    case 'PERFECT':
+      playBeep(baseFreq * 2, 'triangle');
+      setTimeout(() => playBeep(baseFreq * 2.5, 'triangle'), 70);
+      break;
+    case 'GREAT':
+      playBeep(baseFreq * 1.5, 'triangle');
+      break;
+    case 'EARLY':
+      playBeep(baseFreq, 'sine');
+      break;
+    case 'LATE':
+      playBeep(baseFreq * 0.5, 'sawtooth');
+      break;
+    default:
+      playBeep(baseFreq, 'triangle');
+  }
+};
+
 export const playBeep = (freq, type = 'sine') => {
   const triggerBeep = (ctx) => {
     const osc = ctx.createOscillator();

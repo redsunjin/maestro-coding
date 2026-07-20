@@ -1,5 +1,12 @@
 import { JUDGMENT } from '../constants/maestro.js';
 
+export const JUDGMENT_GRADE_COLORS = {
+  PERFECT: 'text-yellow-300',
+  GREAT: 'text-green-400',
+  EARLY: 'text-blue-300',
+  LATE: 'text-gray-400',
+};
+
 export const JUDGMENT_GRADES = {
   PERFECT: 'PERFECT',
   GREAT: 'GREAT',
