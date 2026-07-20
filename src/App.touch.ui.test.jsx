@@ -44,8 +44,8 @@ describe('App UI regression - touch controls', () => {
     expect(approvePayload.requestId).toBe('req_touch_approve_1');
   });
 
-  test('touch reject button sends REJECT payload with feedback prompt', async () => {
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('Touch reject feedback');
+  test('touch reject opens sheet (not window.prompt) and sends REJECT with typed reason', async () => {
+    const promptSpy = vi.spyOn(window, 'prompt');
     const socket = await startLiveSession();
 
     await act(async () => {
@@ -64,14 +64,83 @@ describe('App UI regression - touch controls', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Frontend Agent 반려' }));
 
+    expect(await screen.findByTestId('reject-sheet')).toBeInTheDocument();
+    expect(promptSpy).not.toHaveBeenCalled();
+    expect(socket.sent.length).toBe(0);
+
+    await userEvent.type(screen.getByRole('textbox', { name: '반려 사유 입력' }), 'Touch reject feedback');
+    await userEvent.click(screen.getByRole('button', { name: '반려 확정' }));
+
     await waitFor(() => {
-      expect(promptSpy).toHaveBeenCalled();
       expect(socket.sent.length).toBe(1);
     });
 
     const rejectPayload = JSON.parse(socket.sent[0]);
     expect(rejectPayload.action).toBe('REJECT');
     expect(rejectPayload.feedback).toBe('Touch reject feedback');
+    expect(screen.queryByTestId('reject-sheet')).not.toBeInTheDocument();
+  });
+
+  test('reject sheet quick reason chip fills feedback', async () => {
+    const socket = await startLiveSession();
+
+    await act(async () => {
+      socket.emitMessage({
+        event: 'AGENT_TASK_READY',
+        requestId: 'req_touch_reject_chip_1',
+        laneIndex: 1,
+        diffSummary: {
+          title: 'Chip Reject Note',
+          shortDescription: 'chip reject flow',
+        },
+      });
+    });
+
+    expect(await screen.findByText('Chip Reject Note')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Frontend Agent 반려' }));
+    expect(await screen.findByTestId('reject-sheet')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '테스트 실패' }));
+    await userEvent.click(screen.getByRole('button', { name: '반려 확정' }));
+
+    await waitFor(() => {
+      expect(socket.sent.length).toBe(1);
+    });
+
+    const rejectPayload = JSON.parse(socket.sent[0]);
+    expect(rejectPayload.action).toBe('REJECT');
+    expect(rejectPayload.feedback).toContain('테스트 실패');
+  });
+
+  test('reject sheet cancel aborts reject without sending', async () => {
+    const socket = await startLiveSession();
+
+    await act(async () => {
+      socket.emitMessage({
+        event: 'AGENT_TASK_READY',
+        requestId: 'req_touch_reject_cancel_1',
+        laneIndex: 1,
+        diffSummary: {
+          title: 'Cancel Reject Note',
+          shortDescription: 'cancel reject flow',
+        },
+      });
+    });
+
+    expect(await screen.findByText('Cancel Reject Note')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Frontend Agent 반려' }));
+    expect(await screen.findByTestId('reject-sheet')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '반려 취소' }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('reject-sheet')).not.toBeInTheDocument();
+    });
+    expect(socket.sent.length).toBe(0);
+    expect(await screen.findByText('REJECT CANCELED')).toBeInTheDocument();
+    expect(screen.getByText('Cancel Reject Note')).toBeInTheDocument();
   });
 
   test('primary touch controls carry maestro-touch-control press feedback class', async () => {
