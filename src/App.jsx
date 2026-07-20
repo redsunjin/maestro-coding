@@ -28,6 +28,8 @@ import LaneBoard from './components/maestro/LaneBoard.jsx';
 import FooterHelp from './components/maestro/FooterHelp.jsx';
 import PreviewModal from './components/maestro/PreviewModal.jsx';
 import RejectSheet from './components/maestro/RejectSheet.jsx';
+import GripZones from './components/maestro/GripZones.jsx';
+import { getStoredString, setStoredValue } from './utils/storage.js';
 import HistoryScorePanel from './components/maestro/HistoryScorePanel.jsx';
 import AutoApproveOpsPanel from './components/maestro/AutoApproveOpsPanel.jsx';
 import ProjectRegistryPanel from './components/maestro/ProjectRegistryPanel.jsx';
@@ -49,6 +51,7 @@ export default function App() {
   const [lineFlashes, setLineFlashes] = useState([]);
   const [previewNote, setPreviewNote] = useState(null);
   const [rejectSheet, setRejectSheet] = useState(null);
+  const [isGripMode, setIsGripMode] = useState(() => getStoredString('maestro.grip-mode', 'off') === 'on');
 
   const notesRef = useRef([]);
   const activeProjectRef = useRef(activeProjectId);
@@ -447,6 +450,20 @@ export default function App() {
     }
   }, [activeLanes, isPlaying, previewNote, sendSocketAction, showFeedback, showLineFlash, showSfxBurst]);
 
+  const toggleGripMode = useCallback(() => {
+    setIsGripMode((prev) => {
+      const next = !prev;
+      setStoredValue('maestro.grip-mode', next ? 'on' : 'off');
+      return next;
+    });
+  }, []);
+
+  const triggerGripLongPress = useCallback((laneId) => {
+    // 롱프레스 도달 킥 — 반려 시트 열림을 촉각으로 예고
+    vibrate(HAPTIC_PATTERNS.GREAT);
+    triggerLaneAction(laneId, { isRejectAction: true, promptFeedback: true });
+  }, [triggerLaneAction]);
+
   const confirmRejectSheet = useCallback((reason) => {
     if (!rejectSheet) return;
     setRejectSheet(null);
@@ -596,6 +613,8 @@ export default function App() {
         score={score}
         mergedCount={mergedCount}
         maxCombo={maxCombo}
+        isGripMode={isGripMode}
+        onToggleGripMode={toggleGripMode}
         onStartGame={startGame}
         onStopGame={stopGame}
         onUndo={triggerUndoAction}
@@ -639,7 +658,15 @@ export default function App() {
         noteStatus={NOTE_STATUS}
         onPreviewNote={setPreviewNote}
         onLaneAction={triggerLaneAction}
+        isGripMode={isGripMode}
       />
+      {isGripMode && isPlaying && (
+        <GripZones
+          lanes={activeLanes}
+          onTap={triggerLaneAction}
+          onLongPress={triggerGripLongPress}
+        />
+      )}
 
       <FooterHelp lanes={activeLanes} />
       <WorkConsolePanel
