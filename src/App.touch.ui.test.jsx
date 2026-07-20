@@ -145,6 +145,35 @@ describe('App UI regression - touch controls', () => {
     expect(stateChip.getAttribute('aria-label') || '').toContain('YT state');
   });
 
+  test('preview modal closes on backdrop tap but not on dialog content tap', async () => {
+    const socket = await startLiveSession();
+
+    await act(async () => {
+      socket.emitMessage({
+        event: 'AGENT_TASK_READY',
+        requestId: 'req_touch_backdrop_1',
+        laneIndex: 1,
+        diffSummary: {
+          title: 'Backdrop Close Note',
+          shortDescription: 'backdrop close regression',
+        },
+      });
+    });
+
+    await userEvent.click(await screen.findByText('Backdrop Close Note'));
+    expect(await screen.findByTestId('preview-modal-backdrop')).toBeInTheDocument();
+
+    // 다이얼로그 내용 탭 → 닫히지 않음
+    await userEvent.click(screen.getByRole('heading', { name: 'Backdrop Close Note' }));
+    expect(screen.getByTestId('preview-modal-backdrop')).toBeInTheDocument();
+
+    // 백드롭 탭 → 닫힘
+    await userEvent.click(screen.getByTestId('preview-modal-backdrop'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('preview-modal-backdrop')).not.toBeInTheDocument();
+    });
+  });
+
   test('touch undo button sends UNDO payload in live mode', async () => {
     const socket = await startLiveSession();
 

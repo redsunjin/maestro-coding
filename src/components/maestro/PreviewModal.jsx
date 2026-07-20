@@ -5,8 +5,19 @@ export default function PreviewModal({ previewNote, onClose }) {
   if (!previewNote) return null;
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+    <div
+      data-testid="preview-modal-backdrop"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={previewNote.title}
+        className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200"
+      >
         <div className="flex justify-between items-center p-4 border-b border-gray-800 bg-gray-800/50">
           <div className="flex items-center space-x-2">
             <GitCommit className="w-5 h-5 text-purple-400" />
