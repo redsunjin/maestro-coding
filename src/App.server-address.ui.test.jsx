@@ -73,6 +73,28 @@ describe('App UI - server address panel', () => {
     });
   });
 
+  test('native shell without stored address auto-opens setup when default is unreachable', async () => {
+    window.Capacitor = { isNativePlatform: () => true };
+    class FailingWebSocket {
+      constructor(url) {
+        this.url = url;
+        setTimeout(() => this.onerror?.(), 0);
+      }
+
+      close() {}
+    }
+    globalThis.WebSocket = FailingWebSocket;
+
+    try {
+      render(<App />);
+      await waitFor(() => {
+        expect(screen.getByTestId('server-address-panel')).toBeInTheDocument();
+      });
+    } finally {
+      delete window.Capacitor;
+    }
+  });
+
   test('reset restores default address and clears stored value', async () => {
     window.localStorage.setItem(SERVER_WS_URL_STORAGE_KEY, 'ws://10.0.0.7:8080');
     render(<App />);

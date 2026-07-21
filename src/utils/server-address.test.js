@@ -3,6 +3,7 @@ import {
   SERVER_WS_URL_STORAGE_KEY,
   formatWsUrlLabel,
   getDefaultWsUrl,
+  isNativeShell,
   normalizeWsUrlInput,
   resolveInitialWsUrl,
   shouldAutoOpenServerSetup,
@@ -104,6 +105,32 @@ describe('shouldAutoOpenServerSetup', () => {
 
   test('opens on LAN host without stored address', () => {
     expect(shouldAutoOpenServerSetup({ hasStoredWsUrl: false, hostname: '192.168.0.9' })).toBe(true);
+  });
+});
+
+describe('native shell (Capacitor)', () => {
+  afterEach(() => {
+    delete window.Capacitor;
+  });
+
+  test('isNativeShell reflects Capacitor.isNativePlatform', () => {
+    expect(isNativeShell()).toBe(false);
+
+    window.Capacitor = { isNativePlatform: () => false };
+    expect(isNativeShell()).toBe(false);
+
+    window.Capacitor = { isNativePlatform: () => true };
+    expect(isNativeShell()).toBe(true);
+  });
+
+  test('native shell auto-opens setup even on localhost hostname', () => {
+    window.Capacitor = { isNativePlatform: () => true };
+    expect(shouldAutoOpenServerSetup({ hasStoredWsUrl: false, hostname: 'localhost' })).toBe(true);
+  });
+
+  test('native shell never auto-opens when an address is stored', () => {
+    window.Capacitor = { isNativePlatform: () => true };
+    expect(shouldAutoOpenServerSetup({ hasStoredWsUrl: true, hostname: 'localhost' })).toBe(false);
   });
 });
 
