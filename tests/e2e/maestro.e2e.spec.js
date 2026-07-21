@@ -217,3 +217,20 @@ test('approval/reject flow and function bach overlay work end-to-end', async ({ 
   await page.getByRole('button', { name: '배경음악 채널 설정' }).click();
   await expect(page.getByLabel('유튜브 채널 경로')).toBeVisible();
 });
+
+test('server address panel shows current address and passes connection test', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByTestId('server-address-toggle').click();
+  await expect(page.getByTestId('server-address-panel')).toBeVisible();
+
+  // VITE_WS_URL env 주입이 런타임 해석 우선순위에서 계속 유효한지 검증
+  await expect(page.getByRole('textbox', { name: '서버 주소 입력' })).toHaveValue(`ws://${WS_HOST}:${WS_PORT}`);
+
+  // 테스트 하네스 WSS가 떠 있으므로 실제 성공 경로를 검증한다
+  await page.getByRole('button', { name: '연결 테스트' }).click();
+  await expect(page.getByTestId('server-address-test-result')).toContainText('연결 성공');
+
+  await page.getByRole('button', { name: '닫기' }).click();
+  await expect(page.getByTestId('server-address-panel')).toHaveCount(0);
+});
