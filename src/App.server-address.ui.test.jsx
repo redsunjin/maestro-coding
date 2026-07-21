@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App.jsx';
@@ -8,6 +8,24 @@ import {
   teardownAppUiEnvironment,
 } from './test/appUiHarness.jsx';
 import { SERVER_WS_URL_STORAGE_KEY } from './utils/server-address.js';
+
+const zeroConfWatchMock = vi.fn(async (_options, callback) => {
+  callback({
+    action: 'resolved',
+    service: {
+      name: 'Maestro (work-pc)',
+      port: 8080,
+      ipv4Addresses: ['192.168.0.77'],
+    },
+  });
+});
+
+vi.mock('capacitor-zeroconf', () => ({
+  ZeroConf: {
+    watch: (...args) => zeroConfWatchMock(...args),
+    unwatch: vi.fn(async () => {}),
+  },
+}));
 
 describe('App UI - server address panel', () => {
   beforeEach(() => {
@@ -71,6 +89,54 @@ describe('App UI - server address panel', () => {
     await waitFor(() => {
       expect(screen.getByTestId('server-address-test-result')).toHaveTextContent('연결 성공');
     });
+  });
+
+  test('web build does not render bonjour discovery button', async () => {
+    render(<App />);
+
+    await userEvent.click(screen.getByRole('button', { name: '서버 주소 설정' }));
+
+    expect(screen.getByTestId('server-address-panel')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '주변 서버 찾기' })).not.toBeInTheDocument();
+  });
+
+  test('native shell discovers nearby servers and fills the address input', async () => {
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      isPluginAvailable: (name) => name === 'ZeroConf',
+    };
+
+    try {
+      render(<App />);
+      await userEvent.click(screen.getByRole('button', { name: '서버 주소 설정' }));
+
+      await userEvent.click(screen.getByRole('button', { name: '주변 서버 찾기' }));
+
+      const found = await screen.findByRole('button', { name: /Maestro \(work-pc\)/ });
+      await userEvent.click(found);
+
+      expect(screen.getByRole('textbox', { name: '서버 주소 입력' })).toHaveValue('ws://192.168.0.77:8080');
+      expect(zeroConfWatchMock).toHaveBeenCalled();
+    } finally {
+      delete window.Capacitor;
+    }
+  });
+
+  test('native shell hides discovery when ZeroConf plugin is not bundled', async () => {
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      isPluginAvailable: () => false,
+    };
+
+    try {
+      render(<App />);
+      await userEvent.click(screen.getByRole('button', { name: '서버 주소 설정' }));
+
+      expect(screen.getByTestId('server-address-panel')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '주변 서버 찾기' })).not.toBeInTheDocument();
+    } finally {
+      delete window.Capacitor;
+    }
   });
 
   test('native shell without stored address auto-opens setup when default is unreachable', async () => {

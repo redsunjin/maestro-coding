@@ -67,6 +67,7 @@ PWA(1단계)로 iPad Safari standalone 실행은 확보했지만, 다음 세 가
 - 탭 → `ZeroConf.watch({ type: '_maestro._tcp.', domain: 'local.' })` 로 스캔(8초), 발견 목록(name, `ws://ip:port`)을 패널에 표시 → 항목 탭 = 주소 입력칸에 채움(저장은 기존 저장 버튼 — 단일 저장 경로 유지).
 - 플러그인 로드는 dynamic import — 웹 경로에서 평가되지 않게 하고, 실패 시(플러그인 미탑재/권한 거부) 에러 문구 + 수동 입력 폴백.
 - **리스크 폴백**: capacitor-zeroconf가 Cap 8에서 네이티브 빌드를 깨면 이 서브페이즈만 드롭하고 수동 입력 유지(0단계 UX가 이미 폴백).
+- **구현 중 확인(2026-07-21)**: capacitor-zeroconf 4.0.0은 Package.swift가 없어 **SPM 빌드에 네이티브 코드가 포함되지 않는다**(빌드는 성공, 플러그인만 미탑재). 대응: 발견 UI 노출을 `isNativeShell() && Capacitor.isPluginAvailable('ZeroConf')` 런타임 게이트로 제어 — 미탑재 빌드에서는 버튼 자체가 없고 수동 입력이 기본 흐름. 서버 광고(§5.1)와 JS 코드는 그대로 두어, 플러그인의 SPM 지원(또는 CocoaPods 전환) 시 게이트가 자동으로 열린다.
 
 ## 6. 네이티브 햅틱 브릿지
 

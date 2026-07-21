@@ -231,6 +231,9 @@ test('server address panel shows current address and passes connection test', as
   await page.getByRole('button', { name: '연결 테스트' }).click();
   await expect(page.getByTestId('server-address-test-result')).toContainText('연결 성공');
 
+  // Bonjour 발견은 네이티브 셸 전용 — 웹 빌드에는 버튼이 없어야 한다
+  await expect(page.getByRole('button', { name: '주변 서버 찾기' })).toHaveCount(0);
+
   await page.getByRole('button', { name: '닫기' }).click();
   await expect(page.getByTestId('server-address-panel')).toHaveCount(0);
 });

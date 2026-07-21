@@ -58,6 +58,8 @@ function startServer({ token = '', host = '127.0.0.1', allowedOrigins = '', extr
       ALLOWED_ORIGINS: allowedOrigins,
       MAESTRO_HISTORY_STORE_PATH: historyStorePath,
       MAESTRO_AGENT_STORE_PATH: agentStorePath,
+      // 테스트 스폰 서버는 기본적으로 mDNS 광고를 끈다 (개별 테스트에서 extraEnv로 재정의 가능)
+      MAESTRO_MDNS: 'off',
       ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -276,6 +278,21 @@ test('POST /api/request accepts unauthenticated request when token is disabled',
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.success, true);
+});
+
+test('server stays healthy with mDNS advertising enabled or disabled', async (t) => {
+  const advertised = startServer({ extraEnv: { MAESTRO_MDNS: 'on' } });
+  const silenced = startServer();
+  t.after(async () => {
+    await stopServer(advertised.proc);
+    await stopServer(silenced.proc);
+  });
+
+  await waitForHealth(advertised.port);
+  await waitForHealth(silenced.port);
+
+  // 광고 성공/실패 어느 쪽이든 기동에 영향이 없어야 하고, off면 광고 로그가 없어야 한다
+  assert.ok(!silenced.getLogs().includes('mDNS 광고'), 'MAESTRO_MDNS=off인데 광고 로그가 있음');
 });
 
 test('work session APIs create, list, detail, and emit websocket events', async (t) => {

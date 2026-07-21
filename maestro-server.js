@@ -3218,3 +3218,33 @@ server.listen(PORT, HOST, () => {
   console.log(`    -d '{"agentId":"my_agent","branchName":"feature/my-branch","laneIndex":1,"diffSummary":{"title":"작업 완료","shortDescription":"변경 내용"}}'`);
   console.log();
 });
+
+// ── Bonjour(mDNS) 광고 ────────────────────────────────────────────────────────
+// 네이티브 앱(iPad)의 '주변 서버 찾기'가 _maestro._tcp 서비스를 발견한다.
+// MAESTRO_MDNS=off 로 비활성화. 광고 실패(방화벽 등)는 서버 기동에 영향 없다.
+if ((process.env.MAESTRO_MDNS || 'on').toLowerCase() !== 'off') {
+  try {
+    const [{ Bonjour }, os] = await Promise.all([
+      import('bonjour-service'),
+      import('node:os'),
+    ]);
+    const bonjour = new Bonjour();
+    bonjour.publish({
+      name: `Maestro (${os.hostname()})`,
+      type: 'maestro',
+      protocol: 'tcp',
+      port: Number(PORT),
+    });
+    console.log(`📡 mDNS 광고: _maestro._tcp port ${PORT} (MAESTRO_MDNS=off로 비활성 가능)`);
+    process.once('SIGINT', () => {
+      try {
+        bonjour.destroy();
+      } catch {
+        // 광고 해제 실패는 종료에 영향 없음
+      }
+      process.exit(0);
+    });
+  } catch (error) {
+    console.warn('📡 mDNS 광고 시작 실패 (무시하고 계속):', error?.message || error);
+  }
+}
