@@ -19,17 +19,23 @@
     "qa": "bash scripts/qa-agent.sh",
     "setup": "sh scripts/setup_env.sh",
     "install:hook": "node scripts/install-maestro-hook.mjs --target=all",
+    "ios:build": "CAPACITOR_BUILD=1 vite build && cap sync ios",
+    "ios:open": "cap open ios",
+    "ios:run": "npm run ios:build && cap run ios",
     "configure": "node scripts/configure.js",
     "project:list": "node scripts/projects.js list",
     "project:add": "node scripts/projects.js add",
     "project:use": "node scripts/projects.js use"
   },
   "dependencies": {
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
     "lucide-react": "^0.511.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.2",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "^4.1.6",
     "@testing-library/jest-dom": "^6.9.1",
