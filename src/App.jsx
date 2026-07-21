@@ -30,6 +30,8 @@ import PreviewModal from './components/maestro/PreviewModal.jsx';
 import RejectSheet from './components/maestro/RejectSheet.jsx';
 import GripZones from './components/maestro/GripZones.jsx';
 import { getStoredString, setStoredValue } from './utils/storage.js';
+import { formatWsUrlLabel, shouldAutoOpenServerSetup, testWsConnection } from './utils/server-address.js';
+import ServerAddressPanel from './components/maestro/ServerAddressPanel.jsx';
 import HistoryScorePanel from './components/maestro/HistoryScorePanel.jsx';
 import AutoApproveOpsPanel from './components/maestro/AutoApproveOpsPanel.jsx';
 import ProjectRegistryPanel from './components/maestro/ProjectRegistryPanel.jsx';
@@ -58,10 +60,29 @@ export default function App() {
   const isPlayingRef = useRef(isPlaying);
 
   const { wsUrl, hasStoredWsUrl, saveWsUrl, resetWsUrl } = useServerAddress();
+  const [isServerPanelOpen, setIsServerPanelOpen] = useState(false);
+  const hasAutoOpenedServerPanelRef = useRef(false);
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
+
+  // 첫 실행(비-localhost, 저장 주소 없음)에서 기본 주소 연결이 안 되면 설정 화면을 1회 자동 오픈한다.
+  useEffect(() => {
+    if (hasAutoOpenedServerPanelRef.current) return undefined;
+    if (!shouldAutoOpenServerSetup({ hasStoredWsUrl, hostname: window.location.hostname })) return undefined;
+    hasAutoOpenedServerPanelRef.current = true;
+
+    let cancelled = false;
+    testWsConnection(wsUrl, { timeoutMs: 3000 }).then((result) => {
+      if (!cancelled && !result.ok) {
+        setIsServerPanelOpen(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasStoredWsUrl, wsUrl]);
 
   useEffect(() => {
     notesRef.current = notes;
@@ -655,6 +676,9 @@ export default function App() {
         isWorkflowEnabled={isWorkflowEnabled === true}
         isWorkRequestPanelOpen={isWorkRequestPanelOpen}
         onToggleWorkRequestPanel={handleWorkRequestPanelToggle}
+        serverAddressLabel={formatWsUrlLabel(wsUrl)}
+        isServerPanelOpen={isServerPanelOpen}
+        onToggleServerPanel={() => setIsServerPanelOpen((open) => !open)}
       />
 
       <ProjectTabs
@@ -800,6 +824,14 @@ export default function App() {
         onSourceFilterChange={setHistorySourceFilter}
       />
 
+      <ServerAddressPanel
+        isOpen={isServerPanelOpen}
+        currentWsUrl={wsUrl}
+        hasStoredWsUrl={hasStoredWsUrl}
+        onSave={saveWsUrl}
+        onReset={resetWsUrl}
+        onClose={() => setIsServerPanelOpen(false)}
+      />
       <PreviewModal previewNote={previewNote} onClose={() => setPreviewNote(null)} />
       {rejectSheet && (
         <RejectSheet
