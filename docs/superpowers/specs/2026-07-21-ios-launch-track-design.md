@@ -2,7 +2,7 @@
 
 - 날짜: 2026-07-21
 - 상태: 승인 대기 → 구현
-- 범위: 0단계(서버 주소 런타임 설정), 1단계(PWA). 2단계(Capacitor 랩)는 **별도 스펙**으로 분리하며 본 문서에서는 확장점만 명시한다.
+- 범위: 0단계(서버 주소 런타임 설정), 1단계(PWA). 2단계(Capacitor 랩)는 **정식 후속 단계**로, 별도 스펙에서 다루며 본 문서에서는 확장점만 명시한다. Apple 개발자 계정 보유 확인됨(2026-07-21) — 계정은 진행 전제조건이 아니다.
 
 ## 1. 배경과 목표
 
@@ -13,7 +13,7 @@ Maestro 대시보드를 아이패드(Safari)에서 보조 컨트롤 데크로 �
 
 **비범위 (Out of scope)**
 - 서비스워커/오프라인: 서버는 로컬 git merge 실행자라 라이브 연결이 필수이고, LAN http에서는 서비스워커가 동작하지 않는다.
-- Capacitor WKWebView 랩(앱스토어, 네이티브 햅틱, Bonjour): 별도 스펙.
+- Capacitor WKWebView 랩(앱스토어, 네이티브 햅틱, Bonjour): 본 스펙 범위 밖 — 정식 후속 단계(§6)로 별도 스펙에서 진행.
 - 서버 측 변경: 앱은 클라이언트 전용. `maestro-server.js`는 손대지 않는다.
 
 **불변 조건**
@@ -117,10 +117,19 @@ manifest만으로 iOS '홈 화면에 추가' + standalone 전체화면은 동작
 | 4 | e2e 갱신 (서버 패널 플로우) | 중 | 회귀 안전망 |
 | 5 | PWA(manifest/메타/아이콘/safe-area) + e2e 어서션 + USER_GUIDE 문서화 | 저 | 정적 산출물 위주 |
 
-## 6. 2단계(Capacitor) 확장점 메모 — 별도 스펙에서 다룸
+## 6. 2단계(Capacitor 네이티브 랩) — 정식 후속 단계, 별도 스펙에서 다룸
 
-- `src/utils/haptics.js`의 `vibrate()`는 이미 미지원 환경에서 조용히 무시 → Capacitor 네이티브 햅틱 브릿지를 같은 시그니처로 주입할 수 있는 확장점.
-- 본 스펙의 `useServerAddress`는 Bonjour 발견 결과를 `saveWsUrl()`로 주입하는 진입점이 된다.
+Apple 개발자 계정 보유가 확인되어(2026-07-21) 정식 후속 단계로 계획한다. 우선순위는 0단계 → 1단계 → 2단계 순을 유지하며, 0~1단계 머지 후 별도 스펙 → 리스크순 로드맵 → TDD 사이클로 진행한다.
+
+**계획 범위**
+- Capacitor WKWebView 랩 + Xcode 프로젝트 구성, 앱스토어(또는 TestFlight) 배포 파이프라인
+- 네이티브 햅틱 브릿지: iOS Safari의 `navigator.vibrate` 미지원 보완. `src/utils/haptics.js`의 `vibrate(pattern)`이 이미 미지원 환경에서 조용히 무시하므로, 같은 시그니처로 Capacitor Haptics를 주입하는 어댑터가 확장점.
+- Bonjour(mDNS) 서버 발견: 발견 결과를 본 스펙의 `useServerAddress().saveWsUrl()`로 주입 — 수동 입력 UI는 폴백으로 유지.
+
+**본 스펙이 마련한 접점**
+- `vibrate()` 시그니처 유지 → 네이티브 햅틱 어댑터 교체 지점.
+- `useServerAddress` / `ServerAddressPanel` → Bonjour 자동 발견의 주입·폴백 지점.
+- 서비스워커 부재 → WKWebView 랩에서도 라이브 서버 연결 전제 그대로 유효.
 
 ## 7. 자율 진행 중 내린 결정 (사용자 확인 포인트)
 
