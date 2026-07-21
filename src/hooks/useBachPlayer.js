@@ -5,6 +5,7 @@ import {
   DEFAULT_BACH_CHANNEL_URL,
   YOUTUBE_URL_HELP_TEXT,
 } from '../constants/maestro.js';
+import { isNativeShell } from '../utils/server-address.js';
 import { clamp, getStoredNumber, getStoredString, setStoredValue } from '../utils/storage.js';
 import {
   cueYouTubeTarget,
@@ -14,6 +15,10 @@ import {
 } from '../utils/youtube.js';
 
 export default function useBachPlayer() {
+  // capacitor:// origin에서는 YouTube 임베드가 referrer 검증(에러 153)으로 재생을
+  // 거부하고, iosScheme은 WKWebView 예약 스킴이라 http(s)로 바꿀 수 없다.
+  // 네이티브 셸에서는 위젯을 숨기고 IFrame API도 로드하지 않는다.
+  const [isBachSupported] = useState(() => !isNativeShell());
   const [bachChannelUrl, setBachChannelUrl] = useState(() => getStoredString(BACH_CHANNEL_STORAGE_KEY, DEFAULT_BACH_CHANNEL_URL));
   const [bachChannelInput, setBachChannelInput] = useState(() => getStoredString(BACH_CHANNEL_STORAGE_KEY, DEFAULT_BACH_CHANNEL_URL));
   const [bachVolume, setBachVolume] = useState(() => getStoredNumber(BACH_VOLUME_STORAGE_KEY, 35));
@@ -66,6 +71,8 @@ export default function useBachPlayer() {
   }, [isBachPlaying, isBachPlaybackRequested, bachVolume]);
 
   useEffect(() => {
+    if (!isBachSupported) return undefined;
+
     let isDisposed = false;
 
     loadYouTubeIframeAPI()
@@ -159,9 +166,11 @@ export default function useBachPlayer() {
       setIsBachPlaybackRequested(false);
       setBachPlayerStateCode('INIT');
     };
-  }, []);
+  }, [isBachSupported]);
 
   useEffect(() => {
+    if (!isBachSupported) return;
+
     const target = resolveYouTubeTarget(bachChannelUrl);
     if (!target) {
       setBachError(YOUTUBE_URL_HELP_TEXT);
@@ -176,9 +185,10 @@ export default function useBachPlayer() {
     }
 
     cueYouTubeTarget(bachPlayerRef.current, target);
-  }, [bachChannelUrl, isBachReady]);
+  }, [bachChannelUrl, isBachReady, isBachSupported]);
 
   const playBach = useCallback(() => {
+    if (!isBachSupported) return;
     setIsBachPlaybackRequested(true);
     setBachPlayerStateCode(isBachReady ? 'REQUESTED' : 'LOADING');
     if (!isBachReady || !bachPlayerRef.current) {
@@ -194,7 +204,7 @@ export default function useBachPlayer() {
 
     setBachError('');
     loadYouTubeTarget(bachPlayerRef.current, target);
-  }, [bachChannelUrl, isBachReady]);
+  }, [bachChannelUrl, isBachReady, isBachSupported]);
 
   const pauseBach = useCallback(() => {
     if (!isBachReady || !bachPlayerRef.current) return;
@@ -267,6 +277,7 @@ export default function useBachPlayer() {
 
   return {
     youtubeUrlHelpText: YOUTUBE_URL_HELP_TEXT,
+    isBachSupported,
     bachPlayerHostRef,
     bachChannelInput,
     setBachChannelInput,

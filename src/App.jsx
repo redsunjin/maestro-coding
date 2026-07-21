@@ -151,6 +151,7 @@ export default function App() {
 
   const {
     youtubeUrlHelpText,
+    isBachSupported,
     bachPlayerHostRef,
     bachChannelInput,
     setBachChannelInput,
@@ -620,14 +621,17 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white font-sans overflow-hidden selection:bg-purple-500/30">
-      <div
-        ref={bachPlayerHostRef}
-        aria-hidden="true"
-        className="absolute -left-[9999px] top-0 h-px w-px overflow-hidden"
-      />
+      {isBachSupported && (
+        <div
+          ref={bachPlayerHostRef}
+          aria-hidden="true"
+          className="absolute -left-[9999px] top-0 h-px w-px overflow-hidden"
+        />
+      )}
 
       <MaestroHeader
         headerRef={headerRef}
+        isBachSupported={isBachSupported}
         isBachPlaying={isBachPlaying}
         isBachReady={isBachReady}
         isBachPlaybackRequested={isBachPlaybackRequested}
