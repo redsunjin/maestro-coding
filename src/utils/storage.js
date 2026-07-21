@@ -17,3 +17,8 @@ export const setStoredValue = (key, value) => {
   if (typeof window === 'undefined' || !window.localStorage) return;
   window.localStorage.setItem(key, value);
 };
+
+export const removeStoredValue = (key) => {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  window.localStorage.removeItem(key);
+};
