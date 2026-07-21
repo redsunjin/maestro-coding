@@ -28,6 +28,14 @@ function parseArgs(argv) {
       options.repoRoot = path.resolve(arg.slice('--repo-root='.length));
       continue;
     }
+    if (arg === '--register') {
+      options.register = true;
+      continue;
+    }
+    if (arg.startsWith('--agent-id=')) {
+      options.agentId = arg.slice('--agent-id='.length);
+      continue;
+    }
     if (arg === '--help' || arg === '-h') {
       options.help = true;
       continue;
@@ -49,6 +57,14 @@ Targets:
   all              Install both git post-commit and Claude Stop hook adapters
   git-post-commit  Install/update .git/hooks/post-commit
   claude-stop      Install/update .claude/settings.json Stop hook
+
+Options:
+  --register           서버에 에이전트를 등록하고 per-agent 토큰을 1회 발급받아 출력
+                       (env: MAESTRO_URL, MAESTRO_SERVER_TOKEN, AGENT_ID)
+  --agent-id=<id>      --register 시 사용할 에이전트 ID (기본: AGENT_ID env 또는 terminal_agent)
+
+주의: 같은 agent-id로 --register를 다시 실행하면 토큰이 회전되어
+      기존에 발급된 토큰은 즉시 무효화됩니다.
 `);
 }
 
@@ -173,7 +189,36 @@ function installClaudeStopHook(repoRoot) {
   return settingsPath;
 }
 
-function run() {
+async function registerAgentForToken(repoRoot, agentId) {
+  const maestroUrl = process.env.MAESTRO_URL || 'http://localhost:8080';
+  const serverToken = process.env.MAESTRO_SERVER_TOKEN || '';
+  const headers = { 'Content-Type': 'application/json' };
+  if (serverToken) headers.Authorization = `Bearer ${serverToken}`;
+
+  const response = await fetch(`${maestroUrl}/api/agents/register`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      agentId,
+      adapterType: 'hook',
+      repoRoot,
+      displayName: agentId,
+      capabilities: ['approval-request'],
+    }),
+  });
+
+  if (response.status === 401) {
+    throw new Error('register_unauthorized: MAESTRO_SERVER_TOKEN 값을 확인하세요');
+  }
+  if (!response.ok) {
+    throw new Error(`register_failed:${response.status}`);
+  }
+
+  const body = await response.json();
+  return body.agentToken || null;
+}
+
+async function run() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
     printHelp();
@@ -202,12 +247,24 @@ function run() {
   for (const item of installed) {
     console.log(`- ${item.target}: ${item.path}`);
   }
+
+  if (options.register) {
+    const agentId = options.agentId || process.env.AGENT_ID || 'terminal_agent';
+    console.log(`\n에이전트 등록 중... (agentId: ${agentId})`);
+    console.log('⚠️  같은 agentId로 재등록하면 토큰이 회전되어 기존 토큰은 즉시 무효화됩니다.');
+    const agentToken = await registerAgentForToken(repoRoot, agentId);
+    if (agentToken) {
+      console.log('\n✅ per-agent 토큰이 발급되었습니다. 이 토큰은 지금 한 번만 표시됩니다:');
+      console.log(`\n   export MAESTRO_AGENT_TOKEN=${agentToken}`);
+      console.log('\n훅 실행 환경에 위 환경변수를 설정하면 1급 프로토콜(/api/approval-requests)을 사용합니다.');
+    } else {
+      console.log('\n등록 완료 (서버가 토큰을 반환하지 않았습니다 — 서버 버전을 확인하세요).');
+    }
+  }
 }
 
-try {
-  run();
-} catch (error) {
+run().catch((error) => {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`Failed to install Maestro hook adapters: ${message}`);
   process.exit(1);
-}
+});

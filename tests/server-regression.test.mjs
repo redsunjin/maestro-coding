@@ -2422,3 +2422,195 @@ test('POST rejects disallowed origin with 403', async (t) => {
 
   assert.equal(response.status, 403);
 });
+
+test('per-agent auth: register issues one-time token and stores only hash', async (t) => {
+  const server = startServer({ token: 'admin-secret' });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+  await waitForHealth(server.port);
+
+  const registerResponse = await postAgentRegistration(server.port, {
+    agentId: 'auth_agent_1',
+    adapterType: 'hook',
+  }, { Authorization: 'Bearer admin-secret' });
+
+  assert.equal(registerResponse.status, 200);
+  const registerBody = await registerResponse.json();
+  assert.equal(typeof registerBody.agentToken, 'string');
+  assert.ok(registerBody.agentToken.length >= 32);
+  // 응답 레코드에는 평문/해시 모두 노출하지 않는다
+  assert.equal(registerBody.item.agentToken, undefined);
+  assert.equal(registerBody.item.tokenHash, undefined);
+
+  // 목록/상세에도 tokenHash 미노출
+  const listResponse = await fetch(`http://127.0.0.1:${server.port}/api/agents`, {
+    headers: { Authorization: 'Bearer admin-secret' },
+  });
+  const listBody = await listResponse.json();
+  assert.equal(listBody.items[0].tokenHash, undefined);
+});
+
+test('per-agent auth: issued token operates own endpoints, wrong identity is rejected', async (t) => {
+  const server = startServer({ token: 'admin-secret' });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+  await waitForHealth(server.port);
+
+  const registerA = await (await postAgentRegistration(server.port, { agentId: 'agent_a' }, { Authorization: 'Bearer admin-secret' })).json();
+  const registerB = await (await postAgentRegistration(server.port, { agentId: 'agent_b' }, { Authorization: 'Bearer admin-secret' })).json();
+  const tokenA = registerA.agentToken;
+  const tokenB = registerB.agentToken;
+
+  // 자기 토큰으로 heartbeat 성공
+  const heartbeatOk = await postAgentHeartbeat(server.port, 'agent_a', { Authorization: `Bearer ${tokenA}` });
+  assert.equal(heartbeatOk.status, 200);
+
+  // 남의 agentId로 heartbeat → 403
+  const heartbeatMismatch = await postAgentHeartbeat(server.port, 'agent_b', { Authorization: `Bearer ${tokenA}` });
+  assert.equal(heartbeatMismatch.status, 403);
+
+  // 틀린 토큰 → 401
+  const heartbeatBadToken = await postAgentHeartbeat(server.port, 'agent_a', { Authorization: 'Bearer nonsense' });
+  assert.equal(heartbeatBadToken.status, 401);
+
+  // 자기 토큰으로 승인 요청 성공 (agentId 일치)
+  const requestOk = await postFirstClassApprovalRequest(server.port, { Authorization: `Bearer ${tokenA}` }, {
+    requestId: 'req_auth_a1',
+    agentId: 'agent_a',
+  });
+  assert.equal(requestOk.status, 200);
+
+  // 토큰 주인과 다른 agentId 주장 → 403
+  const requestMismatch = await postFirstClassApprovalRequest(server.port, { Authorization: `Bearer ${tokenA}` }, {
+    requestId: 'req_auth_a2',
+    agentId: 'agent_b',
+  });
+  assert.equal(requestMismatch.status, 403);
+
+  // 자기 요청 decision 폴링 성공
+  const pollOwn = await fetch(`http://127.0.0.1:${server.port}/api/approval-requests/req_auth_a1/decision`, {
+    headers: { Authorization: `Bearer ${tokenA}` },
+  });
+  assert.equal(pollOwn.status, 200);
+
+  // 유효한 남의 토큰으로 남의 요청 decision 폴링 → 403
+  const pollForeign = await fetch(`http://127.0.0.1:${server.port}/api/approval-requests/req_auth_a1/decision`, {
+    headers: { Authorization: `Bearer ${tokenB}` },
+  });
+  assert.equal(pollForeign.status, 403);
+});
+
+test('per-agent auth: grace mode allows server token, strict mode requires agent token', async (t) => {
+  const graceServer = startServer({ token: 'admin-secret' });
+  t.after(async () => {
+    await stopServer(graceServer.proc);
+  });
+  await waitForHealth(graceServer.port);
+
+  await postAgentRegistration(graceServer.port, { agentId: 'legacy_agent' }, { Authorization: 'Bearer admin-secret' });
+
+  // 관대(기본): 서버 토큰 grace 통과
+  const graceHeartbeat = await postAgentHeartbeat(graceServer.port, 'legacy_agent', { Authorization: 'Bearer admin-secret' });
+  assert.equal(graceHeartbeat.status, 200);
+
+  const strictServer = startServer({
+    token: 'admin-secret',
+    extraEnv: { MAESTRO_AGENT_AUTH_ENFORCE: 'true' },
+  });
+  t.after(async () => {
+    await stopServer(strictServer.proc);
+  });
+  await waitForHealth(strictServer.port);
+
+  const strictRegister = await (await postAgentRegistration(strictServer.port, { agentId: 'strict_agent' }, { Authorization: 'Bearer admin-secret' })).json();
+
+  // 엄격: 서버 토큰으로 에이전트 엔드포인트 호출 → 401
+  const strictServerTokenCall = await postAgentHeartbeat(strictServer.port, 'strict_agent', { Authorization: 'Bearer admin-secret' });
+  assert.equal(strictServerTokenCall.status, 401);
+
+  // 엄격: 에이전트 토큰은 통과
+  const strictAgentTokenCall = await postAgentHeartbeat(strictServer.port, 'strict_agent', { Authorization: `Bearer ${strictRegister.agentToken}` });
+  assert.equal(strictAgentTokenCall.status, 200);
+});
+
+test('per-agent auth: no server token keeps everything open (legacy dev mode)', async (t) => {
+  const server = startServer();
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+  await waitForHealth(server.port);
+
+  const registerResponse = await postAgentRegistration(server.port, { agentId: 'open_agent' });
+  assert.equal(registerResponse.status, 200);
+
+  const heartbeatResponse = await postAgentHeartbeat(server.port, 'open_agent');
+  assert.equal(heartbeatResponse.status, 200);
+});
+
+test('per-agent auth: token survives restart via persisted store', async (t) => {
+  const agentStorePath = resolve(os.tmpdir(), `maestro-agents-auth-${Date.now()}.json`);
+  t.after(() => {
+    rmSync(agentStorePath, { force: true });
+  });
+
+  const firstServer = startServer({
+    token: 'admin-secret',
+    extraEnv: { MAESTRO_AGENT_STORE_PATH: agentStorePath },
+  });
+  await waitForHealth(firstServer.port);
+  const registerBody = await (await postAgentRegistration(firstServer.port, { agentId: 'persist_agent' }, { Authorization: 'Bearer admin-secret' })).json();
+  await stopServer(firstServer.proc);
+
+  const secondServer = startServer({
+    token: 'admin-secret',
+    extraEnv: { MAESTRO_AGENT_STORE_PATH: agentStorePath },
+  });
+  t.after(async () => {
+    await stopServer(secondServer.proc);
+  });
+  await waitForHealth(secondServer.port);
+
+  const heartbeatResponse = await postAgentHeartbeat(secondServer.port, 'persist_agent', {
+    Authorization: `Bearer ${registerBody.agentToken}`,
+  });
+  assert.equal(heartbeatResponse.status, 200);
+});
+
+test('per-agent auth: revoke invalidates token and re-register rotates it', async (t) => {
+  const server = startServer({ token: 'admin-secret' });
+  t.after(async () => {
+    await stopServer(server.proc);
+  });
+  await waitForHealth(server.port);
+
+  const firstIssue = await (await postAgentRegistration(server.port, { agentId: 'rotating_agent' }, { Authorization: 'Bearer admin-secret' })).json();
+
+  // revoke는 서버 토큰 전용 — 에이전트 토큰으로는 401
+  const revokeByAgent = await fetch(`http://127.0.0.1:${server.port}/api/agents/rotating_agent/revoke`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${firstIssue.agentToken}` },
+  });
+  assert.equal(revokeByAgent.status, 401);
+
+  const revokeResponse = await fetch(`http://127.0.0.1:${server.port}/api/agents/rotating_agent/revoke`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer admin-secret' },
+  });
+  assert.equal(revokeResponse.status, 200);
+
+  // revoke 후 기존 토큰 401
+  const revokedCall = await postAgentHeartbeat(server.port, 'rotating_agent', { Authorization: `Bearer ${firstIssue.agentToken}` });
+  assert.equal(revokedCall.status, 401);
+
+  // 재등록 = 무조건 회전: 새 토큰 발급, 기존(이미 revoke된) 토큰은 계속 무효
+  const secondIssue = await (await postAgentRegistration(server.port, { agentId: 'rotating_agent' }, { Authorization: 'Bearer admin-secret' })).json();
+  assert.notEqual(secondIssue.agentToken, firstIssue.agentToken);
+
+  const oldTokenCall = await postAgentHeartbeat(server.port, 'rotating_agent', { Authorization: `Bearer ${firstIssue.agentToken}` });
+  assert.equal(oldTokenCall.status, 401);
+
+  const newTokenCall = await postAgentHeartbeat(server.port, 'rotating_agent', { Authorization: `Bearer ${secondIssue.agentToken}` });
+  assert.equal(newTokenCall.status, 200);
+});

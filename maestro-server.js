@@ -12,6 +12,7 @@
 //   GET        /api/auto-approve/events — 자동승인 이벤트 로그 조회
 
 import http from 'http';
+import crypto from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { WebSocketServer, WebSocket as WSWebSocket } from 'ws';
@@ -188,6 +189,65 @@ function isRequestAuthorized(req) {
   if (!SERVER_TOKEN) return true;
   const token = extractBearerToken(req.headers.authorization);
   return token === SERVER_TOKEN;
+}
+
+// --- Per-agent 인증 (multi-agent connection spec) ---
+// 관대(기본): 에이전트 토큰 검증 + 서버 토큰 grace 허용.
+// 엄격(MAESTRO_AGENT_AUTH_ENFORCE=true): 에이전트 엔드포인트는 유효한 per-agent 토큰 필수.
+const AGENT_AUTH_ENFORCE = /^true$/i.test(process.env.MAESTRO_AGENT_AUTH_ENFORCE || '');
+
+function generateAgentToken() {
+  return crypto.randomBytes(24).toString('hex');
+}
+
+function hashAgentToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function findAgentByToken(token) {
+  if (!token) return null;
+  const tokenHash = hashAgentToken(token);
+  return Array.from(agentsById.values()).find((agent) => agent.tokenHash && agent.tokenHash === tokenHash) || null;
+}
+
+// 에이전트 운영 엔드포인트 공용 인증.
+// 반환: { ok:true, mode:'open'|'agent'|'server-grace', agentId|null } 또는 { ok:false, status, error }
+function resolveAgentAuth(req) {
+  if (!SERVER_TOKEN) return { ok: true, mode: 'open', agentId: null };
+  const token = extractBearerToken(req.headers.authorization);
+  if (!token) return { ok: false, status: 401, error: 'Unauthorized' };
+
+  const agent = findAgentByToken(token);
+  if (agent) return { ok: true, mode: 'agent', agentId: agent.agentId };
+
+  if (!AGENT_AUTH_ENFORCE && token === SERVER_TOKEN) {
+    return { ok: true, mode: 'server-grace', agentId: null };
+  }
+  return { ok: false, status: 401, error: 'Unauthorized' };
+}
+
+// expectedAgentId가 주어지면 에이전트 토큰 주인과의 일치를 검증한다.
+// (grace/open 모드는 주인이 없으므로 일치 검증을 적용하지 않음 — 스펙 §6 한계 명시 참조)
+function authorizeAgentEndpoint(req, res, expectedAgentId = null) {
+  const auth = resolveAgentAuth(req);
+  if (!auth.ok) {
+    res.writeHead(auth.status, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: auth.error }));
+    return null;
+  }
+  if (auth.mode === 'agent' && expectedAgentId && auth.agentId !== expectedAgentId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'AGENT_MISMATCH' }));
+    return null;
+  }
+  return auth;
+}
+
+// 응답에는 토큰 해시를 절대 노출하지 않는다.
+function toPublicAgent(agent) {
+  if (!agent) return agent;
+  const { tokenHash, ...publicAgent } = agent;
+  return publicAgent;
 }
 
 function sanitizeHistoryText(value, maxLength = 120) {
@@ -458,9 +518,12 @@ function normalizeAgentRegistration(input = {}) {
 function registerAgent(input = {}) {
   const agent = normalizeAgentRegistration(input);
   if (!agent) return null;
+  // 재등록(upsert) = 무조건 토큰 회전. 평문은 1회 반환, 레코드에는 sha256 해시만 저장.
+  const agentToken = generateAgentToken();
+  agent.tokenHash = hashAgentToken(agentToken);
   agentsById.set(agent.agentId, agent);
   persistAgentStore();
-  return agent;
+  return { agent, agentToken };
 }
 
 function getAgent(agentId) {
@@ -523,7 +586,7 @@ function withAgentTrustSummary(agent) {
   const lastRequest = getLatestAgentRequest(agent.agentId);
   const lastDecision = lastRequest ? getApprovalDecisionByRequestId(lastRequest.requestId) : null;
   return {
-    ...agent,
+    ...toPublicAgent(agent),
     lastRequest: summarizeApprovalRequestForAgent(lastRequest),
     lastDecision: summarizeApprovalDecisionForAgent(lastDecision),
   };
@@ -1277,8 +1340,8 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const data = JSON.parse(body || '{}');
-        const agent = registerAgent(data);
-        if (!agent) {
+        const registration = registerAgent(data);
+        if (!registration) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'AGENT_ID_REQUIRED' }));
           return;
@@ -1287,7 +1350,9 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           success: true,
-          item: agent,
+          item: toPublicAgent(registration.agent),
+          // 평문 토큰은 이 응답에서 1회만 노출된다 (서버는 해시만 저장)
+          agentToken: registration.agentToken,
         }));
       } catch {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -1299,13 +1364,9 @@ const server = http.createServer((req, res) => {
 
   const agentHeartbeatMatch = pathname.match(/^\/api\/agents\/([^/]+)\/heartbeat$/);
   if (req.method === 'POST' && agentHeartbeatMatch) {
-    if (!isRequestAuthorized(req)) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
-      return;
-    }
-
     const agentId = decodeURIComponent(agentHeartbeatMatch[1]);
+    if (!authorizeAgentEndpoint(req, res, agentId)) return;
+
     const agent = recordAgentHeartbeat(agentId);
     if (!agent) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -1316,7 +1377,36 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       success: true,
-      item: agent,
+      item: toPublicAgent(agent),
+    }));
+    return;
+  }
+
+  const agentRevokeMatch = pathname.match(/^\/api\/agents\/([^/]+)\/revoke$/);
+  if (req.method === 'POST' && agentRevokeMatch) {
+    // 토큰 회수는 서버 토큰(관리자) 전용 — 에이전트 토큰으로는 불가
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const agentId = decodeURIComponent(agentRevokeMatch[1]);
+    const agent = getAgent(agentId);
+    if (!agent) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'AGENT_NOT_FOUND' }));
+      return;
+    }
+
+    const revokedAgent = { ...agent, tokenHash: null, updatedAt: new Date().toISOString() };
+    agentsById.set(revokedAgent.agentId, revokedAgent);
+    persistAgentStore();
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      item: toPublicAgent(revokedAgent),
     }));
     return;
   }
@@ -1338,7 +1428,7 @@ const server = http.createServer((req, res) => {
     }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ item: agent }));
+    res.end(JSON.stringify({ item: toPublicAgent(agent) }));
     return;
   }
 
@@ -1958,17 +2048,24 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'POST' && pathname === '/api/approval-requests') {
-    if (!isRequestAuthorized(req)) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
-      return;
-    }
+    const approvalAuth = authorizeAgentEndpoint(req, res);
+    if (!approvalAuth) return;
 
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
       try {
         const data = JSON.parse(body || '{}');
+        // 에이전트 토큰 호출은 요청 agentId가 토큰 주인과 일치해야 한다
+        if (approvalAuth.mode === 'agent') {
+          const claimedAgentId = sanitizeHistoryText(data.agentId || '', 80);
+          if (claimedAgentId && claimedAgentId !== approvalAuth.agentId) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'AGENT_MISMATCH' }));
+            return;
+          }
+          data.agentId = approvalAuth.agentId;
+        }
         const { approvalRequest, autoApprove } = submitApprovalRequest(data, { source: 'agent' });
         console.log(`📨 승인 요청 수신: [${approvalRequest.agentId}] ${approvalRequest.diffSummary.title}`);
 
@@ -1989,17 +2086,21 @@ const server = http.createServer((req, res) => {
 
   const approvalDecisionPollMatch = pathname.match(/^\/api\/approval-requests\/([^/]+)\/decision$/);
   if (req.method === 'GET' && approvalDecisionPollMatch) {
-    if (!isRequestAuthorized(req)) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
-      return;
-    }
+    const pollAuth = authorizeAgentEndpoint(req, res);
+    if (!pollAuth) return;
 
     const requestId = decodeURIComponent(approvalDecisionPollMatch[1]);
     const approvalRequest = getApprovalRequest(requestId);
     if (!approvalRequest) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'APPROVAL_REQUEST_NOT_FOUND' }));
+      return;
+    }
+
+    // 에이전트 토큰은 자기 요청만 폴링 가능
+    if (pollAuth.mode === 'agent' && approvalRequest.agentId !== pollAuth.agentId) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'AGENT_MISMATCH' }));
       return;
     }
 
@@ -2015,13 +2116,22 @@ const server = http.createServer((req, res) => {
 
   const approvalDecisionAckMatch = pathname.match(/^\/api\/approval-decisions\/([^/]+)\/ack$/);
   if (req.method === 'POST' && approvalDecisionAckMatch) {
-    if (!isRequestAuthorized(req)) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
-      return;
-    }
+    const ackAuth = authorizeAgentEndpoint(req, res);
+    if (!ackAuth) return;
 
     const decisionId = decodeURIComponent(approvalDecisionAckMatch[1]);
+
+    // 에이전트 토큰은 자기 요청의 결정만 ack 가능
+    if (ackAuth.mode === 'agent') {
+      const targetDecision = Array.from(approvalDecisionsByRequestId.values())
+        .find((decision) => decision.decisionId === decisionId) || null;
+      const targetRequest = targetDecision ? getApprovalRequest(targetDecision.requestId) : null;
+      if (targetRequest && targetRequest.agentId !== ackAuth.agentId) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'AGENT_MISMATCH' }));
+        return;
+      }
+    }
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
@@ -2204,6 +2314,7 @@ function loadAgentStore() {
         displayName: sanitizeHistoryText(item.displayName || '', 120) || agentId,
         capabilities: normalizeAgentCapabilities(item.capabilities),
         tokenId: sanitizeHistoryText(item.tokenId || '', 80) || null,
+        tokenHash: typeof item.tokenHash === 'string' && /^[0-9a-f]{64}$/.test(item.tokenHash) ? item.tokenHash : null,
         status: allowedAgentStatus.has(item.status) ? item.status : AGENT_STATUS.REGISTERED,
         registeredAt: item.registeredAt || now,
         updatedAt: item.updatedAt || now,
