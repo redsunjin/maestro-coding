@@ -7,9 +7,8 @@ import {
   sanitizeLaneCount,
 } from '../../shared/lane-config.mjs';
 
-// WebSocket 서버 주소 (maestro-server.js 가 실행되는 호스트)
-// 환경변수 VITE_WS_URL 로 재정의할 수 있습니다.
-export const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
+// WebSocket 서버 주소는 런타임에 결정된다 — src/utils/server-address.js 참고.
+// 우선순위: localStorage('maestro.server.ws-url') > VITE_WS_URL > ws://<페이지 호스트>:8080
 
 export const BACH_CHANNEL_STORAGE_KEY = 'maestro.function-bach.channel-url';
 export const BACH_VOLUME_STORAGE_KEY = 'maestro.function-bach.volume';

@@ -217,3 +217,39 @@ test('approval/reject flow and function bach overlay work end-to-end', async ({ 
   await page.getByRole('button', { name: '배경음악 채널 설정' }).click();
   await expect(page.getByLabel('유튜브 채널 경로')).toBeVisible();
 });
+
+test('server address panel shows current address and passes connection test', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByTestId('server-address-toggle').click();
+  await expect(page.getByTestId('server-address-panel')).toBeVisible();
+
+  // VITE_WS_URL env 주입이 런타임 해석 우선순위에서 계속 유효한지 검증
+  await expect(page.getByRole('textbox', { name: '서버 주소 입력' })).toHaveValue(`ws://${WS_HOST}:${WS_PORT}`);
+
+  // 테스트 하네스 WSS가 떠 있으므로 실제 성공 경로를 검증한다
+  await page.getByRole('button', { name: '연결 테스트' }).click();
+  await expect(page.getByTestId('server-address-test-result')).toContainText('연결 성공');
+
+  await page.getByRole('button', { name: '닫기' }).click();
+  await expect(page.getByTestId('server-address-panel')).toHaveCount(0);
+});
+
+test('PWA manifest and apple meta tags are wired for standalone install', async ({ page }) => {
+  await page.goto('/');
+
+  const manifestHref = await page.locator('link[rel="manifest"]').getAttribute('href');
+  expect(manifestHref).toBeTruthy();
+  const manifestResponse = await page.request.get(new URL(manifestHref, page.url()).toString());
+  expect(manifestResponse.ok()).toBeTruthy();
+  const manifest = await manifestResponse.json();
+  expect(manifest.display).toBe('standalone');
+  expect(manifest.icons.length).toBeGreaterThanOrEqual(2);
+
+  await expect(page.locator('meta[name="apple-mobile-web-app-capable"]')).toHaveAttribute('content', 'yes');
+
+  const appleIconHref = await page.locator('link[rel="apple-touch-icon"]').getAttribute('href');
+  expect(appleIconHref).toBeTruthy();
+  const iconResponse = await page.request.get(new URL(appleIconHref, page.url()).toString());
+  expect(iconResponse.ok()).toBeTruthy();
+});

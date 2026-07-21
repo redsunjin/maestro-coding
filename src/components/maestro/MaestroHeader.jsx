@@ -52,6 +52,9 @@ export default function MaestroHeader({
   isWorkflowEnabled = false,
   isWorkRequestPanelOpen = false,
   onToggleWorkRequestPanel,
+  serverAddressLabel,
+  isServerPanelOpen = false,
+  onToggleServerPanel,
 }) {
   const [shouldCollapsePanelControls, setShouldCollapsePanelControls] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 1480 : false
@@ -314,6 +317,26 @@ export default function MaestroHeader({
               </div>
             )}
           </div>
+          {/* 서버 주소 진입점 — 연결 문제 해결의 첫 관문이라 오버플로 메뉴로 숨기지 않는다 */}
+          <button
+            type="button"
+            onClick={onToggleServerPanel}
+            aria-label="서버 주소 설정"
+            aria-controls="server-address-panel"
+            aria-expanded={isServerPanelOpen}
+            data-testid="server-address-toggle"
+            className={`maestro-touch-control maestro-touch-control--compact shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${
+              isServerPanelOpen
+                ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-100'
+                : wsStatus === 'connected'
+                  ? 'border-green-500/40 bg-green-500/10 text-green-200 hover:border-green-400/60'
+                  : wsStatus === 'connecting'
+                    ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
+                    : 'border-gray-700 bg-gray-900/70 text-gray-300 hover:border-cyan-400/50 hover:text-cyan-100'
+            }`}
+          >
+            서버 {serverAddressLabel}
+          </button>
           {wsStatus === 'connected' && (
             <div className="flex shrink-0 items-center px-2 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-[10px] sm:text-xs text-green-400">
               <Wifi className="w-3 h-3 mr-1" /> LIVE

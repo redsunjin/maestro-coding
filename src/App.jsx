@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  WS_URL,
   PROJECTS,
   BASE_BOTTOM,
   NOTE_STATUS,
@@ -22,6 +21,7 @@ import useWorkConsoleShell from './hooks/useWorkConsoleShell.js';
 import useWorkSessions from './hooks/useWorkSessions.js';
 import useWorkRequests from './hooks/useWorkRequests.js';
 import useAgentRegistry from './hooks/useAgentRegistry.js';
+import useServerAddress from './hooks/useServerAddress.js';
 import MaestroHeader from './components/maestro/MaestroHeader.jsx';
 import ProjectTabs from './components/maestro/ProjectTabs.jsx';
 import LaneBoard from './components/maestro/LaneBoard.jsx';
@@ -30,6 +30,8 @@ import PreviewModal from './components/maestro/PreviewModal.jsx';
 import RejectSheet from './components/maestro/RejectSheet.jsx';
 import GripZones from './components/maestro/GripZones.jsx';
 import { getStoredString, setStoredValue } from './utils/storage.js';
+import { formatWsUrlLabel, shouldAutoOpenServerSetup, testWsConnection } from './utils/server-address.js';
+import ServerAddressPanel from './components/maestro/ServerAddressPanel.jsx';
 import HistoryScorePanel from './components/maestro/HistoryScorePanel.jsx';
 import AutoApproveOpsPanel from './components/maestro/AutoApproveOpsPanel.jsx';
 import ProjectRegistryPanel from './components/maestro/ProjectRegistryPanel.jsx';
@@ -55,6 +57,32 @@ export default function App() {
 
   const notesRef = useRef([]);
   const activeProjectRef = useRef(activeProjectId);
+  const isPlayingRef = useRef(isPlaying);
+
+  const { wsUrl, hasStoredWsUrl, saveWsUrl, resetWsUrl } = useServerAddress();
+  const [isServerPanelOpen, setIsServerPanelOpen] = useState(false);
+  const hasAutoOpenedServerPanelRef = useRef(false);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  // 첫 실행(비-localhost, 저장 주소 없음)에서 기본 주소 연결이 안 되면 설정 화면을 1회 자동 오픈한다.
+  useEffect(() => {
+    if (hasAutoOpenedServerPanelRef.current) return undefined;
+    if (!shouldAutoOpenServerSetup({ hasStoredWsUrl, hostname: window.location.hostname })) return undefined;
+    hasAutoOpenedServerPanelRef.current = true;
+
+    let cancelled = false;
+    testWsConnection(wsUrl, { timeoutMs: 3000 }).then((result) => {
+      if (!cancelled && !result.ok) {
+        setIsServerPanelOpen(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasStoredWsUrl, wsUrl]);
 
   useEffect(() => {
     notesRef.current = notes;
@@ -164,7 +192,7 @@ export default function App() {
     historyBadgeCount,
     handleSocketEvent: handleHistorySocketEvent,
   } = useApprovalHistory({
-    wsUrl: WS_URL,
+    wsUrl,
   });
 
   const {
@@ -202,7 +230,7 @@ export default function App() {
     isProjectRegistering,
     handleSocketEvent: handleProjectSocketEvent,
   } = useProjectRegistryOps({
-    wsUrl: WS_URL,
+    wsUrl,
   });
 
   const {
@@ -229,7 +257,7 @@ export default function App() {
     closeSession,
     handleSocketEvent: handleWorkSessionsSocketEvent,
   } = useWorkSessions({
-    wsUrl: WS_URL,
+    wsUrl,
     selectedSessionId: selectedWorkSessionId,
     onSelectedSessionChange: setSelectedWorkSessionId,
   });
@@ -248,7 +276,7 @@ export default function App() {
     decideRequest,
     handleSocketEvent: handleWorkRequestsSocketEvent,
   } = useWorkRequests({
-    wsUrl: WS_URL,
+    wsUrl,
     selectedRequestId: selectedWorkRequestId,
     onSelectedRequestChange: setSelectedWorkRequestId,
   });
@@ -260,7 +288,7 @@ export default function App() {
     isAgentAuthRequired,
     handleSocketEvent: handleAgentRegistrySocketEvent,
   } = useAgentRegistry({
-    wsUrl: WS_URL,
+    wsUrl,
     enabled: isWorkConsoleOpen,
   });
 
@@ -283,7 +311,7 @@ export default function App() {
     refreshAutoApproveData,
     handleSocketEvent: handleAutoApproveSocketEvent,
   } = useAutoApproveOps({
-    wsUrl: WS_URL,
+    wsUrl,
   });
 
   const handleRealtimeEvent = useCallback((payload) => {
@@ -319,7 +347,7 @@ export default function App() {
     disconnectWebSocket,
     sendSocketAction,
   } = useMaestroRealtime({
-    wsUrl: WS_URL,
+    wsUrl,
     activeProjectRef,
     notesRef,
     setNotes,
@@ -338,6 +366,17 @@ export default function App() {
     setNotes,
     laneCount: activeLaneCount,
   });
+
+  // 서버 주소가 바뀌면 기존 소켓을 끊고, 연주 중이면 새 주소로 재연결한다.
+  const prevWsUrlRef = useRef(wsUrl);
+  useEffect(() => {
+    if (prevWsUrlRef.current === wsUrl) return;
+    prevWsUrlRef.current = wsUrl;
+    disconnectWebSocket();
+    if (isPlayingRef.current) {
+      connectWebSocket();
+    }
+  }, [wsUrl, connectWebSocket, disconnectWebSocket]);
 
   const triggerLaneAction = useCallback((laneId, options = {}) => {
     const { isRejectAction = false, promptFeedback = false, rejectFeedback: directRejectFeedback = '' } = options;
@@ -637,6 +676,9 @@ export default function App() {
         isWorkflowEnabled={isWorkflowEnabled === true}
         isWorkRequestPanelOpen={isWorkRequestPanelOpen}
         onToggleWorkRequestPanel={handleWorkRequestPanelToggle}
+        serverAddressLabel={formatWsUrlLabel(wsUrl)}
+        isServerPanelOpen={isServerPanelOpen}
+        onToggleServerPanel={() => setIsServerPanelOpen((open) => !open)}
       />
 
       <ProjectTabs
@@ -782,6 +824,14 @@ export default function App() {
         onSourceFilterChange={setHistorySourceFilter}
       />
 
+      <ServerAddressPanel
+        isOpen={isServerPanelOpen}
+        currentWsUrl={wsUrl}
+        hasStoredWsUrl={hasStoredWsUrl}
+        onSave={saveWsUrl}
+        onReset={resetWsUrl}
+        onClose={() => setIsServerPanelOpen(false)}
+      />
       <PreviewModal previewNote={previewNote} onClose={() => setPreviewNote(null)} />
       {rejectSheet && (
         <RejectSheet

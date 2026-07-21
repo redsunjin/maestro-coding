@@ -44,3 +44,13 @@
   min-height: 44px;
   min-width: auto;
 }
+
+/* --- PWA standalone(홈 화면 추가) 안전 영역 — 노치/홈 인디케이터 침범 방지 --- */
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+  }
+}
