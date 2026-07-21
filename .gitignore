@@ -9,3 +9,4 @@ dist/
 .maestro-agents.json
 playwright-report/
 test-results/
+.claude/

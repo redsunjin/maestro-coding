@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Server } from 'lucide-react';
-import { normalizeWsUrlInput, testWsConnection } from '../../utils/server-address.js';
+import { isNativeShell, normalizeWsUrlInput, testWsConnection } from '../../utils/server-address.js';
+
+const ZEROCONF_WATCH_OPTIONS = { type: '_maestro._tcp.', domain: 'local.' };
+const DISCOVERY_WINDOW_MS = 8000;
 
 const TEST_RESULT_CLASSES = {
   testing: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200',
@@ -19,6 +22,8 @@ export default function ServerAddressPanel({
   const [addressInput, setAddressInput] = useState(currentWsUrl);
   const [saveError, setSaveError] = useState('');
   const [testState, setTestState] = useState({ status: 'idle', message: '' });
+  const [discovery, setDiscovery] = useState({ status: 'idle', results: [], message: '' });
+  const discoveryTimerRef = useRef(null);
 
   useEffect(() => {
     setAddressInput(currentWsUrl);
@@ -28,10 +33,55 @@ export default function ServerAddressPanel({
     if (!isOpen) {
       setSaveError('');
       setTestState({ status: 'idle', message: '' });
+      setDiscovery({ status: 'idle', results: [], message: '' });
+      clearTimeout(discoveryTimerRef.current);
     }
   }, [isOpen]);
 
+  useEffect(() => () => clearTimeout(discoveryTimerRef.current), []);
+
   if (!isOpen) return null;
+
+  // Bonjour 발견은 네이티브 셸 + ZeroConf 플러그인이 실제 탑재된 빌드에서만 노출한다.
+  // (SPM 빌드는 플러그인 Package.swift 부재로 미탑재일 수 있음 — 그 경우 수동 입력이 폴백)
+  const canDiscoverNearbyServers = isNativeShell()
+    && window.Capacitor?.isPluginAvailable?.('ZeroConf') === true;
+
+  const handleDiscover = async () => {
+    setDiscovery({ status: 'scanning', results: [], message: '주변 Maestro 서버 검색 중...' });
+    try {
+      const { ZeroConf } = await import('capacitor-zeroconf');
+      const found = new Map();
+
+      await ZeroConf.watch(ZEROCONF_WATCH_OPTIONS, (result) => {
+        if (result?.action !== 'resolved') return;
+        const service = result.service || {};
+        const ip = service.ipv4Addresses?.[0];
+        if (!ip || !service.port) return;
+        found.set(`${ip}:${service.port}`, {
+          name: service.name || 'Maestro',
+          wsUrl: `ws://${ip}:${service.port}`,
+        });
+        setDiscovery({ status: 'scanning', results: Array.from(found.values()), message: '검색 중... 항목을 누르면 주소가 채워집니다.' });
+      });
+
+      clearTimeout(discoveryTimerRef.current);
+      discoveryTimerRef.current = setTimeout(async () => {
+        try {
+          await ZeroConf.unwatch(ZEROCONF_WATCH_OPTIONS);
+        } catch {
+          // unwatch 실패는 무시
+        }
+        setDiscovery((prev) => ({
+          status: 'done',
+          results: prev.results,
+          message: prev.results.length > 0 ? '검색 완료 — 항목을 누르면 주소가 채워집니다.' : '서버를 찾지 못했습니다. PC에서 서버 실행 여부와 같은 Wi-Fi인지 확인하세요.',
+        }));
+      }, DISCOVERY_WINDOW_MS);
+    } catch {
+      setDiscovery({ status: 'error', results: [], message: '주변 서버 검색을 사용할 수 없습니다. 주소를 직접 입력하세요.' });
+    }
+  };
 
   const handleSave = () => {
     const result = onSave(addressInput);
@@ -98,6 +148,42 @@ export default function ServerAddressPanel({
           <p role="alert" className="mt-2 rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-200">
             {saveError}
           </p>
+        )}
+
+        {canDiscoverNearbyServers && (
+          <div className="mt-3 rounded-lg border border-gray-800 bg-gray-950/60 p-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-gray-300">주변 서버 (Bonjour)</span>
+              <button
+                type="button"
+                onClick={handleDiscover}
+                disabled={discovery.status === 'scanning'}
+                className="maestro-touch-control maestro-touch-control--compact rounded-md border border-purple-500/40 px-3 py-1.5 text-[11px] font-semibold text-purple-200 hover:bg-purple-500/10 disabled:opacity-50"
+              >
+                주변 서버 찾기
+              </button>
+            </div>
+            {discovery.message && (
+              <p data-testid="server-discovery-status" className="mt-1.5 text-[10px] text-gray-400">
+                {discovery.message}
+              </p>
+            )}
+            {discovery.results.length > 0 && (
+              <ul className="mt-1.5 flex flex-col gap-1">
+                {discovery.results.map((item) => (
+                  <li key={item.wsUrl}>
+                    <button
+                      type="button"
+                      onClick={() => setAddressInput(item.wsUrl)}
+                      className="maestro-touch-control maestro-touch-control--compact w-full rounded-md border border-gray-700 px-2 py-1.5 text-left text-[11px] text-gray-200 hover:border-purple-400/50 hover:text-purple-100"
+                    >
+                      {item.name} <span className="font-mono text-gray-400">{item.wsUrl}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         {testState.status !== 'idle' && (

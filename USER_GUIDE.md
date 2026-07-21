@@ -134,6 +134,51 @@ npm run project:use
 
 ---
 
+## 아이패드 네이티브 앱 (Capacitor)
+
+Safari/PWA 대신 네이티브 앱(WKWebView)으로 쓰면 네이티브 햅틱과 Bonjour 서버 발견을 사용할 수 있습니다. 요구사항: macOS + Xcode (서명/배포에는 Apple 개발자 계정).
+
+### 빌드 & 실행
+
+```bash
+# 웹 자산을 네이티브 모드로 빌드하고 iOS 프로젝트에 동기화
+npm run ios:build
+
+# Xcode에서 열기 (서명 Team 선택은 여기서)
+npm run ios:open
+
+# 시뮬레이터/연결된 기기에서 바로 실행
+npm run ios:run
+```
+
+- 첫 실행 시 `Signing & Capabilities`에서 본인 Team을 선택하세요 (bundle id: `kr.selim.maestro`).
+- 앱이 PC 서버에 처음 연결할 때 iOS가 **로컬 네트워크 접근 권한**을 묻습니다 — 허용해야 연결됩니다.
+
+### 서버 연결
+
+- 저장된 주소가 없으면 실행 직후 서버 주소 설정 화면이 자동으로 열립니다.
+- PC에서 서버가 실행 중이면(`npm run server`, mDNS 광고 기본 켜짐 / `MAESTRO_MDNS=off`로 끔) **주변 서버 찾기**로 자동 발견할 수 있습니다.
+  - 참고: 현재 SPM 빌드에는 ZeroConf 네이티브 플러그인이 포함되지 않아 버튼이 보이지 않을 수 있습니다. 이 경우 `ws://<PC-IP>:8080`을 직접 입력하세요.
+- 진동(햅틱) 토글이 켜져 있으면 판정/콤보 이벤트에 네이티브 햅틱이 재생됩니다.
+
+### TestFlight / 앱스토어 배포
+
+1. Xcode에서 `Product → Archive` (destination: Any iOS Device).
+2. Organizer에서 `Distribute App → App Store Connect → Upload`.
+3. App Store Connect에서 TestFlight 내부 테스터 배포 또는 심사 제출.
+4. 버전 올릴 때: `npm run ios:build` 후 Xcode에서 `MARKETING_VERSION`/빌드 번호를 올리고 다시 Archive.
+
+### 실기기 수동 검증 체크리스트
+
+- [ ] 설치 후 첫 실행 → 서버 주소 설정 화면 자동 오픈
+- [ ] 로컬 네트워크 권한 팝업 허용
+- [ ] (플러그인 탑재 빌드) 주변 서버 찾기 → PC 발견 → 주소 채움
+- [ ] 연결 테스트 성공 → 저장 → 헤더 LIVE 표시
+- [ ] 승인/반려/롤백 플로우 정상 동작
+- [ ] 판정(PERFECT/GREAT/LATE)·콤보 10단위에서 햅틱 체감
+
+---
+
 ## 실행 트러블슈팅
 
 - `npm run start:app`에서 `.env 파일이 없습니다` 오류가 나면: `npm run configure`를 먼저 실행하세요.

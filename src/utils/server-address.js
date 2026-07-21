@@ -73,8 +73,15 @@ export const formatWsUrlLabel = (wsUrl) => {
   }
 };
 
+// Capacitor 네이티브 셸 감지 — 플러그인 import 없이 전역 브릿지만 확인한다.
+export const isNativeShell = () => (
+  typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.() === true
+);
+
 export const shouldAutoOpenServerSetup = ({ hasStoredWsUrl, hostname }) => {
   if (hasStoredWsUrl) return false;
+  // 네이티브 셸의 hostname은 항상 localhost(capacitor 스킴)라 dev 예외를 적용하지 않는다.
+  if (isNativeShell()) return true;
   return !LOCAL_HOSTNAMES.has(String(hostname ?? '').toLowerCase());
 };
 

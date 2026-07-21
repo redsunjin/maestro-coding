@@ -3,9 +3,23 @@ import {
   HAPTIC_PATTERNS,
   HAPTICS_STORAGE_KEY,
   isHapticsEnabled,
+  mapPatternToNativePlan,
   setHapticsEnabled,
   vibrate,
 } from './haptics.js';
+
+const hapticsImpactMock = vi.fn(async () => {});
+
+vi.mock('@capacitor/haptics', () => ({
+  Haptics: {
+    impact: (...args) => hapticsImpactMock(...args),
+  },
+  ImpactStyle: {
+    Light: 'LIGHT',
+    Medium: 'MEDIUM',
+    Heavy: 'HEAVY',
+  },
+}));
 
 describe('haptics — 진동 래퍼', () => {
   let vibrateSpy;
@@ -60,5 +74,68 @@ describe('haptics — 진동 래퍼', () => {
     expect(HAPTIC_PATTERNS.LATE).toEqual([40, 30, 40]);
     expect(HAPTIC_PATTERNS.REJECT).toEqual([25, 20, 25]);
     expect(HAPTIC_PATTERNS.COMBO_MILESTONE).toEqual([10, 10, 10, 10]);
+  });
+});
+
+describe('mapPatternToNativePlan — 네이티브 햅틱 매핑', () => {
+  test.each([
+    [[10], [{ kind: 'impact', style: 'LIGHT' }]],
+    [[15], [{ kind: 'impact', style: 'MEDIUM' }]],
+    [[8], [{ kind: 'impact', style: 'LIGHT' }]],
+    [[40, 30, 40], [
+      { kind: 'impact', style: 'HEAVY' },
+      { kind: 'delay', ms: 30 },
+      { kind: 'impact', style: 'HEAVY' },
+    ]],
+    [[25, 20, 25], [
+      { kind: 'impact', style: 'MEDIUM' },
+      { kind: 'delay', ms: 20 },
+      { kind: 'impact', style: 'MEDIUM' },
+    ]],
+    [[], []],
+  ])('%j → %j', (pattern, expected) => {
+    expect(mapPatternToNativePlan(pattern)).toEqual(expected);
+  });
+
+  test('숫자 단일값과 비정상 입력을 관대하게 처리한다', () => {
+    expect(mapPatternToNativePlan(15)).toEqual([{ kind: 'impact', style: 'MEDIUM' }]);
+    expect(mapPatternToNativePlan(undefined)).toEqual([]);
+    expect(mapPatternToNativePlan('nope')).toEqual([]);
+  });
+});
+
+describe('vibrate — 네이티브 셸 분기', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    hapticsImpactMock.mockClear();
+    window.Capacitor = { isNativePlatform: () => true };
+  });
+
+  afterEach(() => {
+    delete window.Capacitor;
+  });
+
+  test('네이티브 셸에서는 navigator.vibrate 대신 Haptics.impact를 호출한다', async () => {
+    const vibrateSpy = vi.fn(() => true);
+    Object.defineProperty(window.navigator, 'vibrate', {
+      value: vibrateSpy,
+      configurable: true,
+      writable: true,
+    });
+
+    vibrate(HAPTIC_PATTERNS.PERFECT);
+
+    await vi.waitFor(() => {
+      expect(hapticsImpactMock).toHaveBeenCalledWith({ style: 'MEDIUM' });
+    });
+    expect(vibrateSpy).not.toHaveBeenCalled();
+    delete window.navigator.vibrate;
+  });
+
+  test('토글 OFF면 네이티브 경로도 호출되지 않는다', async () => {
+    setHapticsEnabled(false);
+    vibrate(HAPTIC_PATTERNS.PERFECT);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(hapticsImpactMock).not.toHaveBeenCalled();
   });
 });
