@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  WS_URL,
   PROJECTS,
   BASE_BOTTOM,
   NOTE_STATUS,
@@ -22,6 +21,7 @@ import useWorkConsoleShell from './hooks/useWorkConsoleShell.js';
 import useWorkSessions from './hooks/useWorkSessions.js';
 import useWorkRequests from './hooks/useWorkRequests.js';
 import useAgentRegistry from './hooks/useAgentRegistry.js';
+import useServerAddress from './hooks/useServerAddress.js';
 import MaestroHeader from './components/maestro/MaestroHeader.jsx';
 import ProjectTabs from './components/maestro/ProjectTabs.jsx';
 import LaneBoard from './components/maestro/LaneBoard.jsx';
@@ -55,6 +55,13 @@ export default function App() {
 
   const notesRef = useRef([]);
   const activeProjectRef = useRef(activeProjectId);
+  const isPlayingRef = useRef(isPlaying);
+
+  const { wsUrl, hasStoredWsUrl, saveWsUrl, resetWsUrl } = useServerAddress();
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   useEffect(() => {
     notesRef.current = notes;
@@ -164,7 +171,7 @@ export default function App() {
     historyBadgeCount,
     handleSocketEvent: handleHistorySocketEvent,
   } = useApprovalHistory({
-    wsUrl: WS_URL,
+    wsUrl,
   });
 
   const {
@@ -202,7 +209,7 @@ export default function App() {
     isProjectRegistering,
     handleSocketEvent: handleProjectSocketEvent,
   } = useProjectRegistryOps({
-    wsUrl: WS_URL,
+    wsUrl,
   });
 
   const {
@@ -229,7 +236,7 @@ export default function App() {
     closeSession,
     handleSocketEvent: handleWorkSessionsSocketEvent,
   } = useWorkSessions({
-    wsUrl: WS_URL,
+    wsUrl,
     selectedSessionId: selectedWorkSessionId,
     onSelectedSessionChange: setSelectedWorkSessionId,
   });
@@ -248,7 +255,7 @@ export default function App() {
     decideRequest,
     handleSocketEvent: handleWorkRequestsSocketEvent,
   } = useWorkRequests({
-    wsUrl: WS_URL,
+    wsUrl,
     selectedRequestId: selectedWorkRequestId,
     onSelectedRequestChange: setSelectedWorkRequestId,
   });
@@ -260,7 +267,7 @@ export default function App() {
     isAgentAuthRequired,
     handleSocketEvent: handleAgentRegistrySocketEvent,
   } = useAgentRegistry({
-    wsUrl: WS_URL,
+    wsUrl,
     enabled: isWorkConsoleOpen,
   });
 
@@ -283,7 +290,7 @@ export default function App() {
     refreshAutoApproveData,
     handleSocketEvent: handleAutoApproveSocketEvent,
   } = useAutoApproveOps({
-    wsUrl: WS_URL,
+    wsUrl,
   });
 
   const handleRealtimeEvent = useCallback((payload) => {
@@ -319,7 +326,7 @@ export default function App() {
     disconnectWebSocket,
     sendSocketAction,
   } = useMaestroRealtime({
-    wsUrl: WS_URL,
+    wsUrl,
     activeProjectRef,
     notesRef,
     setNotes,
@@ -338,6 +345,17 @@ export default function App() {
     setNotes,
     laneCount: activeLaneCount,
   });
+
+  // 서버 주소가 바뀌면 기존 소켓을 끊고, 연주 중이면 새 주소로 재연결한다.
+  const prevWsUrlRef = useRef(wsUrl);
+  useEffect(() => {
+    if (prevWsUrlRef.current === wsUrl) return;
+    prevWsUrlRef.current = wsUrl;
+    disconnectWebSocket();
+    if (isPlayingRef.current) {
+      connectWebSocket();
+    }
+  }, [wsUrl, connectWebSocket, disconnectWebSocket]);
 
   const triggerLaneAction = useCallback((laneId, options = {}) => {
     const { isRejectAction = false, promptFeedback = false, rejectFeedback: directRejectFeedback = '' } = options;
