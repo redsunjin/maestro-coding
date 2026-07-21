@@ -234,3 +234,22 @@ test('server address panel shows current address and passes connection test', as
   await page.getByRole('button', { name: '닫기' }).click();
   await expect(page.getByTestId('server-address-panel')).toHaveCount(0);
 });
+
+test('PWA manifest and apple meta tags are wired for standalone install', async ({ page }) => {
+  await page.goto('/');
+
+  const manifestHref = await page.locator('link[rel="manifest"]').getAttribute('href');
+  expect(manifestHref).toBeTruthy();
+  const manifestResponse = await page.request.get(new URL(manifestHref, page.url()).toString());
+  expect(manifestResponse.ok()).toBeTruthy();
+  const manifest = await manifestResponse.json();
+  expect(manifest.display).toBe('standalone');
+  expect(manifest.icons.length).toBeGreaterThanOrEqual(2);
+
+  await expect(page.locator('meta[name="apple-mobile-web-app-capable"]')).toHaveAttribute('content', 'yes');
+
+  const appleIconHref = await page.locator('link[rel="apple-touch-icon"]').getAttribute('href');
+  expect(appleIconHref).toBeTruthy();
+  const iconResponse = await page.request.get(new URL(appleIconHref, page.url()).toString());
+  expect(iconResponse.ok()).toBeTruthy();
+});

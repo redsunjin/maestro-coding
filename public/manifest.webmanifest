@@ -1,0 +1,29 @@
+{
+  "name": "Maestro Workspace",
+  "short_name": "Maestro",
+  "description": "에이전트 머지 승인 컨트롤 데크 — 라이브 서버 연결 필수",
+  "start_url": "/maestro-coding/",
+  "scope": "/maestro-coding/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "/maestro-coding/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/maestro-coding/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/maestro-coding/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

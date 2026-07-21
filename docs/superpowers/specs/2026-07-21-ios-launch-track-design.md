@@ -88,7 +88,7 @@ localStorage('maestro.server.ws-url')   ← 사용자가 저장한 값 (최우�
 - `public/manifest.webmanifest`: `name: "Maestro Workspace"`, `short_name: "Maestro"`, `start_url`/`scope`: `/maestro-coding/`(vite base 고정값), `display: standalone`, `orientation: landscape`(iOS는 무시하지만 안드로이드 대비), `background_color`/`theme_color`: `#111827`(gray-900), icons 192/512 + maskable 512.
 - `public/icons/`: `apple-touch-icon.png`(180), `icon-192.png`, `icon-512.png`, `icon-512-maskable.png`. 생성은 `scripts/generate-pwa-icons.mjs`(기존 devDependency인 Playwright chromium으로 SVG 렌더 → 스크린샷) 1회 실행 후 PNG를 커밋. 스크립트도 커밋해 재생성 가능하게 유지.
 - `index.html` head 추가:
-  - `<link rel="manifest" href="%BASE_URL%manifest.webmanifest">` (Vite HTML env 치환; 빌드 산출물에서 base 반영 확인, 미치환 시 리터럴 `/maestro-coding/`로 대체)
+  - `<link rel="manifest" href="./manifest.webmanifest">` — 상대 경로 사용. (`%BASE_URL%`는 dev 서버가 base를 중복 접두해 `/maestro-coding/maestro-coding/...`이 되는 것을 구현 중 확인. 상대 경로는 dev에서 base 절대경로로 재작성되고 빌드에서는 그대로 유지되어 양쪽 모두 정상)
   - `<link rel="apple-touch-icon" href="...180png">`
   - `<meta name="apple-mobile-web-app-capable" content="yes">`, `apple-mobile-web-app-status-bar-style: black-translucent`, `apple-mobile-web-app-title: Maestro`, `theme-color: #111827`
   - viewport에 `viewport-fit=cover` 추가
