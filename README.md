@@ -4,7 +4,10 @@
   </a>
 </p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-orange.svg)](./LICENSE)
+<!-- Source-available, noncommercial. Commercial use requires a separate license from the copyright holder (redsunjin). See LICENSE. -->
+
+
 
 # Maestro Coding
 
