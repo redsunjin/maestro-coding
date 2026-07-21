@@ -4,6 +4,7 @@ import { isHapticsEnabled, setHapticsEnabled } from '../../utils/haptics.js';
 
 export default function MaestroHeader({
   headerRef,
+  isBachSupported,
   isBachPlaying,
   isBachReady,
   isBachPlaybackRequested,
@@ -215,108 +216,110 @@ export default function MaestroHeader({
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <Activity className="w-6 h-6 text-purple-500" />
           <h1 className="text-xl font-bold tracking-tight">Maestro <span className="text-purple-400 font-light">Workspace</span></h1>
-          <div className="relative block max-w-full">
-            <div
-              data-testid="function-bach-mini"
-              className="flex max-w-full flex-wrap items-center gap-1 rounded-full border border-amber-400/40 bg-gray-900/80 px-2 py-1 text-[11px] text-gray-200 shadow-lg backdrop-blur"
-            >
-              <span className="shrink-0 font-semibold text-amber-200">function bach</span>
-              <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${isBachPlaying ? 'bg-green-400' : isBachReady ? 'bg-amber-300' : 'bg-gray-500'}`} />
-              <span
-                data-testid="function-bach-state"
-                aria-label={`재생 상태 ${bachStatusLabel} (YT state: ${bachPlayerStateCode})`}
-                className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${
-                  bachStatusLabel === 'playing'
-                    ? 'border-green-500/40 bg-green-500/10 text-green-200'
-                    : bachStatusLabel === 'queued'
-                      ? 'border-blue-500/40 bg-blue-500/10 text-blue-200'
-                      : bachStatusLabel === 'paused'
-                        ? 'border-gray-600 bg-gray-800/90 text-gray-200'
-                        : bachStatusLabel === 'error'
-                          ? 'border-red-500/40 bg-red-500/10 text-red-200'
-                          : 'border-amber-500/30 bg-amber-500/10 text-amber-100'
-                }`}
+          {isBachSupported && (
+            <div className="relative block max-w-full">
+              <div
+                data-testid="function-bach-mini"
+                className="flex max-w-full flex-wrap items-center gap-1 rounded-full border border-amber-400/40 bg-gray-900/80 px-2 py-1 text-[11px] text-gray-200 shadow-lg backdrop-blur"
               >
-                {bachStatusLabel}
-              </span>
-              <span
-                data-testid="function-bach-hz"
-                className={`min-w-[72px] shrink-0 rounded-full border px-1.5 py-0.5 text-center text-[10px] font-mono ${
-                  bachHzLabel.includes('Hz')
-                    ? 'border-amber-400/40 bg-amber-500/10 text-amber-200'
-                    : 'border-gray-700 bg-gray-900/70 text-gray-400'
-                }`}
-              >
-                {bachHzLabel}
-              </span>
-              <button
-                onClick={toggleBachPlayback}
-                aria-label={isBachPlaying ? '배경음악 일시정지' : '배경음악 재생'}
-                className="maestro-touch-control maestro-touch-control--compact shrink-0 rounded bg-gray-800/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-100 hover:bg-gray-700"
-              >
-                {isBachPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3 fill-current" />}
-              </button>
-              <label className="flex shrink-0 items-center gap-1 pl-1">
-                <span className="text-[10px] text-gray-400">Vol</span>
-                <input
-                  aria-label="배경음악 볼륨"
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={bachVolume}
-                  onChange={(e) => onBachVolumeChange(Number(e.target.value))}
-                  className="h-1 w-16 accent-amber-300"
-                />
-              </label>
-              <button
-                onClick={onToggleBachPanel}
-                aria-label="배경음악 채널 설정"
-                className="maestro-touch-control maestro-touch-control--compact shrink-0 rounded border border-gray-700 px-1.5 py-0.5 text-[10px] text-gray-300 hover:border-amber-300 hover:text-amber-200"
-              >
-                채널
-              </button>
-            </div>
-            {isBachPanelOpen && (
-              <div className="absolute left-0 top-full z-40 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border border-gray-700 bg-gray-900/95 p-3 shadow-2xl">
-                <label htmlFor="bach-channel-input" className="text-[11px] text-gray-300">
-                  유튜브 채널 경로
+                <span className="shrink-0 font-semibold text-amber-200">function bach</span>
+                <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${isBachPlaying ? 'bg-green-400' : isBachReady ? 'bg-amber-300' : 'bg-gray-500'}`} />
+                <span
+                  data-testid="function-bach-state"
+                  aria-label={`재생 상태 ${bachStatusLabel} (YT state: ${bachPlayerStateCode})`}
+                  className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${
+                    bachStatusLabel === 'playing'
+                      ? 'border-green-500/40 bg-green-500/10 text-green-200'
+                      : bachStatusLabel === 'queued'
+                        ? 'border-blue-500/40 bg-blue-500/10 text-blue-200'
+                        : bachStatusLabel === 'paused'
+                          ? 'border-gray-600 bg-gray-800/90 text-gray-200'
+                          : bachStatusLabel === 'error'
+                            ? 'border-red-500/40 bg-red-500/10 text-red-200'
+                            : 'border-amber-500/30 bg-amber-500/10 text-amber-100'
+                  }`}
+                >
+                  {bachStatusLabel}
+                </span>
+                <span
+                  data-testid="function-bach-hz"
+                  className={`min-w-[72px] shrink-0 rounded-full border px-1.5 py-0.5 text-center text-[10px] font-mono ${
+                    bachHzLabel.includes('Hz')
+                      ? 'border-amber-400/40 bg-amber-500/10 text-amber-200'
+                      : 'border-gray-700 bg-gray-900/70 text-gray-400'
+                  }`}
+                >
+                  {bachHzLabel}
+                </span>
+                <button
+                  onClick={toggleBachPlayback}
+                  aria-label={isBachPlaying ? '배경음악 일시정지' : '배경음악 재생'}
+                  className="maestro-touch-control maestro-touch-control--compact shrink-0 rounded bg-gray-800/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-100 hover:bg-gray-700"
+                >
+                  {isBachPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3 fill-current" />}
+                </button>
+                <label className="flex shrink-0 items-center gap-1 pl-1">
+                  <span className="text-[10px] text-gray-400">Vol</span>
+                  <input
+                    aria-label="배경음악 볼륨"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={bachVolume}
+                    onChange={(e) => onBachVolumeChange(Number(e.target.value))}
+                    className="h-1 w-16 accent-amber-300"
+                  />
                 </label>
-                <input
-                  id="bach-channel-input"
-                  type="text"
-                  value={bachChannelInput}
-                  onChange={(e) => onBachChannelInputChange(e.target.value)}
-                  placeholder="https://www.youtube.com/channel/UC..."
-                  className="mt-1 w-full rounded-md border border-gray-700 bg-gray-950 px-2 py-1.5 text-xs text-gray-100 outline-none focus:border-amber-300"
-                />
-                <p className="mt-1 text-[10px] text-gray-400">
-                  {youtubeUrlHelpText}
-                </p>
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <button
-                    onClick={onResetBachChannel}
-                    className="maestro-touch-control maestro-touch-control--compact rounded-md border border-amber-500/40 px-2 py-1 text-[11px] text-amber-200 hover:bg-amber-500/10"
-                  >
-                    기본 바흐 채널
-                  </button>
-                  <div className="flex items-center gap-2">
+                <button
+                  onClick={onToggleBachPanel}
+                  aria-label="배경음악 채널 설정"
+                  className="maestro-touch-control maestro-touch-control--compact shrink-0 rounded border border-gray-700 px-1.5 py-0.5 text-[10px] text-gray-300 hover:border-amber-300 hover:text-amber-200"
+                >
+                  채널
+                </button>
+              </div>
+              {isBachPanelOpen && (
+                <div className="absolute left-0 top-full z-40 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border border-gray-700 bg-gray-900/95 p-3 shadow-2xl">
+                  <label htmlFor="bach-channel-input" className="text-[11px] text-gray-300">
+                    유튜브 채널 경로
+                  </label>
+                  <input
+                    id="bach-channel-input"
+                    type="text"
+                    value={bachChannelInput}
+                    onChange={(e) => onBachChannelInputChange(e.target.value)}
+                    placeholder="https://www.youtube.com/channel/UC..."
+                    className="mt-1 w-full rounded-md border border-gray-700 bg-gray-950 px-2 py-1.5 text-xs text-gray-100 outline-none focus:border-amber-300"
+                  />
+                  <p className="mt-1 text-[10px] text-gray-400">
+                    {youtubeUrlHelpText}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between gap-2">
                     <button
-                      onClick={onCloseBachPanel}
-                      className="maestro-touch-control maestro-touch-control--compact rounded-md border border-gray-700 px-2 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
+                      onClick={onResetBachChannel}
+                      className="maestro-touch-control maestro-touch-control--compact rounded-md border border-amber-500/40 px-2 py-1 text-[11px] text-amber-200 hover:bg-amber-500/10"
                     >
-                      닫기
+                      기본 바흐 채널
                     </button>
-                    <button
-                      onClick={onSaveBachChannel}
-                      className="maestro-touch-control maestro-touch-control--compact rounded-md bg-amber-500 px-2 py-1 text-[11px] font-semibold text-black hover:bg-amber-400"
-                    >
-                      저장
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={onCloseBachPanel}
+                        className="maestro-touch-control maestro-touch-control--compact rounded-md border border-gray-700 px-2 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
+                      >
+                        닫기
+                      </button>
+                      <button
+                        onClick={onSaveBachChannel}
+                        className="maestro-touch-control maestro-touch-control--compact rounded-md bg-amber-500 px-2 py-1 text-[11px] font-semibold text-black hover:bg-amber-400"
+                      >
+                        저장
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
           {/* 서버 주소 진입점 — 연결 문제 해결의 첫 관문이라 오버플로 메뉴로 숨기지 않는다 */}
           <button
             type="button"

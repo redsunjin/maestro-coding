@@ -88,6 +88,24 @@ describe('App UI regression - function bach', () => {
     expect(window.localStorage.getItem('maestro.function-bach.channel-url')).toBe('https://www.youtube.com/channel/UC2kF6qdHRTM_hDYfEmzkS9w');
   }, 15000);
 
+  test('native shell hides function bach and never loads the YouTube IFrame API', async () => {
+    // Capacitor 셸에서는 origin이 capacitor://localhost라 YouTube 임베드가
+    // referrer 검증(에러 153)으로 재생을 거부한다 — 위젯 자체를 노출하지 않는다.
+    window.Capacitor = { isNativePlatform: () => true };
+
+    try {
+      await act(async () => {
+        render(<App />);
+      });
+
+      expect(screen.queryByTestId('function-bach-mini')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('function-bach-state')).not.toBeInTheDocument();
+      expect(document.querySelector('script[data-maestro-youtube-api="true"]')).toBeNull();
+    } finally {
+      delete window.Capacitor;
+    }
+  });
+
   test('function bach keeps Hz visible after a play request even when autoplay is blocked (KI-001)', async () => {
     const playerInstances = [];
 

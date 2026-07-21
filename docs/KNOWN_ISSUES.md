@@ -34,3 +34,24 @@
   - 테스트가 재현하지 못한 이유: mock 플레이어의 `loadVideoById`/`loadPlaylist`가 동기적으로 `PLAYING`을 강제 방출해 자동재생 차단 경로를 타지 않았음.
   - 조치: `onStateChange`에서 involuntary `PAUSED`/`CUED`는 `isBachPlaying`만 내리고 `isBachPlaybackRequested`(재생 의도)는 유지하도록 분리. 사용자 명시적 일시정지는 `pauseBach()`가 계속 의도 플래그를 정리함. `ENDED`는 실제 재생 종료이므로 둘 다 해제.
   - 회귀 테스트: `src/App.function-bach.ui.test.jsx` — 자동재생 차단(재생 요청 후 `PAUSED`) 시에도 Hz가 `~xxxHz`로 유지되는지 검증하는 케이스 추가.
+
+## KI-002: iOS 네이티브 셸(capacitor://)에서 `function bach` 재생 실패
+
+- 상태: Resolved (2026-07-21) — 네이티브 셸에서 위젯 비노출로 대응
+- 우선순위: P2
+- 최초 보고: 2026-07-21 (iPad 시뮬레이터)
+- 현상:
+  - Capacitor iOS 앱에서 `function bach` 재생 시 "재생에 실패했습니다. 채널/영상 URL을 확인해주세요." 에러(YT `onError`).
+  - 웹/PWA에서는 동일 빌드가 정상 동작.
+- 근본 원인:
+  - 네이티브 셸의 페이지 origin이 `capacitor://localhost`라 YouTube 임베드 플레이어의 referrer/origin 검증을 통과하지 못함(YouTube playability error 153 계열 — "embedder identity missing referrer"). WKWebView가 커스텀 스킴 페이지에서 유효한 HTTP referrer를 보내지 않아 발생.
+- 검토한 대안:
+  - (a) `capacitor.config`의 `iosScheme: 'https'` 전환 — 불가. WKWebView가 http/https 스킴 핸들러 등록을 금지하므로 Capacitor iOS에서 예약 스킴 사용 불가(공식 config 문서 명시).
+  - 외부 CORS 프록시를 통한 임베드 우회 — 로컬 퍼스트 도구에 외부 의존/프라이버시 부담이 커서 기각.
+  - 네이티브 referer 패치(커뮤니티 플러그인) — iOS에서 여전히 실패 보고 존재(Cap-go/capacitor-youtube-player#49).
+- 조치 (옵션 b):
+  - `useBachPlayer`가 `isNativeShell()`로 지원 여부를 판단(`isBachSupported`)하고, 네이티브 셸에서는 YouTube IFrame API 로드 자체를 생략.
+  - `MaestroHeader`는 `isBachSupported === false`면 `function bach` 위젯을 렌더링하지 않음. 웹/PWA 동작은 불변.
+- 회귀 테스트:
+  - `src/App.function-bach.ui.test.jsx` — 네이티브 셸에서 위젯 비노출 + IFrame API 스크립트 미주입 검증.
+  - `tests/e2e/maestro.e2e.spec.js` — Capacitor 브릿지 에뮬레이션 하에 위젯/스크립트 부재 검증(웹 경로는 기존 케이스로 계속 검증).

@@ -218,6 +218,23 @@ test('approval/reject flow and function bach overlay work end-to-end', async ({ 
   await expect(page.getByLabel('유튜브 채널 경로')).toBeVisible();
 });
 
+test('native shell hides function bach (capacitor:// origin rejects YouTube embeds)', async ({ page }) => {
+  await page.addInitScript(({ wsUrl }) => {
+    // Capacitor 네이티브 셸 에뮬레이션 — isNativeShell()이 참조하는 전역 브릿지만 주입
+    window.Capacitor = { isNativePlatform: () => true };
+    // 저장된 서버 주소가 없으면 네이티브 셸은 서버 설정 패널을 자동 오픈하므로 미리 채운다
+    window.localStorage.setItem('maestro.server.ws-url', wsUrl);
+  }, { wsUrl: `ws://${WS_HOST}:${WS_PORT}` });
+
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: '지휘 시작' })).toBeVisible();
+
+  await expect(page.getByTestId('function-bach-mini')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '배경음악 재생' })).toHaveCount(0);
+  // YouTube IFrame API 스크립트 자체를 로드하지 않아야 한다
+  await expect(page.locator('script[data-maestro-youtube-api="true"]')).toHaveCount(0);
+});
+
 test('server address panel shows current address and passes connection test', async ({ page }) => {
   await page.goto('/');
 
