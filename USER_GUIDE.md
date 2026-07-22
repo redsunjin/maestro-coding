@@ -81,6 +81,21 @@ npm run dev
 
 ---
 
+## 한 줄 실행 (maestro-server CLI)
+
+`.env` 설정 없이 관리할 git 레포 폴더에서 바로 서버를 띄울 수 있습니다:
+
+```bash
+node bin/maestro-server.mjs --repo /path/to/your-repo
+```
+
+- 현재 폴더가 git 레포면 `--repo` 생략 가능. `npm link` 후에는 어디서든 `maestro-server`로 실행됩니다.
+- 주요 옵션: `--port 8080`, `--host 0.0.0.0`(iPad 등 LAN 접속 허용), `--no-mdns`, `--token <t>`, `--help`
+- 같은 포트에 Maestro 서버가 이미 떠 있으면 새로 띄우지 않고 재사용을 알리고 종료합니다.
+- 프로그래밍 방식 통합(플러그인/확장)은 `lib/server-embed.mjs`의 `startMaestroServer(options)`를 사용하세요.
+
+---
+
 ## 프로젝트 등록/전환 쉽게 하기
 
 매번 `MAIN_REPO_PATH`를 손으로 바꾸지 않도록, 자주 쓰는 프로젝트를 등록해두고 선택만 할 수 있습니다.
