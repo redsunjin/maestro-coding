@@ -81,6 +81,26 @@ npm run dev
 
 ---
 
+## Claude Code 플러그인으로 설치 (권장)
+
+Claude Code 사용자는 두 명령으로 Maestro를 붙일 수 있습니다:
+
+```
+/plugin marketplace add redsunjin/maestro-coding
+/plugin install maestro@maestro
+```
+
+설치하면:
+- **서버 자동 기동**: 세션이 시작되면 승인 서버가 자동으로 뜹니다(현재 프로젝트 폴더를 관리 대상으로, 이미 떠 있으면 재사용). 첫 세션에서 런타임 의존성(ws 등)을 1회 자동 설치합니다.
+- **승인 요청 자동 전송**: Claude가 응답을 마칠 때마다 현재 브랜치/커밋 정보로 승인 요청이 대시보드에 올라옵니다.
+- **`/maestro:status`**: 서버 상태·활성 프로젝트·iPad 연결 방법을 확인합니다.
+
+수동 검증 체크리스트: 설치 → 새 세션 시작 → `/maestro:status`로 서버 확인 → 작업 후 응답 완료 시 대시보드에 노트 도착 → 리뷰 시트에서 승인.
+
+> 토큰을 쓰는 서버(`MAESTRO_SERVER_TOKEN`)라면 셸 환경에 `MAESTRO_AGENT_TOKEN`(권장) 또는 `MAESTRO_SERVER_TOKEN`을 설정하세요.
+
+---
+
 ## 한 줄 실행 (maestro-server CLI)
 
 `.env` 설정 없이 관리할 git 레포 폴더에서 바로 서버를 띄울 수 있습니다:
