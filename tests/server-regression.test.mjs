@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import { dirname, resolve } from 'node:path';
@@ -278,6 +278,139 @@ test('POST /api/request accepts unauthenticated request when token is disabled',
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.success, true);
+});
+
+// 리뷰 API 검증용 실제 git 픽스처 — 클린 브랜치 + 충돌 브랜치를 가진 저장소
+function createGitFixtureRepo() {
+  const repoPath = mkdtempSync(resolve(os.tmpdir(), 'maestro-review-repo-'));
+  const git = (...args) => execFileSync('git', ['-C', repoPath, ...args]);
+
+  git('init', '-qb', 'main');
+  git('config', 'user.email', 'fixture@test.local');
+  git('config', 'user.name', 'Fixture');
+  writeFileSync(resolve(repoPath, 'app.js'), 'line1\nline2\nline3\n');
+  writeFileSync(resolve(repoPath, 'README.md'), '# demo\n');
+  git('add', '.');
+  git('commit', '-qm', 'init: base');
+
+  git('checkout', '-qb', 'feature/clean');
+  writeFileSync(resolve(repoPath, 'app.js'), 'line1\nline2\nline3\nline4-clean\n');
+  writeFileSync(resolve(repoPath, 'new-module.js'), 'export const x = 1;\n');
+  git('add', '.');
+  git('commit', '-qm', 'feat: clean change');
+
+  git('checkout', '-qb', 'feature/conflict', 'main');
+  writeFileSync(resolve(repoPath, 'app.js'), 'line1\nline2-conflict\nline3\n');
+  git('add', '.');
+  git('commit', '-qm', 'feat: conflicting change');
+
+  git('checkout', '-q', 'main');
+  writeFileSync(resolve(repoPath, 'app.js'), 'line1\nline2-main\nline3\n');
+  git('add', '.');
+  git('commit', '-qm', 'chore: main moved');
+
+  return { repoPath, git };
+}
+
+test('merge review API returns real diff, commits and mergeability', async (t) => {
+  const { repoPath } = createGitFixtureRepo();
+  const server = startServer({ extraEnv: { MAIN_REPO_PATH: repoPath } });
+  t.after(async () => {
+    await stopServer(server.proc);
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  await waitForHealth(server.port);
+  const requestId = 'req_review_clean';
+  const postResponse = await postApprovalRequest(server.port, {}, { requestId, branchName: 'feature/clean' });
+  assert.equal(postResponse.status, 200);
+
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/requests/${requestId}/review`);
+  assert.equal(response.status, 200);
+  const review = await response.json();
+
+  assert.equal(review.requestId, requestId);
+  assert.equal(review.branchName, 'feature/clean');
+  assert.equal(review.baseRef, 'main');
+  assert.equal(review.mergeable, true);
+  assert.deepEqual(review.conflictFiles, []);
+  assert.equal(review.stats.filesChanged, 2);
+  assert.ok(review.stats.additions >= 2);
+  assert.equal(review.stats.truncated, false);
+  assert.ok(review.commits.some((commit) => commit.subject.includes('clean change')));
+
+  const appFile = review.files.find((file) => file.path === 'app.js');
+  assert.ok(appFile, 'app.js diff missing');
+  assert.equal(appFile.status, 'modified');
+  assert.ok(appFile.patch.includes('+line4-clean'));
+
+  const addedFile = review.files.find((file) => file.path === 'new-module.js');
+  assert.equal(addedFile.status, 'added');
+});
+
+test('merge review API flags conflicts before approval', async (t) => {
+  const { repoPath } = createGitFixtureRepo();
+  const server = startServer({ extraEnv: { MAIN_REPO_PATH: repoPath } });
+  t.after(async () => {
+    await stopServer(server.proc);
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  await waitForHealth(server.port);
+  const requestId = 'req_review_conflict';
+  await postApprovalRequest(server.port, {}, { requestId, branchName: 'feature/conflict' });
+
+  const response = await fetch(`http://127.0.0.1:${server.port}/api/requests/${requestId}/review`);
+  assert.equal(response.status, 200);
+  const review = await response.json();
+
+  assert.equal(review.mergeable, false);
+  assert.ok(review.conflictFiles.includes('app.js'), `conflictFiles=${JSON.stringify(review.conflictFiles)}`);
+});
+
+test('merge review API handles unknown request and deleted branch', async (t) => {
+  const { repoPath, git } = createGitFixtureRepo();
+  const server = startServer({ extraEnv: { MAIN_REPO_PATH: repoPath } });
+  t.after(async () => {
+    await stopServer(server.proc);
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  await waitForHealth(server.port);
+
+  const unknownResponse = await fetch(`http://127.0.0.1:${server.port}/api/requests/req_nope/review`);
+  assert.equal(unknownResponse.status, 404);
+  assert.equal((await unknownResponse.json()).error, 'REQUEST_NOT_FOUND');
+
+  const requestId = 'req_review_gone';
+  await postApprovalRequest(server.port, {}, { requestId, branchName: 'feature/clean' });
+  git('branch', '-qD', 'feature/clean');
+
+  const goneResponse = await fetch(`http://127.0.0.1:${server.port}/api/requests/${requestId}/review`);
+  assert.equal(goneResponse.status, 409);
+  assert.equal((await goneResponse.json()).error, 'BRANCH_NOT_FOUND');
+});
+
+test('merge review API requires bearer token when SERVER_TOKEN is set', async (t) => {
+  const { repoPath } = createGitFixtureRepo();
+  const token = 'review-secret';
+  const server = startServer({ token, extraEnv: { MAIN_REPO_PATH: repoPath } });
+  t.after(async () => {
+    await stopServer(server.proc);
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  await waitForHealth(server.port);
+  const requestId = 'req_review_auth';
+  await postApprovalRequest(server.port, { Authorization: `Bearer ${token}` }, { requestId, branchName: 'feature/clean' });
+
+  const denied = await fetch(`http://127.0.0.1:${server.port}/api/requests/${requestId}/review`);
+  assert.equal(denied.status, 401);
+
+  const allowed = await fetch(`http://127.0.0.1:${server.port}/api/requests/${requestId}/review`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(allowed.status, 200);
 });
 
 test('server stays healthy with mDNS advertising enabled or disabled', async (t) => {
