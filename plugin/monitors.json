@@ -1,0 +1,8 @@
+[
+  {
+    "name": "maestro-server",
+    "command": "\"${CLAUDE_PLUGIN_ROOT}/plugin/scripts/run-server-quiet.sh\"",
+    "description": "Maestro 승인 서버 (로컬 머지 실행자, 이미 떠 있으면 재사용)",
+    "when": "always"
+  }
+]
