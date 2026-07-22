@@ -22,6 +22,7 @@ import useWorkSessions from './hooks/useWorkSessions.js';
 import useWorkRequests from './hooks/useWorkRequests.js';
 import useAgentRegistry from './hooks/useAgentRegistry.js';
 import useServerAddress from './hooks/useServerAddress.js';
+import useMergeReview from './hooks/useMergeReview.js';
 import MaestroHeader from './components/maestro/MaestroHeader.jsx';
 import ProjectTabs from './components/maestro/ProjectTabs.jsx';
 import LaneBoard from './components/maestro/LaneBoard.jsx';
@@ -381,9 +382,13 @@ export default function App() {
 
   // 코어: 특정 노트 하나에 대한 승인/반려 실행 — 레인 액션과 리뷰 시트가 공용으로 사용한다.
   // 리뷰 시트는 열람한 바로 그 노트를 대상으로 해야 하므로 노트 선택과 실행을 분리했다.
-  const performNoteAction = useCallback((targetNote, options = {}) => {
+  const performNoteAction = useCallback((noteSnapshot, options = {}) => {
     const { isRejectAction = false, promptFeedback = false, rejectFeedback: directRejectFeedback = '' } = options;
-    if (!isPlaying || !targetNote) return;
+    if (!isPlaying || !noteSnapshot) return;
+
+    // 스냅샷이 오래됐을 수 있으므로 현재 노트 목록에서 재해석하고, 처리 중(READY 아님)이면 무시한다.
+    const targetNote = notesRef.current.find((note) => note.id === noteSnapshot.id) || noteSnapshot;
+    if (targetNote.status !== NOTE_STATUS.READY) return;
 
     const laneMatch = activeLanes.find((lane) => lane.id === targetNote.lane);
     if (!laneMatch) return;
@@ -502,6 +507,33 @@ export default function App() {
 
     performNoteAction(laneNotes[0], options);
   }, [activeLanes, isPlaying, performNoteAction, previewNote, showFeedback, showSfxBurst]);
+
+  // 승인 전 리뷰 데이터 — 미리보기(리뷰 시트)가 열릴 때 지연 로드한다.
+  const { review, isReviewLoading, reviewError, loadReview, clearReview } = useMergeReview({ wsUrl });
+
+  useEffect(() => {
+    if (previewNote?.requestId) {
+      loadReview(previewNote.requestId);
+    } else {
+      clearReview();
+    }
+  }, [previewNote, loadReview, clearReview]);
+
+  const approveFromPreview = useCallback(() => {
+    const note = previewNote;
+    setPreviewNote(null);
+    if (note) {
+      performNoteAction(note, {});
+    }
+  }, [performNoteAction, previewNote]);
+
+  const rejectFromPreview = useCallback(() => {
+    const note = previewNote;
+    setPreviewNote(null);
+    if (note) {
+      performNoteAction(note, { isRejectAction: true, promptFeedback: true });
+    }
+  }, [performNoteAction, previewNote]);
 
   const toggleGripMode = useCallback(() => {
     setIsGripMode((prev) => {
@@ -857,7 +889,15 @@ export default function App() {
         onReset={resetWsUrl}
         onClose={() => setIsServerPanelOpen(false)}
       />
-      <PreviewModal previewNote={previewNote} onClose={() => setPreviewNote(null)} />
+      <PreviewModal
+        previewNote={previewNote}
+        onClose={() => setPreviewNote(null)}
+        review={review}
+        isReviewLoading={isReviewLoading}
+        reviewError={reviewError}
+        onApprove={approveFromPreview}
+        onReject={rejectFromPreview}
+      />
       {rejectSheet && (
         <RejectSheet
           laneName={rejectSheet.laneName}
