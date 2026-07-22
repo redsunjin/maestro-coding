@@ -1,0 +1,18 @@
+{
+  "name": "maestro",
+  "displayName": "Maestro",
+  "version": "0.95.0",
+  "description": "에이전트 머지 승인 컨트롤 데크 — 세션 시작 시 로컬 승인 서버 자동 기동, Claude 응답 완료 시 승인 요청 전송",
+  "author": {
+    "name": "sunjin.jo",
+    "email": "sunjin.jo@selim.kr"
+  },
+  "repository": "https://github.com/redsunjin/maestro-coding",
+  "license": "SEE LICENSE IN LICENSE",
+  "keywords": ["approval", "merge", "agent", "ipad"],
+  "hooks": "./plugin/hooks.json",
+  "skills": "./plugin/skills/",
+  "experimental": {
+    "monitors": "./plugin/monitors.json"
+  }
+}

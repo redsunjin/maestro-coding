@@ -1,0 +1,17 @@
+{
+  "name": "maestro",
+  "owner": {
+    "name": "sunjin.jo",
+    "email": "sunjin.jo@selim.kr"
+  },
+  "description": "Maestro — 에이전트 머지 승인 컨트롤 데크",
+  "plugins": [
+    {
+      "name": "maestro",
+      "source": "./",
+      "description": "로컬 승인 서버 자동 기동 + 작업 완료 시 승인 요청 전송 + /maestro:status",
+      "category": "development",
+      "keywords": ["approval", "merge", "agent", "dashboard"]
+    }
+  ]
+}
