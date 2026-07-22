@@ -2,8 +2,10 @@
   "name": "maestro-coding",
   "private": true,
   "version": "0.95.0",
-  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
+  "bin": {
+    "maestro-server": "bin/maestro-server.mjs"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -28,6 +30,7 @@
     "project:add": "node scripts/projects.js add",
     "project:use": "node scripts/projects.js use"
   },
+  "license": "SEE LICENSE IN LICENSE",
   "dependencies": {
     "@capacitor/core": "^8.4.2",
     "@capacitor/haptics": "^8.0.2",
