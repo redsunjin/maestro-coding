@@ -64,6 +64,17 @@ export const getStoredWsUrl = () => {
 
 export const resolveInitialWsUrl = () => getStoredWsUrl() || getDefaultWsUrl();
 
+// ws(s) origin → http(s) URL. 서버 HTTP API 호출용 공용 헬퍼.
+export const toHttpUrl = (wsUrl, apiPath = '/') => {
+  try {
+    const parsed = new URL(wsUrl);
+    const protocol = parsed.protocol === 'wss:' ? 'https:' : 'http:';
+    return `${protocol}//${parsed.host}${apiPath}`;
+  } catch {
+    return null;
+  }
+};
+
 export const formatWsUrlLabel = (wsUrl) => {
   try {
     const parsed = new URL(wsUrl);

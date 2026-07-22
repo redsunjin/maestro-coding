@@ -22,6 +22,7 @@ import useWorkSessions from './hooks/useWorkSessions.js';
 import useWorkRequests from './hooks/useWorkRequests.js';
 import useAgentRegistry from './hooks/useAgentRegistry.js';
 import useServerAddress from './hooks/useServerAddress.js';
+import useMergeReview from './hooks/useMergeReview.js';
 import MaestroHeader from './components/maestro/MaestroHeader.jsx';
 import ProjectTabs from './components/maestro/ProjectTabs.jsx';
 import LaneBoard from './components/maestro/LaneBoard.jsx';
@@ -379,45 +380,25 @@ export default function App() {
     }
   }, [wsUrl, connectWebSocket, disconnectWebSocket]);
 
-  const triggerLaneAction = useCallback((laneId, options = {}) => {
+  // 코어: 특정 노트 하나에 대한 승인/반려 실행 — 레인 액션과 리뷰 시트가 공용으로 사용한다.
+  // 리뷰 시트는 열람한 바로 그 노트를 대상으로 해야 하므로 노트 선택과 실행을 분리했다.
+  const performNoteAction = useCallback((noteSnapshot, options = {}) => {
     const { isRejectAction = false, promptFeedback = false, rejectFeedback: directRejectFeedback = '' } = options;
-    if (!isPlaying || previewNote) return;
+    if (!isPlaying || !noteSnapshot) return;
 
-    const laneMatch = activeLanes.find((lane) => lane.id === laneId);
+    // 스냅샷이 오래됐을 수 있으므로 현재 노트 목록에서 재해석하고, 처리 중(READY 아님)이면 무시한다.
+    const targetNote = notesRef.current.find((note) => note.id === noteSnapshot.id) || noteSnapshot;
+    if (targetNote.status !== NOTE_STATUS.READY) return;
+
+    const laneMatch = activeLanes.find((lane) => lane.id === targetNote.lane);
     if (!laneMatch) return;
 
     const currentProjectId = activeProjectRef.current;
     const selectedFreq = LANE_HIT_FREQS[laneMatch.id] || LANE_HIT_FREQS[LANE_HIT_FREQS.length - 1];
-    playBeep(selectedFreq, 'triangle');
-    showSfxBurst(laneMatch.id, selectedFreq);
-
-    const currentNotes = notesRef.current;
-    const laneNotes = currentNotes.filter(
-      (note) => note.lane === laneMatch.id
-        && note.projectId === currentProjectId
-        && note.status === NOTE_STATUS.READY,
-    );
-    const hasPendingLaneNote = currentNotes.some(
-      (note) => note.lane === laneMatch.id
-        && note.projectId === currentProjectId
-        && note.status !== NOTE_STATUS.READY,
-    );
-
-    if (laneNotes.length === 0) {
-      if (hasPendingLaneNote) {
-        showFeedback(currentProjectId, laneMatch.id, 'PENDING', 'text-yellow-400');
-      } else {
-        showFeedback(currentProjectId, laneMatch.id, 'EMPTY', 'text-gray-500');
-        setCombo(0);
-      }
-      return;
-    }
-
-    const targetNote = laneNotes[0];
 
     if (isRejectAction && promptFeedback) {
       // 터치/키보드 공용: window.prompt 대신 반려 시트를 연다 (트랙 F4)
-      setRejectSheet({ laneId: laneMatch.id, laneName: laneMatch.name, noteTitle: targetNote.title });
+      setRejectSheet({ laneId: laneMatch.id, laneName: laneMatch.name, noteTitle: targetNote.title, noteId: targetNote.id });
       return;
     }
 
@@ -488,7 +469,71 @@ export default function App() {
         return nextCombo;
       });
     }
-  }, [activeLanes, isPlaying, previewNote, sendSocketAction, showFeedback, showLineFlash, showSfxBurst]);
+  }, [activeLanes, isPlaying, sendSocketAction, showFeedback, showLineFlash]);
+
+  // 레인 단위 진입점: 레인의 첫 READY 노트를 골라 코어를 호출한다 (기존 시맨틱 불변).
+  const triggerLaneAction = useCallback((laneId, options = {}) => {
+    if (!isPlaying || previewNote) return;
+
+    const laneMatch = activeLanes.find((lane) => lane.id === laneId);
+    if (!laneMatch) return;
+
+    const currentProjectId = activeProjectRef.current;
+    const selectedFreq = LANE_HIT_FREQS[laneMatch.id] || LANE_HIT_FREQS[LANE_HIT_FREQS.length - 1];
+    playBeep(selectedFreq, 'triangle');
+    showSfxBurst(laneMatch.id, selectedFreq);
+
+    const currentNotes = notesRef.current;
+    const laneNotes = currentNotes.filter(
+      (note) => note.lane === laneMatch.id
+        && note.projectId === currentProjectId
+        && note.status === NOTE_STATUS.READY,
+    );
+    const hasPendingLaneNote = currentNotes.some(
+      (note) => note.lane === laneMatch.id
+        && note.projectId === currentProjectId
+        && note.status !== NOTE_STATUS.READY,
+    );
+
+    if (laneNotes.length === 0) {
+      if (hasPendingLaneNote) {
+        showFeedback(currentProjectId, laneMatch.id, 'PENDING', 'text-yellow-400');
+      } else {
+        showFeedback(currentProjectId, laneMatch.id, 'EMPTY', 'text-gray-500');
+        setCombo(0);
+      }
+      return;
+    }
+
+    performNoteAction(laneNotes[0], options);
+  }, [activeLanes, isPlaying, performNoteAction, previewNote, showFeedback, showSfxBurst]);
+
+  // 승인 전 리뷰 데이터 — 미리보기(리뷰 시트)가 열릴 때 지연 로드한다.
+  const { review, isReviewLoading, reviewError, loadReview, clearReview } = useMergeReview({ wsUrl });
+
+  useEffect(() => {
+    if (previewNote?.requestId) {
+      loadReview(previewNote.requestId);
+    } else {
+      clearReview();
+    }
+  }, [previewNote, loadReview, clearReview]);
+
+  const approveFromPreview = useCallback(() => {
+    const note = previewNote;
+    setPreviewNote(null);
+    if (note) {
+      performNoteAction(note, {});
+    }
+  }, [performNoteAction, previewNote]);
+
+  const rejectFromPreview = useCallback(() => {
+    const note = previewNote;
+    setPreviewNote(null);
+    if (note) {
+      performNoteAction(note, { isRejectAction: true, promptFeedback: true });
+    }
+  }, [performNoteAction, previewNote]);
 
   const toggleGripMode = useCallback(() => {
     setIsGripMode((prev) => {
@@ -507,8 +552,16 @@ export default function App() {
   const confirmRejectSheet = useCallback((reason) => {
     if (!rejectSheet) return;
     setRejectSheet(null);
+    // 시트가 특정 노트를 가리키면 그 노트를 우선 반려하고, 소실됐으면 기존처럼 레인 첫 노트로 폴백한다.
+    const targetNote = rejectSheet.noteId
+      ? notesRef.current.find((note) => note.id === rejectSheet.noteId && note.status === NOTE_STATUS.READY)
+      : null;
+    if (targetNote) {
+      performNoteAction(targetNote, { isRejectAction: true, rejectFeedback: reason });
+      return;
+    }
     triggerLaneAction(rejectSheet.laneId, { isRejectAction: true, rejectFeedback: reason });
-  }, [rejectSheet, triggerLaneAction]);
+  }, [performNoteAction, rejectSheet, triggerLaneAction]);
 
   const cancelRejectSheet = useCallback(() => {
     if (!rejectSheet) return;
@@ -836,7 +889,15 @@ export default function App() {
         onReset={resetWsUrl}
         onClose={() => setIsServerPanelOpen(false)}
       />
-      <PreviewModal previewNote={previewNote} onClose={() => setPreviewNote(null)} />
+      <PreviewModal
+        previewNote={previewNote}
+        onClose={() => setPreviewNote(null)}
+        review={review}
+        isReviewLoading={isReviewLoading}
+        reviewError={reviewError}
+        onApprove={approveFromPreview}
+        onReject={rejectFromPreview}
+      />
       {rejectSheet && (
         <RejectSheet
           laneName={rejectSheet.laneName}

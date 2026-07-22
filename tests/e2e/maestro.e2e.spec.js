@@ -1,12 +1,16 @@
+import http from 'node:http';
 import { test, expect } from '@playwright/test';
 import { WebSocketServer } from 'ws';
 
 const WS_PORT = 18080;
 const WS_HOST = '127.0.0.1';
 
+let httpServer;
 let wss;
 const clients = new Set();
 const receivedActions = [];
+// 리뷰 API 픽스처 — 테스트가 requestId별 응답을 등록한다 (실서버의 /api/requests/:id/review 대역)
+const reviewFixturesById = new Map();
 
 function broadcast(payload) {
   const message = JSON.stringify(payload);
@@ -18,8 +22,29 @@ function broadcast(payload) {
 }
 
 test.beforeAll(async () => {
-  wss = new WebSocketServer({ port: WS_PORT, host: WS_HOST });
-  await new Promise((resolve) => wss.once('listening', resolve));
+  httpServer = http.createServer((req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    const url = new URL(req.url || '/', `http://${WS_HOST}:${WS_PORT}`);
+    const reviewMatch = url.pathname.match(/^\/api\/requests\/([^/]+)\/review$/);
+    if (req.method === 'GET' && reviewMatch) {
+      const fixture = reviewFixturesById.get(decodeURIComponent(reviewMatch[1]));
+      if (!fixture) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'REQUEST_NOT_FOUND' }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(fixture));
+      return;
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'NOT_FOUND' }));
+  });
+
+  wss = new WebSocketServer({ server: httpServer });
+  await new Promise((resolve) => httpServer.listen(WS_PORT, WS_HOST, resolve));
 
   wss.on('connection', (socket) => {
     clients.add(socket);
@@ -40,6 +65,7 @@ test.beforeAll(async () => {
 
 test.afterEach(() => {
   receivedActions.length = 0;
+  reviewFixturesById.clear();
 });
 
 test.afterAll(async () => {
@@ -48,8 +74,12 @@ test.afterAll(async () => {
   }
   clients.clear();
 
-  if (!wss) return;
-  await new Promise((resolve) => wss.close(resolve));
+  if (wss) {
+    await new Promise((resolve) => wss.close(resolve));
+  }
+  if (httpServer) {
+    await new Promise((resolve) => httpServer.close(resolve));
+  }
 });
 
 test.beforeEach(async ({ page }) => {
@@ -253,6 +283,66 @@ test('server address panel shows current address and passes connection test', as
 
   await page.getByRole('button', { name: '닫기' }).click();
   await expect(page.getByTestId('server-address-panel')).toHaveCount(0);
+});
+
+test('review sheet shows real diff and approves from the sheet', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '지휘 시작' }).click();
+  await expect(page.getByText('LIVE', { exact: true })).toBeVisible();
+
+  const requestId = `req_e2e_review_${Date.now()}`;
+  reviewFixturesById.set(requestId, {
+    requestId,
+    branchName: 'feature/e2e-review',
+    baseRef: 'main',
+    mergeable: true,
+    conflictFiles: [],
+    stats: { filesChanged: 1, additions: 5, deletions: 1, truncated: false },
+    commits: [
+      { sha: 'e2e1234', subject: 'feat: e2e review commit', author: 'e2e', date: new Date().toISOString() },
+    ],
+    files: [
+      {
+        path: 'src/e2e-review.js',
+        status: 'modified',
+        additions: 5,
+        deletions: 1,
+        binary: false,
+        patch: '@@ -1 +1,2 @@\n-old-line\n+new-line-from-e2e',
+        truncated: false,
+      },
+    ],
+    generatedAt: new Date().toISOString(),
+  });
+
+  broadcast({
+    event: 'AGENT_TASK_READY',
+    requestId,
+    laneIndex: 1,
+    branchName: 'feature/e2e-review',
+    diffSummary: {
+      title: 'E2E Review Note',
+      shortDescription: 'review from e2e',
+    },
+  });
+
+  // 노트가 판정선에 정착할 때까지 대기 후 클릭 (낙하 중 클릭 플레이크 방지)
+  await expect(page.getByText('E2E Review Note')).toBeVisible();
+  await page.waitForTimeout(1600);
+  await page.getByText('E2E Review Note').click();
+
+  await expect(page.getByTestId('review-merge-badge')).toContainText('머지 가능');
+  await expect(page.getByText('src/e2e-review.js')).toBeVisible();
+  await expect(page.getByText('+new-line-from-e2e')).toBeVisible();
+  await expect(page.getByText('feat: e2e review commit')).toBeVisible();
+
+  await page.getByRole('button', { name: '리뷰 승인' }).click();
+  await expect.poll(() => (
+    receivedActions.some((action) => action.action === 'APPROVE' && action.requestId === requestId)
+  )).toBeTruthy();
+
+  broadcast({ event: 'MERGE_SUCCESS', requestId });
+  await expect(page.getByText('E2E Review Note')).toHaveCount(0);
 });
 
 test('PWA manifest and apple meta tags are wired for standalone install', async ({ page }) => {

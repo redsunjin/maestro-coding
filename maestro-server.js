@@ -1964,6 +1964,43 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // 승인 전 리뷰 데이터 — git 원본 기반 diff/커밋/충돌 사전검사
+  const reviewMatch = pathname.match(/^\/api\/requests\/([^/]+)\/review$/);
+  if (req.method === 'GET' && reviewMatch) {
+    if (!isRequestAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const requestId = decodeURIComponent(reviewMatch[1]);
+    const approvalRequest = approvalRequestsById.get(requestId);
+    const requestMeta = getRequestMeta(requestId);
+    const branchName = String(approvalRequest?.branchName || requestMeta?.branchName || '').trim();
+
+    if (!branchName) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'REQUEST_NOT_FOUND' }));
+      return;
+    }
+
+    reviewOps.buildReview(getActiveMainRepoPath(), branchName)
+      .then((review) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ requestId, ...review }));
+      })
+      .catch((error) => {
+        if (error?.reviewCode === 'BRANCH_NOT_FOUND') {
+          res.writeHead(409, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'BRANCH_NOT_FOUND' }));
+          return;
+        }
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'REVIEW_FAILED', message: error?.message || 'unknown' }));
+      });
+    return;
+  }
+
   if (req.method === 'GET' && pathname === '/api/history') {
     const limit = parseHistoryLimit(requestUrl.searchParams.get('limit'));
     const projectId = requestUrl.searchParams.get('projectId');
@@ -2232,6 +2269,133 @@ const gitOps = {
   undoLastMerge: async (mainPath) => {
     const { stdout } = await execFilePromise('git', ['-C', mainPath, 'reset', '--hard', 'HEAD~1']);
     return stdout;
+  },
+};
+
+// ── 머지 리뷰 (승인 전 실제 diff/커밋/충돌 사전검사) ─────────────────────────
+
+const REVIEW_LIMITS = {
+  maxFiles: 50,
+  maxPatchBytes: 32 * 1024,
+  maxCommits: 50,
+};
+
+// merge-tree --write-tree --name-only 충돌 출력: 1행 트리 OID, 이후 빈 줄 전까지 충돌 파일 목록
+function parseMergeTreeConflicts(stdout) {
+  const lines = String(stdout || '').split('\n');
+  const files = [];
+  for (let i = 1; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+    if (!line) break;
+    files.push(line);
+  }
+  return Array.from(new Set(files));
+}
+
+const reviewOps = {
+  // 승인 대상 브랜치의 리뷰 데이터를 git 원본에서 생성한다. base = 현재 HEAD 브랜치(실제 머지 대상).
+  buildReview: async (mainPath, branchName) => {
+    const git = (args) => execFilePromise('git', ['-C', mainPath, ...args], { maxBuffer: 8 * 1024 * 1024 });
+
+    const { stdout: baseRefRaw } = await git(['rev-parse', '--abbrev-ref', 'HEAD']);
+    const baseRef = baseRefRaw.trim();
+
+    try {
+      await git(['rev-parse', '--verify', '--quiet', `${branchName}^{commit}`]);
+    } catch {
+      const notFound = new Error(`branch not found: ${branchName}`);
+      notFound.reviewCode = 'BRANCH_NOT_FOUND';
+      throw notFound;
+    }
+
+    const { stdout: logRaw } = await git([
+      'log', `--max-count=${REVIEW_LIMITS.maxCommits}`, '--format=%h%x1f%s%x1f%an%x1f%aI', `${baseRef}..${branchName}`,
+    ]);
+    const commits = logRaw.split('\n').filter(Boolean).map((line) => {
+      const [sha, subject, author, date] = line.split('\x1f');
+      return { sha, subject, author, date };
+    });
+
+    const { stdout: numstatRaw } = await git(['diff', '--numstat', `${baseRef}...${branchName}`]);
+    const { stdout: nameStatusRaw } = await git(['diff', '--name-status', `${baseRef}...${branchName}`]);
+
+    const statusByPath = new Map();
+    nameStatusRaw.split('\n').filter(Boolean).forEach((line) => {
+      const [letter, ...rest] = line.split('\t');
+      const filePath = rest[rest.length - 1];
+      const status = letter.startsWith('A') ? 'added'
+        : letter.startsWith('D') ? 'deleted'
+          : letter.startsWith('R') ? 'renamed'
+            : 'modified';
+      statusByPath.set(filePath, status);
+    });
+
+    const entries = numstatRaw.split('\n').filter(Boolean).map((line) => {
+      const [addRaw, delRaw, ...rest] = line.split('\t');
+      const filePath = rest[rest.length - 1];
+      const binary = addRaw === '-' || delRaw === '-';
+      return {
+        path: filePath,
+        binary,
+        additions: binary ? 0 : Number(addRaw) || 0,
+        deletions: binary ? 0 : Number(delRaw) || 0,
+      };
+    });
+
+    const limitedEntries = entries.slice(0, REVIEW_LIMITS.maxFiles);
+    const files = [];
+    for (const entry of limitedEntries) {
+      let patch = '';
+      let truncated = false;
+      if (!entry.binary) {
+        // eslint-disable-next-line no-await-in-loop
+        const { stdout: patchRaw } = await git(['diff', `${baseRef}...${branchName}`, '--', entry.path]);
+        if (Buffer.byteLength(patchRaw, 'utf8') > REVIEW_LIMITS.maxPatchBytes) {
+          patch = patchRaw.slice(0, REVIEW_LIMITS.maxPatchBytes);
+          truncated = true;
+        } else {
+          patch = patchRaw;
+        }
+      }
+      files.push({
+        path: entry.path,
+        status: statusByPath.get(entry.path) || 'modified',
+        additions: entry.additions,
+        deletions: entry.deletions,
+        binary: entry.binary,
+        patch,
+        truncated,
+      });
+    }
+
+    // 충돌 사전검사 — exit 0: 클린, exit 1: 충돌, 그 외(구버전 git 등): 판정 불가(null)
+    let mergeable = null;
+    let conflictFiles = [];
+    try {
+      await git(['merge-tree', '--write-tree', '--name-only', baseRef, branchName]);
+      mergeable = true;
+    } catch (error) {
+      if (error?.code === 1) {
+        mergeable = false;
+        conflictFiles = parseMergeTreeConflicts(error.stdout);
+      }
+    }
+
+    return {
+      branchName,
+      baseRef,
+      mergeable,
+      conflictFiles,
+      stats: {
+        filesChanged: entries.length,
+        additions: entries.reduce((sum, entry) => sum + entry.additions, 0),
+        deletions: entries.reduce((sum, entry) => sum + entry.deletions, 0),
+        truncated: entries.length > limitedEntries.length || files.some((file) => file.truncated),
+      },
+      commits,
+      files,
+      generatedAt: new Date().toISOString(),
+    };
   },
 };
 

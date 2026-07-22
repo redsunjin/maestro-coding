@@ -8,6 +8,7 @@ import {
   resolveInitialWsUrl,
   shouldAutoOpenServerSetup,
   testWsConnection,
+  toHttpUrl,
 } from './server-address.js';
 
 describe('normalizeWsUrlInput', () => {
@@ -74,6 +75,20 @@ describe('address resolution priority', () => {
   test('invalid stored value falls back to default', () => {
     window.localStorage.setItem(SERVER_WS_URL_STORAGE_KEY, 'not a url');
     expect(resolveInitialWsUrl()).toBe(getDefaultWsUrl());
+  });
+});
+
+describe('toHttpUrl', () => {
+  test('maps ws origin to http url with path', () => {
+    expect(toHttpUrl('ws://192.168.0.5:8080', '/api/requests/r1/review')).toBe('http://192.168.0.5:8080/api/requests/r1/review');
+  });
+
+  test('maps wss to https', () => {
+    expect(toHttpUrl('wss://maestro.local', '/api/history')).toBe('https://maestro.local/api/history');
+  });
+
+  test('returns null for unparsable ws url', () => {
+    expect(toHttpUrl('broken', '/x')).toBeNull();
   });
 });
 
