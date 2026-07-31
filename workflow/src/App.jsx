@@ -9,7 +9,7 @@ export default function App() {
   const [connected, setConnected] = useState(false);
 
   const reload = useCallback(() => {
-    fetchPendingRequests().then(setRequests).catch(() => setRequests([]));
+    fetchPendingRequests().then(setRequests).catch(() => {});
   }, []);
 
   useEffect(() => {
