@@ -3,7 +3,7 @@
 // 실행: node server.js  (기본 http://127.0.0.1:8090)
 import http from 'node:http';
 import { WebSocketServer, WebSocket as WSWebSocket } from 'ws';
-import { PORT, HOST, ALLOWED_ORIGINS, ACTOR_STORE_PATH, DECISION_STORE_PATH } from './server/config.js';
+import { PORT, HOST, ALLOWED_ORIGINS, ACTOR_STORE_PATH, DECISION_STORE_PATH, HISTORY_STORE_PATH } from './server/config.js';
 import {
   heartbeatActor,
   initActorStore,
@@ -24,9 +24,11 @@ import {
   initDecisionStore,
   listRequests,
 } from './server/decisions.js';
+import { appendHistory, initHistoryStore, listHistory } from './server/history.js';
 
 initActorStore(ACTOR_STORE_PATH);
 initDecisionStore(DECISION_STORE_PATH);
+initHistoryStore(HISTORY_STORE_PATH);
 
 export function sendJson(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -93,6 +95,7 @@ async function handleRequest(req, res) {
       sendJson(res, 400, { error: 'ACTOR_ID_REQUIRED' });
       return;
     }
+    recordHistory({ event: 'ACTOR_REGISTERED', actorId: registered.actor.actorId });
     sendJson(res, 200, {
       success: true,
       item: toPublicActor(registered.actor),
@@ -136,6 +139,7 @@ async function handleRequest(req, res) {
       sendJson(res, 404, { error: 'ACTOR_NOT_FOUND' });
       return;
     }
+    recordHistory({ event: 'ACTOR_REVOKED', actorId });
     sendJson(res, 200, { success: true, item: toPublicActor(actor) });
     return;
   }
@@ -163,6 +167,7 @@ async function handleRequest(req, res) {
       const request = createDecisionRequest(data);
       console.log(`📨 결정 요청 수신: [${request.actorId}] (${request.subjectType}) ${request.subject.title}`);
       broadcast({ type: 'WORKFLOW_REQUEST_CREATED', item: request });
+      recordHistory({ event: 'REQUEST_CREATED', requestId: request.requestId, actorId: request.actorId, subjectType: request.subjectType, title: request.subject.title });
       sendJson(res, 200, { success: true, item: request });
     } catch (error) {
       if (error.code === 'SUBJECT_TYPE_REQUIRED' || error.code === 'SUBJECT_TITLE_REQUIRED') {
@@ -205,6 +210,7 @@ async function handleRequest(req, res) {
     }
     console.log(`🎯 결정 기록: [${result.request.subjectType}] ${result.item.decision} (${requestId})`);
     broadcast({ type: 'WORKFLOW_DECIDED', item: result.item, request: result.request });
+    recordHistory({ event: 'DECIDED', requestId, actorId: result.request.actorId, subjectType: result.request.subjectType, title: result.request.subject.title, decision: result.item.decision, comment: result.item.comment, decidedBy: result.item.decidedBy });
     sendJson(res, 200, { success: true, item: result.item, request: result.request });
     return;
   }
@@ -251,7 +257,18 @@ async function handleRequest(req, res) {
       sendJson(res, 404, { error: 'DECISION_NOT_FOUND' });
       return;
     }
+    recordHistory({ event: 'ACKNOWLEDGED', requestId: decision.requestId, decision: decision.decision });
     sendJson(res, 200, { success: true, item: decision });
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/history') {
+    if (!isServerAuthorized(req)) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    sendJson(res, 200, { items: listHistory(url.searchParams.get('limit') || 40) });
     return;
   }
 
@@ -278,6 +295,12 @@ function broadcast(data) {
       client.send(message);
     }
   });
+}
+
+function recordHistory(input) {
+  const entry = appendHistory(input);
+  if (entry) broadcast({ type: 'WORKFLOW_HISTORY_APPEND', item: entry });
+  return entry;
 }
 
 server.listen(PORT, HOST, () => {
