@@ -19,7 +19,7 @@ describe('DecisionSheet', () => {
     render(<DecisionSheet request={request} onDecide={() => {}} onClose={() => {}} />);
     expect(screen.getByText('API 크레딧 $30 구매')).toBeInTheDocument();
     expect(screen.getByText('USD 30')).toBeInTheDocument();
-    expect(screen.getByText(/research-api/)).toBeInTheDocument();
+    expect(screen.getByTestId('payload-json')).toHaveTextContent('research-api');
   });
 
   it('approve button decides immediately', async () => {

@@ -34,11 +34,13 @@ export default function DecisionSheet({ request, onDecide, onClose }) {
             <div className="text-base font-bold">{highlight.label}</div>
             {highlight.detail ? <div className="text-xs text-slate-400">{highlight.detail}</div> : null}
           </div>
-        ) : (
-          <pre className="mt-3 max-h-32 overflow-auto rounded bg-slate-950 p-2 text-xs text-slate-400">
-            {JSON.stringify(request.subject.payload, null, 2)}
-          </pre>
-        )}
+        ) : null}
+        <pre
+          data-testid="payload-json"
+          className="mt-3 max-h-32 overflow-auto rounded bg-slate-950 p-2 text-xs text-slate-400"
+        >
+          {JSON.stringify(request.subject.payload, null, 2)}
+        </pre>
         <div className="mt-2 text-xs text-slate-500">요청자: {request.actorId}</div>
 
         {rejecting ? (
