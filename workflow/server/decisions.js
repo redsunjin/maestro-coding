@@ -81,3 +81,53 @@ export function listRequests({ status = null } = {}) {
 export function countPendingRequests() {
   return listRequests({ status: 'pending_decision' }).length;
 }
+
+export const DECISION_VALUES = new Set(['approve', 'reject', 'revise', 'ask', 'cancel']);
+
+// record-only: executorAction은 항상 'none'. Workflow는 아무것도 실행하지 않는다.
+export function decideRequest(requestId, { decision, comment = '', decidedBy = 'operator' } = {}) {
+  const request = requestsById.get(requestId);
+  if (!request) return { error: 'DECISION_REQUEST_NOT_FOUND', status: 404 };
+  if (decisionsByRequestId.has(requestId)) return { error: 'ALREADY_DECIDED', status: 409 };
+  if (!DECISION_VALUES.has(decision)) return { error: 'INVALID_DECISION', status: 400 };
+
+  const now = new Date().toISOString();
+  const item = {
+    decisionId: `dcd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    requestId,
+    decision,
+    comment: sanitizeText(comment, 400),
+    executorAction: 'none',
+    delivery: { mode: 'pull', status: 'available', acknowledgedAt: null },
+    decidedBy: sanitizeText(decidedBy, 80) || 'operator',
+    createdAt: now,
+  };
+  decisionsByRequestId.set(requestId, item);
+  request.status = 'decided';
+  request.updatedAt = now;
+  persist();
+  return { item, request };
+}
+
+export function getDecisionByRequestId(requestId) {
+  return decisionsByRequestId.get(requestId) || null;
+}
+
+export function findRequestByDecisionId(decisionId) {
+  for (const decision of decisionsByRequestId.values()) {
+    if (decision.decisionId === decisionId) return requestsById.get(decision.requestId) || null;
+  }
+  return null;
+}
+
+export function acknowledgeDecision(decisionId) {
+  const decision =
+    Array.from(decisionsByRequestId.values()).find((item) => item.decisionId === decisionId) || null;
+  if (!decision) return null;
+  if (decision.delivery.status !== 'acknowledged') {
+    decision.delivery.status = 'acknowledged';
+    decision.delivery.acknowledgedAt = new Date().toISOString();
+    persist();
+  }
+  return decision;
+}

@@ -14,8 +14,13 @@ import {
 } from './server/actors.js';
 import { authorizeActor, isServerAuthorized } from './server/auth.js';
 import {
+  acknowledgeDecision,
   countPendingRequests,
   createDecisionRequest,
+  decideRequest,
+  findRequestByDecisionId,
+  getDecisionByRequestId,
+  getRequest,
   initDecisionStore,
   listRequests,
 } from './server/decisions.js';
@@ -176,6 +181,77 @@ async function handleRequest(req, res) {
     }
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     sendJson(res, 200, { items: listRequests({ status: url.searchParams.get('status') }) });
+    return;
+  }
+
+  const decideMatch = pathname.match(/^\/api\/decision-requests\/([^/]+)\/decide$/);
+  if (req.method === 'POST' && decideMatch) {
+    if (!isServerAuthorized(req)) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+    let data;
+    try {
+      data = await readJsonBody(req);
+    } catch {
+      sendJson(res, 400, { error: 'Invalid JSON body' });
+      return;
+    }
+    const requestId = decodeURIComponent(decideMatch[1]);
+    const result = decideRequest(requestId, data);
+    if (result.error) {
+      sendJson(res, result.status, { error: result.error });
+      return;
+    }
+    console.log(`🎯 결정 기록: [${result.request.subjectType}] ${result.item.decision} (${requestId})`);
+    broadcast({ type: 'WORKFLOW_DECIDED', item: result.item, request: result.request });
+    sendJson(res, 200, { success: true, item: result.item, request: result.request });
+    return;
+  }
+
+  const decisionPollMatch = pathname.match(/^\/api\/decision-requests\/([^/]+)\/decision$/);
+  if (req.method === 'GET' && decisionPollMatch) {
+    const auth = authorizeActor(req, res);
+    if (!auth) return;
+    const requestId = decodeURIComponent(decisionPollMatch[1]);
+    const request = getRequest(requestId);
+    if (!request) {
+      sendJson(res, 404, { error: 'DECISION_REQUEST_NOT_FOUND' });
+      return;
+    }
+    // actor 토큰은 자기 요청만 폴링 가능
+    if (auth.mode === 'actor' && request.actorId !== auth.actorId) {
+      sendJson(res, 403, { error: 'ACTOR_MISMATCH' });
+      return;
+    }
+    const decision = getDecisionByRequestId(requestId);
+    sendJson(res, 200, {
+      requestId,
+      status: decision ? decision.delivery.status : 'pending',
+      item: decision,
+    });
+    return;
+  }
+
+  const ackMatch = pathname.match(/^\/api\/decisions\/([^/]+)\/ack$/);
+  if (req.method === 'POST' && ackMatch) {
+    const auth = authorizeActor(req, res);
+    if (!auth) return;
+    const decisionId = decodeURIComponent(ackMatch[1]);
+    // actor 토큰은 자기 요청의 결정만 ack 가능
+    if (auth.mode === 'actor') {
+      const targetRequest = findRequestByDecisionId(decisionId);
+      if (targetRequest && targetRequest.actorId !== auth.actorId) {
+        sendJson(res, 403, { error: 'ACTOR_MISMATCH' });
+        return;
+      }
+    }
+    const decision = acknowledgeDecision(decisionId);
+    if (!decision) {
+      sendJson(res, 404, { error: 'DECISION_NOT_FOUND' });
+      return;
+    }
+    sendJson(res, 200, { success: true, item: decision });
     return;
   }
 
