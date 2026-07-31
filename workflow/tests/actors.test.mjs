@@ -112,3 +112,29 @@ test('revoke invalidates token; re-register rotates it; store survives restart',
     cleanupDataDir(dataDir);
   }
 });
+
+test('malformed input does not crash the server', async () => {
+  const server = await startServer();
+  try {
+    // 잘못된 percent-encoding → 크래시 없이 에러 응답 (catch-all 500 허용)
+    const badUri = await fetch(`http://127.0.0.1:${server.port}/api/actors/%E0%A4%A/heartbeat`, {
+      method: 'POST',
+    });
+    assert.ok([400, 404, 500].includes(badUri.status));
+
+    // JSON body "null" → readJsonBody가 {}로 정규화 → 400 ACTOR_ID_REQUIRED
+    const nullBody = await fetch(`http://127.0.0.1:${server.port}/api/actors/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'null',
+    });
+    assert.equal(nullBody.status, 400);
+
+    // 서버 생존 확인
+    const health = await fetch(`http://127.0.0.1:${server.port}/health`);
+    assert.equal(health.status, 200);
+  } finally {
+    await server.stop();
+    cleanupDataDir(server.dataDir);
+  }
+});

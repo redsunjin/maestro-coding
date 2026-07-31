@@ -4,7 +4,6 @@
 import http from 'node:http';
 import { PORT, HOST, ALLOWED_ORIGINS, ACTOR_STORE_PATH } from './server/config.js';
 import {
-  getActor,
   heartbeatActor,
   initActorStore,
   listActors,
@@ -29,7 +28,8 @@ function readJsonBody(req) {
     });
     req.on('end', () => {
       try {
-        resolvePromise(body.trim() ? JSON.parse(body) : {});
+        const parsed = body.trim() ? JSON.parse(body) : {};
+        resolvePromise(parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {});
       } catch {
         rejectPromise(new Error('INVALID_JSON'));
       }
@@ -47,7 +47,7 @@ function applyCors(req, res) {
   }
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   applyCors(req, res);
   const { pathname } = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
@@ -128,6 +128,17 @@ const server = http.createServer(async (req, res) => {
   }
 
   sendJson(res, 404, { error: 'NOT_FOUND' });
+}
+
+const server = http.createServer((req, res) => {
+  handleRequest(req, res).catch((error) => {
+    console.error(`요청 처리 실패: ${error.message}`);
+    if (!res.headersSent) {
+      sendJson(res, 500, { error: 'INTERNAL_ERROR' });
+    } else {
+      res.end();
+    }
+  });
 });
 
 server.listen(PORT, HOST, () => {
