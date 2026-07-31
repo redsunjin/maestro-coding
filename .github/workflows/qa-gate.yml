@@ -48,3 +48,20 @@ jobs:
 
       - name: Run E2E
         run: npm run test:e2e
+
+  workflow-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install workflow dependencies
+        run: npm ci --prefix workflow
+
+      - name: Run workflow tests
+        run: npm test --prefix workflow

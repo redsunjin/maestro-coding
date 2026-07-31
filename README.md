@@ -13,6 +13,18 @@
 
 코딩을 지휘하다 — AI 에이전트와 함께하는 코드 심포니 🎼
 
+## Maestro Harmony 제품군
+
+이 레포는 **Maestro Harmony** 제품군의 본진입니다. 세 앱은 역할이 나뉩니다 — **결정을 만들고(Coding) / 기록하고(Workflow) / 재생한다(Player)**.
+
+| 앱 | 위치 | 역할 |
+|---|---|---|
+| **Maestro Coding** | 레포 루트 (본체) | AI 에이전트 코드 변경의 승인·머지 실행 |
+| **Maestro Workflow** | [`workflow/`](workflow/) | 범용 승인·결정·이력 (record-only, 포트 8090) |
+| **Maestro Player** | `player/` (전용 브랜치) | 완료된 활동의 리듬게임·악보 재생 |
+
+Workflow의 비전은 [`docs/vision/2026-07-21-universal-approval-record-service.md`](docs/vision/2026-07-21-universal-approval-record-service.md), 설계는 [`docs/superpowers/specs/2026-07-31-maestro-workflow-subapp-design.md`](docs/superpowers/specs/2026-07-31-maestro-workflow-subapp-design.md)를 참고하세요.
+
 ## 컨셉 (Concept)
 
 Maestro는 AI 에이전트가 생성하거나 수정한 코드 변경을 "승인 노트" 형태로 제시하고, 사람이 빠르게 승인/반려하여 안전하게 병합하도록 돕는 개발 보조 도구입니다.

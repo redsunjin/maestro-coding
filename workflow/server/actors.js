@@ -1,0 +1,101 @@
+// Actor 레지스트리 (본체 Agent Registry + per-agent 토큰 패턴 이식).
+// 토큰은 발급 시 1회만 평문 반환, 레코드에는 sha256 해시만 저장.
+import crypto from 'node:crypto';
+import { loadStore, saveStore } from './persist.js';
+
+const actorsById = new Map();
+let storePath = null;
+
+// 제어문자 제거 + 공백 정규화 (본체 sanitizeHistoryText 패턴 이식)
+export function sanitizeText(value, maxLength = 120) {
+  if (typeof value !== 'string') return '';
+  const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  return normalized.slice(0, maxLength);
+}
+
+function generateActorToken() {
+  return crypto.randomBytes(24).toString('hex');
+}
+
+function hashActorToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function persist() {
+  if (storePath) saveStore(storePath, { items: Array.from(actorsById.values()) });
+}
+
+export function initActorStore(path) {
+  storePath = path;
+  actorsById.clear();
+  const data = loadStore(path);
+  for (const item of data?.items || []) {
+    if (item && typeof item.actorId === 'string' && item.actorId) {
+      actorsById.set(item.actorId, item);
+    }
+  }
+}
+
+// 재등록(upsert) = 무조건 토큰 회전 (본체 스펙 §4와 동일).
+export function registerActor({ actorId, displayName = '', actorType = 'agent', metadata = {} } = {}) {
+  const id = sanitizeText(actorId, 80);
+  if (!id) return null;
+  const token = generateActorToken();
+  const now = new Date().toISOString();
+  const existing = actorsById.get(id) || null;
+  const actor = {
+    actorId: id,
+    actorType: actorType === 'human' ? 'human' : 'agent',
+    displayName: sanitizeText(displayName, 120),
+    metadata: metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {},
+    tokenHash: hashActorToken(token),
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+    lastHeartbeatAt: existing?.lastHeartbeatAt || null,
+  };
+  actorsById.set(id, actor);
+  persist();
+  return { actor, actorToken: token };
+}
+
+export function findActorByToken(token) {
+  if (!token) return null;
+  const tokenHash = hashActorToken(token);
+  return (
+    Array.from(actorsById.values()).find((actor) => actor.tokenHash && actor.tokenHash === tokenHash)
+    || null
+  );
+}
+
+export function heartbeatActor(actorId) {
+  const actor = actorsById.get(actorId);
+  if (!actor) return null;
+  actor.lastHeartbeatAt = new Date().toISOString();
+  actor.updatedAt = actor.lastHeartbeatAt;
+  persist();
+  return actor;
+}
+
+export function revokeActor(actorId) {
+  const actor = actorsById.get(actorId);
+  if (!actor) return null;
+  actor.tokenHash = null;
+  actor.updatedAt = new Date().toISOString();
+  persist();
+  return actor;
+}
+
+export function getActor(actorId) {
+  return actorsById.get(actorId) || null;
+}
+
+// 응답에는 토큰 해시를 절대 노출하지 않는다.
+export function toPublicActor(actor) {
+  if (!actor) return actor;
+  const { tokenHash, ...publicActor } = actor;
+  return publicActor;
+}
+
+export function listActors() {
+  return Array.from(actorsById.values()).map(toPublicActor);
+}
