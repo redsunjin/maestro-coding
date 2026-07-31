@@ -2,7 +2,8 @@
 // 범용 DecisionRequest를 수신해 사람이 결정하고, record-only로 기록·전달한다.
 // 실행: node server.js  (기본 http://127.0.0.1:8090)
 import http from 'node:http';
-import { PORT, HOST, ALLOWED_ORIGINS, ACTOR_STORE_PATH } from './server/config.js';
+import { WebSocketServer, WebSocket as WSWebSocket } from 'ws';
+import { PORT, HOST, ALLOWED_ORIGINS, ACTOR_STORE_PATH, DECISION_STORE_PATH } from './server/config.js';
 import {
   heartbeatActor,
   initActorStore,
@@ -12,8 +13,15 @@ import {
   toPublicActor,
 } from './server/actors.js';
 import { authorizeActor, isServerAuthorized } from './server/auth.js';
+import {
+  countPendingRequests,
+  createDecisionRequest,
+  initDecisionStore,
+  listRequests,
+} from './server/decisions.js';
 
 initActorStore(ACTOR_STORE_PATH);
+initDecisionStore(DECISION_STORE_PATH);
 
 export function sendJson(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -58,7 +66,7 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === 'GET' && pathname === '/health') {
-    sendJson(res, 200, { status: 'ok', app: 'maestro-workflow', pendingRequests: 0 });
+    sendJson(res, 200, { status: 'ok', app: 'maestro-workflow', pendingRequests: countPendingRequests() });
     return;
   }
 
@@ -127,6 +135,50 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── DecisionRequest (actor 토큰) ─────────────────────────────────────────
+  if (req.method === 'POST' && pathname === '/api/decision-requests') {
+    const auth = authorizeActor(req, res);
+    if (!auth) return;
+    let data;
+    try {
+      data = await readJsonBody(req);
+    } catch {
+      sendJson(res, 400, { error: 'Invalid JSON body' });
+      return;
+    }
+    // actor 토큰 호출은 body.actorId가 토큰 주인과 일치해야 한다 (비어 있으면 채움)
+    if (auth.mode === 'actor') {
+      if (data.actorId && data.actorId !== auth.actorId) {
+        sendJson(res, 403, { error: 'ACTOR_MISMATCH' });
+        return;
+      }
+      data.actorId = auth.actorId;
+    }
+    try {
+      const request = createDecisionRequest(data);
+      console.log(`📨 결정 요청 수신: [${request.actorId}] (${request.subjectType}) ${request.subject.title}`);
+      broadcast({ type: 'WORKFLOW_REQUEST_CREATED', item: request });
+      sendJson(res, 200, { success: true, item: request });
+    } catch (error) {
+      if (error.code === 'SUBJECT_TYPE_REQUIRED' || error.code === 'SUBJECT_TITLE_REQUIRED') {
+        sendJson(res, 400, { error: error.code });
+        return;
+      }
+      sendJson(res, 500, { error: 'INTERNAL_ERROR' });
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/decision-requests') {
+    if (!isServerAuthorized(req)) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    sendJson(res, 200, { items: listRequests({ status: url.searchParams.get('status') }) });
+    return;
+  }
+
   sendJson(res, 404, { error: 'NOT_FOUND' });
 }
 
@@ -140,6 +192,17 @@ const server = http.createServer((req, res) => {
     }
   });
 });
+
+const wss = new WebSocketServer({ server });
+
+function broadcast(data) {
+  const message = JSON.stringify(data);
+  wss.clients.forEach((client) => {
+    if (client.readyState === WSWebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
 
 server.listen(PORT, HOST, () => {
   console.log(`🎼 Maestro Workflow server on http://${HOST}:${PORT}`);
