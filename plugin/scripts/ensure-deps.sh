@@ -8,9 +8,13 @@ if [ -d node_modules/ws ]; then
   exit 0
 fi
 
-if npm install --no-save --no-audit --no-fund --omit=dev --ignore-scripts ws bonjour-service >/dev/null 2>&1; then
-  echo "maestro: 서버 의존성 설치 완료 (ws, bonjour-service)"
+# 프로덕션 의존성 전체 설치 (ws 포함 — devDependencies 제외).
+# 주의: npm exit 0이 곧 성공이 아님(--omit 규칙 등) — 결과물 존재로 성공을 판정한다.
+npm install --no-save --no-audit --no-fund --omit=dev --ignore-scripts >/dev/null 2>&1
+
+if [ -d node_modules/ws ]; then
+  echo "maestro: 서버 의존성 설치 완료"
 else
-  echo "maestro: 서버 의존성 자동 설치 실패 — 플러그인 폴더에서 'npm install ws bonjour-service'를 실행하세요."
+  echo "maestro: 서버 의존성 자동 설치 실패 — 플러그인 폴더($ROOT)에서 'npm install --omit=dev'를 실행하세요."
 fi
 exit 0

@@ -49,6 +49,15 @@ test('hooks and monitors reference existing executable scripts', () => {
   assert.ok(existsSync(resolve(ROOT_DIR, 'plugin/skills/status/SKILL.md')), '/maestro:status 스킬 없음');
 });
 
+test('server runtime deps live in dependencies so --omit=dev installs still work', () => {
+  // 설치된 플러그인 사본은 ensure-deps가 --omit=dev로 설치한다.
+  // ws가 devDependencies에 있으면 제외되어 서버가 못 뜬다 (실환경에서 발견된 버그의 회귀 방지).
+  const pkg = readJson('package.json');
+  assert.ok(pkg.dependencies?.ws, 'ws가 dependencies에 없음');
+  assert.ok(pkg.dependencies?.['bonjour-service'], 'bonjour-service가 dependencies에 없음');
+  assert.ok(!pkg.devDependencies?.ws, 'ws가 devDependencies에 중복');
+});
+
 test('ensure-deps exits 0 immediately when ws is already installed', () => {
   const output = execFileSync('sh', [resolve(ROOT_DIR, 'plugin/scripts/ensure-deps.sh')], {
     env: { ...process.env, CLAUDE_PLUGIN_ROOT: ROOT_DIR },
