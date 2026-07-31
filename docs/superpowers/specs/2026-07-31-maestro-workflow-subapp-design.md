@@ -20,6 +20,25 @@
 > 첫 실행 단위다. 비전의 엔티티 모델·위임 철학·로드맵은 그대로 유효하며, 실행 형태만
 > "한 앱의 확장"에서 "자매 앱 신설"로 바뀐다.
 
+## 0-1. Maestro Harmony 제품군 (우산 브랜드)
+
+세 앱을 묶는 제품군 이름은 **Maestro Harmony**다 (2026-07-31 확정). 여러 성부가 함께
+화음을 만든다는 의미로, 멀티 에이전트 시대의 오케스트레이션 서사를 완성한다.
+
+| 앱 | 위치 | 역할 | 비전 엔티티와의 대응 |
+|---|---|---|---|
+| **Maestro Coding** | 레포 루트 (본체) | 코드 승인 + 실행(git merge) | executor가 있는 결정 — `subjectType=merge` 특화 |
+| **Maestro Workflow** | `workflow/` | 범용 승인·결정·이력 | record-only 결정 원장 — 보편 레이어 |
+| **Maestro Player** | `player/` (전용 브랜치) | 완료된 활동의 재생·감상 | AuditLog의 재생 장치 |
+
+셋은 **결정을 만들고(Coding) / 기록하고(Workflow) / 재생한다(Player)**로 역할이 나뉜다.
+
+**채택 수준 (확정)**: 현 시점에서는 **문서/브랜드 차원의 우산**으로만 채택한다.
+레포 이름 변경(`maestro-coding`→`maestro-harmony`)과 본체의 `coding/` 디렉토리 이사는
+하지 않는다 — GitHub Pages 데모 URL 단절(Pages는 개명 시 리다이렉트 없음)과 진행 중인
+동시 세션(터치 UX·인증)과의 전면 충돌 때문이다. 물리적 재편은 Workflow 검증 완료 후
+별도 스펙으로 재검토한다.
+
 ## 1. 구조와 경계
 
 ```
@@ -171,4 +190,5 @@ maestro-coding/                     ← 현재 레포 (이름 유지)
 2. **대시보드 셸**: WS 연결 + 채널 레인 + 노트 표시
 3. **결정 UX**: 승인/반려 시트 + 프리셋 표시 포맷 (spend/publish)
 4. **이력 뷰** + 재시작 복구 확인
-5. **CI 잡 추가** + `docs/maestro-workflow/README.md` + 비전 문서 개정 주석
+5. **CI 잡 추가** + `docs/maestro-workflow/README.md` + 루트 `README.md`에 Maestro Harmony
+   제품군(Coding/Workflow/Player) 선언 1개 섹션 추가
