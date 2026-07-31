@@ -138,3 +138,23 @@ test('malformed input does not crash the server', async () => {
     cleanupDataDir(server.dataDir);
   }
 });
+
+test('oversized request body is rejected with 413 and server survives', async () => {
+  const server = await startServer();
+  try {
+    const bigText = 'x'.repeat(1024 * 1024 + 1024);
+    const res = await fetch(`http://127.0.0.1:${server.port}/api/actors/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actorId: 'big', displayName: bigText }),
+    });
+    assert.equal(res.status, 413);
+    assert.equal((await res.json()).error, 'BODY_TOO_LARGE');
+
+    const health = await fetch(`http://127.0.0.1:${server.port}/health`);
+    assert.equal(health.status, 200);
+  } finally {
+    await server.stop();
+    cleanupDataDir(server.dataDir);
+  }
+});

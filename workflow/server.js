@@ -35,13 +35,26 @@ export function sendJson(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+const MAX_BODY_BYTES = 1024 * 1024;
+
 function readJsonBody(req) {
   return new Promise((resolvePromise, rejectPromise) => {
     let body = '';
+    let received = 0;
+    let overLimit = false;
     req.on('data', (chunk) => {
+      if (overLimit) return;
+      received += chunk.length;
+      if (received > MAX_BODY_BYTES) {
+        overLimit = true;
+        body = '';
+        rejectPromise(Object.assign(new Error('BODY_TOO_LARGE'), { code: 'BODY_TOO_LARGE' }));
+        return;
+      }
       body += chunk;
     });
     req.on('end', () => {
+      if (overLimit) return;
       try {
         const parsed = body.trim() ? JSON.parse(body) : {};
         resolvePromise(parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {});
@@ -86,8 +99,12 @@ async function handleRequest(req, res) {
     let data;
     try {
       data = await readJsonBody(req);
-    } catch {
-      sendJson(res, 400, { error: 'Invalid JSON body' });
+    } catch (error) {
+      if (error && error.code === 'BODY_TOO_LARGE') {
+        sendJson(res, 413, { error: 'BODY_TOO_LARGE' });
+      } else {
+        sendJson(res, 400, { error: 'Invalid JSON body' });
+      }
       return;
     }
     const registered = registerActor(data);
@@ -151,8 +168,12 @@ async function handleRequest(req, res) {
     let data;
     try {
       data = await readJsonBody(req);
-    } catch {
-      sendJson(res, 400, { error: 'Invalid JSON body' });
+    } catch (error) {
+      if (error && error.code === 'BODY_TOO_LARGE') {
+        sendJson(res, 413, { error: 'BODY_TOO_LARGE' });
+      } else {
+        sendJson(res, 400, { error: 'Invalid JSON body' });
+      }
       return;
     }
     // actor 토큰 호출은 body.actorId가 토큰 주인과 일치해야 한다 (비어 있으면 채움)
@@ -198,8 +219,12 @@ async function handleRequest(req, res) {
     let data;
     try {
       data = await readJsonBody(req);
-    } catch {
-      sendJson(res, 400, { error: 'Invalid JSON body' });
+    } catch (error) {
+      if (error && error.code === 'BODY_TOO_LARGE') {
+        sendJson(res, 413, { error: 'BODY_TOO_LARGE' });
+      } else {
+        sendJson(res, 400, { error: 'Invalid JSON body' });
+      }
       return;
     }
     const requestId = decodeURIComponent(decideMatch[1]);

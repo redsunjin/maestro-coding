@@ -20,3 +20,9 @@ Maestro Harmony 제품군의 범용 승인·결정·이력(system of record) 앱
     npm run server       # 결정 서버 (기본 http://127.0.0.1:8090)
     npm run dev          # 대시보드 (기본 http://localhost:5273)
     npm test             # 서버 회귀 + UI 테스트
+
+## 알려진 한계 (MVP)
+
+- **대시보드는 open 모드 전용이다.** `MAESTRO_WORKFLOW_SERVER_TOKEN`을 설정한 엄격 모드에서는 운영자 API(`GET /api/decision-requests`, `POST .../decide`, `GET /api/history`)가 서버 토큰을 요구하지만, 현재 대시보드는 토큰을 보낼 수단이 없어 동작하지 않는다. 토큰 모드 대시보드와 WS 인증 핸드셰이크는 후속 스펙으로 예약한다.
+- **WebSocket 브로드캐스트는 무인증**이며 요청 payload 전문이 흐른다. 기본 `HOST=127.0.0.1` 로컬 전용 전제를 유지하라.
+- **WS 자동 재연결 없음** — 서버 재시작 시 대시보드를 새로고침해야 실시간 갱신이 재개된다. 헤더의 "연결 대기" 표시로 끊김을 확인할 수 있다.
