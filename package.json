@@ -39,7 +39,8 @@
     "capacitor-zeroconf": "^4.0.0",
     "lucide-react": "^0.511.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.2",
@@ -53,7 +54,6 @@
     "prompts": "^2.4.2",
     "tailwindcss": "^4.1.6",
     "vite": "^6.3.5",
-    "vitest": "^4.0.18",
-    "ws": "^8.19.0"
+    "vitest": "^4.0.18"
   }
 }
