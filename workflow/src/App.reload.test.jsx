@@ -5,6 +5,7 @@ const fetchPendingRequests = vi.fn();
 vi.mock('./lib/api.js', () => ({
   WS_URL: 'ws://test',
   fetchPendingRequests: (...args) => fetchPendingRequests(...args),
+  fetchHistory: vi.fn().mockResolvedValue([]),
   decideRequest: vi.fn(),
 }));
 

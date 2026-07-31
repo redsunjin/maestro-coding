@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import ChannelBoard from './components/ChannelBoard.jsx';
 import DecisionSheet from './components/DecisionSheet.jsx';
-import { WS_URL, decideRequest, fetchPendingRequests } from './lib/api.js';
+import HistoryPanel from './components/HistoryPanel.jsx';
+import { WS_URL, decideRequest, fetchHistory, fetchPendingRequests } from './lib/api.js';
 
 // Maestro Workflow 대시보드 셸: 대기 요청을 채널 보드로 표시하고 WS로 실시간 갱신.
 export default function App() {
   const [requests, setRequests] = useState([]);
   const [selected, setSelected] = useState(null);
   const [connected, setConnected] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState([]);
 
   const reload = useCallback(() => {
     fetchPendingRequests().then(setRequests).catch(() => {});
+    fetchHistory().then(setHistory).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -21,7 +25,11 @@ export default function App() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'WORKFLOW_REQUEST_CREATED' || data.type === 'WORKFLOW_DECIDED') {
+        if (
+          data.type === 'WORKFLOW_REQUEST_CREATED'
+          || data.type === 'WORKFLOW_DECIDED'
+          || data.type === 'WORKFLOW_HISTORY_APPEND'
+        ) {
           reload();
         }
       } catch {
@@ -35,11 +43,22 @@ export default function App() {
     <div className="min-h-screen">
       <header className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
         <h1 className="text-lg font-semibold">🎼 Maestro Workflow</h1>
+        <button
+          type="button"
+          onClick={() => setShowHistory((value) => !value)}
+          className="min-h-[44px] rounded-lg bg-slate-800 px-4 text-sm transition active:scale-95"
+        >
+          {showHistory ? '보드' : '이력'}
+        </button>
         <span className={`text-xs ${connected ? 'text-emerald-400' : 'text-slate-500'}`}>
           {connected ? '실시간 연결됨' : '연결 대기'}
         </span>
       </header>
-      <ChannelBoard requests={requests} onSelect={setSelected} />
+      {showHistory ? (
+        <HistoryPanel entries={history} />
+      ) : (
+        <ChannelBoard requests={requests} onSelect={setSelected} />
+      )}
       {selected ? (
         <DecisionSheet
           request={selected}
