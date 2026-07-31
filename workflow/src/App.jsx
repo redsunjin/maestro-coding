@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import ChannelBoard from './components/ChannelBoard.jsx';
-import { WS_URL, fetchPendingRequests } from './lib/api.js';
+import DecisionSheet from './components/DecisionSheet.jsx';
+import { WS_URL, decideRequest, fetchPendingRequests } from './lib/api.js';
 
 // Maestro Workflow 대시보드 셸: 대기 요청을 채널 보드로 표시하고 WS로 실시간 갱신.
 export default function App() {
@@ -40,7 +41,18 @@ export default function App() {
       </header>
       <ChannelBoard requests={requests} onSelect={setSelected} />
       {selected ? (
-        <div className="px-4 text-sm text-slate-400">선택됨: {selected.subject.title} (결정 시트는 다음 단계)</div>
+        <DecisionSheet
+          request={selected}
+          onClose={() => setSelected(null)}
+          onDecide={(decision, comment) => {
+            decideRequest(selected.requestId, { decision, comment })
+              .catch(() => {})
+              .finally(() => {
+                setSelected(null);
+                reload();
+              });
+          }}
+        />
       ) : null}
     </div>
   );
