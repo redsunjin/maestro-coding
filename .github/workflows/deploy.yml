@@ -13,6 +13,8 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # 러너 행(hang) 시 6시간 기본 한도 대신 빠른 실패로 드러나게 한다 (2026-07-31 행 사고 재발 대비)
+    timeout-minutes: 15
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
