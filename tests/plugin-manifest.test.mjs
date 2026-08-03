@@ -101,11 +101,21 @@ test('run-server-quiet boots the server with filtered output and cleans up on SI
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,
   });
+  // 어떤 assert가 실패해도 detached 프로세스 그룹(sh/grep/node 서버)을 반드시 정리한다.
+  // 정리 없이는 파이프가 열린 채 남아 node --test 전체가 영원히 끝나지 않는다
+  // (2026-07-31~08-03 CI 행 사고의 원인). 성공 경로의 명시적 SIGTERM 후에는 no-op.
+  t.after(() => {
+    try {
+      process.kill(-child.pid, 'SIGTERM');
+    } catch { /* 이미 종료됨 */ }
+  });
+
   let output = '';
   child.stdout.on('data', (chunk) => { output += chunk.toString(); });
   child.stderr.on('data', (chunk) => { output += chunk.toString(); });
 
-  const deadline = Date.now() + 20000;
+  // 저속 러너(이미지 교체 직후 등)에서 20초 부팅 데드라인이 간헐적으로 초과되어 45초로 완화
+  const deadline = Date.now() + 45000;
   let healthy = false;
   while (Date.now() < deadline) {
     try {
