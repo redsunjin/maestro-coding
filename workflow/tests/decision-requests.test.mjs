@@ -91,6 +91,10 @@ test('broadcasts WORKFLOW_REQUEST_CREATED over WebSocket', async () => {
     const token = await setupActor(server, 'agent_a');
     const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
     await once(ws, 'open');
+    // 엄격 모드 WS는 첫 메시지 인증이 필요하다 (스펙 2026-08-03 §2)
+    ws.send(JSON.stringify({ type: 'WORKFLOW_AUTH', token: SERVER_TOKEN }));
+    const [authRaw] = await once(ws, 'message');
+    assert.equal(JSON.parse(authRaw.toString()).type, 'WORKFLOW_AUTH_OK');
     const messagePromise = once(ws, 'message');
     await postRequest(server, token, { subjectType: 'publish', subject: { title: '보고서 발송' } });
     const [raw] = await messagePromise;

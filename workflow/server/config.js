@@ -8,6 +8,7 @@ export const ROOT_DIR = path.resolve(__dirname, '..');
 export const PORT = Number(process.env.MAESTRO_WORKFLOW_PORT || 8090);
 export const HOST = process.env.MAESTRO_WORKFLOW_HOST || '127.0.0.1';
 export const SERVER_TOKEN = process.env.MAESTRO_WORKFLOW_SERVER_TOKEN || '';
+export const WS_AUTH_TIMEOUT_MS = Number(process.env.MAESTRO_WORKFLOW_WS_AUTH_TIMEOUT_MS || 5000);
 
 export const ACTOR_STORE_PATH = path.resolve(
   ROOT_DIR,

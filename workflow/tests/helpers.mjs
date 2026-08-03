@@ -28,7 +28,7 @@ export async function waitForHealth(port, timeoutMs = 5000) {
 }
 
 // tempDir를 넘기면 같은 스토어로 재시작할 수 있다 (영속화 테스트용).
-export async function startServer({ serverToken = '', tempDir = null } = {}) {
+export async function startServer({ serverToken = '', tempDir = null, extraEnv = {} } = {}) {
   const dataDir = tempDir || mkdtempSync(resolve(os.tmpdir(), 'maestro-workflow-test-'));
   const port = randomPort();
   const proc = spawn(process.execPath, [SERVER_ENTRY], {
@@ -41,6 +41,7 @@ export async function startServer({ serverToken = '', tempDir = null } = {}) {
       MAESTRO_WORKFLOW_ACTOR_STORE_PATH: resolve(dataDir, 'actors.json'),
       MAESTRO_WORKFLOW_DECISION_STORE_PATH: resolve(dataDir, 'decisions.json'),
       MAESTRO_WORKFLOW_HISTORY_STORE_PATH: resolve(dataDir, 'history.json'),
+      ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
