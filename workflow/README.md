@@ -21,8 +21,21 @@ Maestro Harmony 제품군의 범용 승인·결정·이력(system of record) 앱
     npm run dev          # 대시보드 (기본 http://localhost:5273)
     npm test             # 서버 회귀 + UI 테스트
 
+## 엄격 모드 (서버 토큰)
+
+`MAESTRO_WORKFLOW_SERVER_TOKEN`을 설정하면 운영자 API와 WebSocket 모두 토큰을 요구한다.
+대시보드는 401/WS 4401을 만나면 토큰 입력 게이트를 띄우고, 입력값을
+localStorage(`maestro-workflow-server-token`)에 저장한 뒤 재연결한다.
+WebSocket은 접속 직후 `{"type":"WORKFLOW_AUTH","token":"…"}` 첫 메시지로 인증하며
+(`WORKFLOW_AUTH_OK` 응답), 미인가 소켓은 브로드캐스트를 받지 못하고
+`MAESTRO_WORKFLOW_WS_AUTH_TIMEOUT_MS`(기본 5000ms) 후 4401로 닫힌다.
+끊긴 WS는 1s→2s→4s…(최대 15s) 백오프로 자동 재연결한다 (4401 제외).
+
+- 스펙: [`docs/superpowers/specs/2026-08-03-workflow-strict-dashboard-design.md`](../docs/superpowers/specs/2026-08-03-workflow-strict-dashboard-design.md)
+
 ## 알려진 한계 (MVP)
 
-- **대시보드는 open 모드 전용이다.** `MAESTRO_WORKFLOW_SERVER_TOKEN`을 설정한 엄격 모드에서는 운영자 API(`GET /api/decision-requests`, `POST .../decide`, `GET /api/history`)가 서버 토큰을 요구하지만, 현재 대시보드는 토큰을 보낼 수단이 없어 동작하지 않는다. 토큰 모드 대시보드와 WS 인증 핸드셰이크는 후속 스펙으로 예약한다.
-- **WebSocket 브로드캐스트는 무인증**이며 요청 payload 전문이 흐른다. 기본 `HOST=127.0.0.1` 로컬 전용 전제를 유지하라.
-- **WS 자동 재연결 없음** — 서버 재시작 시 대시보드를 새로고침해야 실시간 갱신이 재개된다. 헤더의 "연결 대기" 표시로 끊김을 확인할 수 있다.
+- 토큰은 localStorage에 평문 저장된다 — 로컬 신뢰 기기 전제. TLS 없음, 기본
+  `HOST=127.0.0.1` 로컬 전용 전제를 유지하라.
+- WS 구독은 운영자(서버 토큰) 전용이다. actor 토큰의 WS 구독, 다중 운영자/권한
+  분리는 후속 스펙으로 예약한다.
