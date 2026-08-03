@@ -126,8 +126,15 @@ test('run-server-quiet boots the server with filtered output and cleans up on SI
   }
   assert.ok(healthy, `monitor server never became healthy. output:\n${output}`);
 
-  // 소음 필터: 기동 안내는 통과, 서버 배너의 장황한 라인(에이전트 API 예시 등)은 차단
-  assert.ok(output.includes('Maestro 서버 실행 중') || output.includes('재사용'), `기동 라인 없음:\n${output}`);
+  // 소음 필터: 기동 안내는 통과, 서버 배너의 장황한 라인(에이전트 API 예시 등)은 차단.
+  // health 응답은 listen 콜백의 기동 로그가 파이프(grep)를 거쳐 'data' 이벤트로
+  // 도달하기 전에 성공할 수 있으므로, 기동 라인은 별도 폴링으로 기다린다 (CI 플레이크 방지).
+  const hasBootLine = () => output.includes('Maestro 서버 실행 중') || output.includes('재사용');
+  const bootLineDeadline = Date.now() + 10000;
+  while (Date.now() < bootLineDeadline && !hasBootLine()) {
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
+  }
+  assert.ok(hasBootLine(), `기동 라인 없음:\n${output}`);
   assert.ok(!output.includes('curl -X POST'), `배너 소음이 필터를 통과함:\n${output}`);
 
   process.kill(-child.pid, 'SIGTERM');
