@@ -2,42 +2,91 @@ import { useCallback, useEffect, useState } from 'react';
 import ChannelBoard from './components/ChannelBoard.jsx';
 import DecisionSheet from './components/DecisionSheet.jsx';
 import HistoryPanel from './components/HistoryPanel.jsx';
-import { WS_URL, decideRequest, fetchHistory, fetchPendingRequests } from './lib/api.js';
+import TokenGate from './components/TokenGate.jsx';
+import {
+  WS_URL,
+  decideRequest,
+  fetchHistory,
+  fetchPendingRequests,
+  getServerToken,
+  loadServerToken,
+  setServerToken,
+} from './lib/api.js';
 
-// Maestro Workflow 대시보드 셸: 대기 요청을 채널 보드로 표시하고 WS로 실시간 갱신.
+const MAX_RECONNECT_DELAY_MS = 15000;
+
+// Maestro Workflow 대시보드 셸: 채널 보드 + WS 실시간 갱신 + 엄격 모드 토큰 게이트.
 export default function App() {
   const [requests, setRequests] = useState([]);
   const [selected, setSelected] = useState(null);
   const [connected, setConnected] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState([]);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [wsEpoch, setWsEpoch] = useState(0);
+  useState(() => loadServerToken());
 
   const reload = useCallback(() => {
-    fetchPendingRequests().then(setRequests).catch(() => {});
+    fetchPendingRequests()
+      .then(setRequests)
+      .catch((error) => {
+        if (error && error.code === 'UNAUTHORIZED') setAuthRequired(true);
+      });
     fetchHistory().then(setHistory).catch(() => {});
   }, []);
 
   useEffect(() => {
     reload();
-    const ws = new WebSocket(WS_URL);
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (
-          data.type === 'WORKFLOW_REQUEST_CREATED'
-          || data.type === 'WORKFLOW_DECIDED'
-          || data.type === 'WORKFLOW_HISTORY_APPEND'
-        ) {
-          reload();
+    let disposed = false;
+    let ws = null;
+    let reconnectTimer = null;
+    let attempt = 0;
+
+    const connect = () => {
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'WORKFLOW_AUTH', token: getServerToken() }));
+      };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'WORKFLOW_AUTH_OK') {
+            attempt = 0;
+            setConnected(true);
+            reload(); // 끊김 동안의 변경분 재동기화
+            return;
+          }
+          if (
+            data.type === 'WORKFLOW_REQUEST_CREATED'
+            || data.type === 'WORKFLOW_DECIDED'
+            || data.type === 'WORKFLOW_HISTORY_APPEND'
+          ) {
+            reload();
+          }
+        } catch {
+          // 무시
         }
-      } catch {
-        // 무시
-      }
+      };
+      ws.onclose = (event) => {
+        setConnected(false);
+        if (disposed) return;
+        if (event && event.code === 4401) {
+          setAuthRequired(true);
+          return;
+        }
+        const delay = Math.min(1000 * 2 ** attempt, MAX_RECONNECT_DELAY_MS);
+        attempt += 1;
+        reconnectTimer = setTimeout(connect, delay);
+      };
     };
-    return () => ws.close();
-  }, [reload]);
+
+    connect();
+    return () => {
+      disposed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) ws.close();
+    };
+  }, [reload, wsEpoch]);
 
   return (
     <div className="min-h-screen">
@@ -70,6 +119,15 @@ export default function App() {
                 setSelected(null);
                 reload();
               });
+          }}
+        />
+      ) : null}
+      {authRequired ? (
+        <TokenGate
+          onSubmit={(token) => {
+            setServerToken(token);
+            setAuthRequired(false);
+            setWsEpoch((value) => value + 1); // effect 재실행 → 재조회 + WS 재접속
           }}
         />
       ) : null}
