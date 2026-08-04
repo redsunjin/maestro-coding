@@ -18,15 +18,12 @@
 | B. GitLab 공개 URL 수동 입력 | ✅ 로드 성공 — gitlab-org/gitlab-foss, git-public-url 모드, 이벤트 12·커밋 12 | [`B1-player-gitlab.png`](B1-player-gitlab.png) |
 | C. golden demo 자동 재생 (forge 요청 0건) | ✅ 자동 프리뷰 완주 — 진행 15/17박(88% 시점 캡처), 퍼펙트 15, 점수 1540, 정확도 100%, github/gitlab 네트워크 요청 0건 | [`C1-golden-autoplay.png`](C1-golden-autoplay.png) |
 | 콘솔/SW 오류 | ✅ 0건 (전체 흐름 동안 console error 미발생) | results.json |
-| A-1. 실제 툴바 팝업의 현재 탭 감지 | ⏳ **수동 확인 대기** — `chrome.action.openPopup()`은 오류 없이 resolve됐으나(팝업 표시 추정) Playwright가 팝업 페이지를 계측하지 못해 감지 문구를 자동 단언하지 못함 | 아래 수동 절차 |
+| A-1. 실제 툴바 팝업의 현재 탭 감지 | ✅ **완결 (2026-08-04 후속 런)** — 원시 CDP(remote-debugging-port)로 실제 팝업에 attach. 감지 문구 "현재 탭에서 감지됨: redsunjin/maestro-coding (github)", URL 프리필 확인, `이 저장소 재생` 클릭 → player 탭 자동 오픈+리플레이 로드(111 BPM) | [`A1-real-popup.png`](A1-real-popup.png), [`A1-player-from-real-popup.png`](A1-player-from-real-popup.png), [`2026-08-04-g1-popup-results.json`](2026-08-04-g1-popup-results.json) |
 
-## 남은 수동 확인 (1건, 약 30초)
+## 수동 확인
 
-1. Chrome `chrome://extensions` → 개발자 모드 → "압축해제된 확장 프로그램 로드" → `player/dist-extension` 선택
-2. 공개 GitHub 저장소 탭(예: github.com/redsunjin/maestro-coding)에서 툴바의 Maestro Player 아이콘 클릭
-3. 팝업에 "감지된 저장소" 문구와 URL 프리필이 뜨는지 확인 → `이 저장소 재생` 클릭 → player 탭 자동 로드 확인
-
-이 확인이 끝나면 roadmap의 G1을 DONE으로, G2를 NEXT로 전환한다.
+없음 — 전 조건 자동 증거 확보 (팝업 계측은 Playwright 미지원이라 원시 CDP로 수행).
+비고: openPopup은 창 활성화 상태를 요구해 재시도 루프(최대 5회)로 안정화했다.
 
 ## 재현
 

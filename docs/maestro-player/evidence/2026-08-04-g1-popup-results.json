@@ -1,0 +1,11 @@
+{
+  "openPopupOutcome": "resolved",
+  "detected": "현재 탭에서 감지됨: redsunjin/maestro-coding (github)",
+  "prefilledUrl": "https://github.com/redsunjin/maestro-coding",
+  "status": "저장소를 감지했다. 준비되면 플레이어 탭을 연다.",
+  "screenshot": "A1-real-popup.png",
+  "playerUrl": "chrome-extension://EXT/player.html?launch=ee386563-fe59-4b13-9350-7e6e09d49548",
+  "playerLoaded": [
+    "111 BPM"
+  ]
+}
