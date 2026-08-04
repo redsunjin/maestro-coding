@@ -1,8 +1,9 @@
 # Maestro Player Goal Roadmap
 
-기준일: 2026-07-10  
-상태: **G1 실행 대기 — Unpacked Chrome runtime proof**  
-기준 브랜치/Worktree: `codex/maestro-player-foundation` / `.worktrees/maestro-player`
+기준일: 2026-08-04 (최초 2026-07-10)  
+상태: **G1 자동 증거 확보 — 툴바 팝업 현재 탭 감지 수동 확인 1건 대기**  
+기준 브랜치: `main` (PR #42로 파운데이션 편입 완료, QA Gate `player-app` 잡 포함)  
+G1 증거: [`evidence/2026-08-04-g1-chromium-runtime.md`](evidence/2026-08-04-g1-chromium-runtime.md)
 
 ## 1. 이 문서의 역할
 
@@ -77,7 +78,16 @@
 
 ### G1 — Unpacked Chrome runtime proof
 
-상태: **NEXT**
+상태: **NEXT — 자동 증거 확보 (2026-08-04), 완료 조건 4(툴바 팝업 현재 탭 감지)만 수동 확인 대기**
+
+확보된 증거([상세](evidence/2026-08-04-g1-chromium-runtime.md), Chromium 145 + Playwright unpacked 로드):
+
+- 조건 1·2: `npm run qa`(74+24+8), `npm run build:extension` 통과
+- 조건 3: Chromium 145 unpacked 로드 (브랜드 Chrome 137+는 CLI `--load-extension` 제거 — 수동 확인은 chrome://extensions 개발자 모드 경로 사용)
+- 조건 4 일부: GitHub 공개 URL → popup → player 리플레이 로드 성공 (커밋 8·머지 4·노트 20). 툴바 팝업의 현재 탭 감지만 수동 대기
+- 조건 5: GitLab 공개 URL(gitlab-org/gitlab-foss) 리플레이 로드 성공 (커밋 12)
+- 조건 6: golden demo 자동 프리뷰 완주 — 퍼펙트 15/점수 1540/정확도 100%, forge 요청 0건
+- 조건 7: console/SW 오류 0건
 
 검증 질문:
 

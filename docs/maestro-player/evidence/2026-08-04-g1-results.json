@@ -1,0 +1,26 @@
+{
+  "startedAt": "2026-08-04T02:25:22.966Z",
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+  "flows": {
+    "A1_real_toolbar_popup": {
+      "openPopupOutcome": "resolved",
+      "popupPageObserved": false,
+      "note": "자동화 불가 — 수동 확인 필요 항목으로 기록"
+    },
+    "A2_github_public_url": {
+      "playerUrl": "chrome-extension://EXT/player.html?launch=032d25d2-79a5-407a-aa5d-bda05424eaf0",
+      "statusText": "리플레이 상태 현재 세션 소스 준비됨 현재 소스 라벨 redsunjin/maestro-coding 모드 git-public-url 제공자 github 브랜치 main 공개 범위 public 리플레이 로드 이벤트 12 커밋 8 머지 4 리뷰 0 마지막 로드: 2026. 8. 4. 오전 11:25:32 차트 요약 노트 20 프레이즈 3 레인 4 길이 43.0박 템포 111 BPM 최대 밀도 2/박 런 세션 차트 플레이 수동 플레이 플레이 준비됨 111 BPM 수동 플레이 레인 버튼이나 A/S/D/F 키를 눌러 타이밍 윈도 안에서 노트를 맞히세요. 클릭 트랙 켜짐 클릭 트랙 준비됨 BGM 레이어 켜짐 BGM 준비됨 1 2 3 4 수동 플레이 자동 프리뷰 런 시작 클릭 트랙 끄기 BGM 레이어 끄기 런 일시정지 "
+    },
+    "B_gitlab_manual_url": {
+      "playerUrl": "chrome-extension://EXT/player.html?launch=9ab2b4df-4a2e-4721-8e03-21ea43b6ecf7",
+      "playerText": "MAESTRO PLAYER 저장소 이력을 플레이 가능한 악보로 바꿉니다. 로컬 저장소, 공개 GitHub 또는 GitLab URL, 혹은 연결된 forge 저장소를 불러와 커밋 흐름을 리듬 차트로 변환합니다. 읽기 전용 리플레이 Git + PR 의미 반영 결정적 모티프 언어 한국어 English 크롬 익스텐션 공개 저장소 바로 재생 공개 URL 전용 공개 GitHub 또는 GitLab 저장소를 넣으면 바로 리플레이를 불러옵니다. 공개 저장소 URL 브랜치 저장소 리플레이 불러오기 네트워크 없이 아래의 고정 골든 데모를 자동 재생으로 바로 시작할 수도 있습니다. 골든 리스닝 자동 재생 데모 팩 고정된 리스닝 시나리오를 불러와 바로 자동 프리뷰로 들어갑니다. GitHub 112 BPM GitHub Public PR Cadence relay-5 모티프 · F dorian GitHub Public PR Cadence 자동 재생 GitLab 112 BPM GitLab Public Discus"
+    },
+    "C_golden_autoplay": {
+      "goldenLabel": "GitHub Public PR Cadence 자동 데모 실행",
+      "forgeRequestsDuringGolden": [],
+      "playerText": "MAESTRO PLAYER 저장소 이력을 플레이 가능한 악보로 바꿉니다. 로컬 저장소, 공개 GitHub 또는 GitLab URL, 혹은 연결된 forge 저장소를 불러와 커밋 흐름을 리듬 차트로 변환합니다. 읽기 전용 리플레이 Git + PR 의미 반영 결정적 모티프 언어 한국어 English 크롬 익스텐션 공개 저장소 바로 재생 공개 URL 전용 공개 GitHub 또는 GitLab 저장소를 넣으면 바로 리플레이를 불러옵니다. 공개 저장소 URL 브랜치 저장소 리플레이 불러오기 네트워크 없이 아래의 고정 골든 데모를 자동 재생으로 바로 시작할 수도 있습니다. 골든 리스닝 자동 재생 데모 팩 고정된 리스닝 시나리오를 불러와 바로 자동 프리뷰로 들어갑니다. GitHub 112 BPM GitHub Public PR Cadence relay-5 모티프 · F dorian GitHub Public PR Cadence 자동 재생 GitLab 112 BPM GitLab Public Discus"
+    }
+  },
+  "consoleErrors": [],
+  "extensionId": "doeppfcmkfinakicdaldhigimaemcoak"
+}
