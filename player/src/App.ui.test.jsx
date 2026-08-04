@@ -50,7 +50,6 @@ describeIfApp('Player Shell UI', () => {
     expect(getSourceModeControl('Public Repo URL')).toBeVisible();
     expect(getSourceModeControl('Connected Account')).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Latest mapped events' })).toBeVisible();
 
     await user.click(getSourceModeControl('Public Repo URL'));
 
@@ -86,11 +85,14 @@ describeIfApp('Player Shell UI', () => {
     await user.click(screen.getByRole('button', { name: 'Load Replay' }));
 
     await waitFor(() => {
-      expect(findSourceSummaryText([fixtures.publicRepoUrl, fixtures.publicRepoSlug])).toBeVisible();
-      expect(findEventCountSummary(fixtures.publicEventCount)).toBeVisible();
-      expect(screen.getByText('feat: add replay intro theme')).toBeVisible();
-      expect(screen.getByText('Please tighten the bridge section.')).toBeVisible();
+      expect(findSourceSummaryText([fixtures.publicRepoUrl, fixtures.publicRepoSlug])).toBeInTheDocument();
     });
+
+    await openDeckTab(user, 'Session');
+    expect(findSourceSummaryText([fixtures.publicRepoUrl, fixtures.publicRepoSlug])).toBeVisible();
+    expect(findEventCountSummary(fixtures.publicEventCount)).toBeVisible();
+    expect(screen.getByText('feat: add replay intro theme')).toBeVisible();
+    expect(screen.getByText('Please tighten the bridge section.')).toBeVisible();
   });
 
   test('loading a public gitlab repo shows the selected source and gitlab event count', async () => {
@@ -108,11 +110,14 @@ describeIfApp('Player Shell UI', () => {
     await user.click(screen.getByRole('button', { name: 'Load Replay' }));
 
     await waitFor(() => {
-      expect(findSourceSummaryText([fixtures.publicRepoUrl, fixtures.gitlabPublicRepoSlug])).toBeVisible();
-      expect(findEventCountSummary(fixtures.gitlabPublicEventCount)).toBeVisible();
-      expect(screen.getByText('feat: add merge request groove')).toBeVisible();
-      expect(screen.getByText('Reopening after retest because the click is still audible.')).toBeVisible();
+      expect(findSourceSummaryText([fixtures.publicRepoUrl, fixtures.gitlabPublicRepoSlug])).toBeInTheDocument();
     });
+
+    await openDeckTab(user, 'Session');
+    expect(findSourceSummaryText([fixtures.publicRepoUrl, fixtures.gitlabPublicRepoSlug])).toBeVisible();
+    expect(findEventCountSummary(fixtures.gitlabPublicEventCount)).toBeVisible();
+    expect(screen.getByText('feat: add merge request groove')).toBeVisible();
+    expect(screen.getByText('Reopening after retest because the click is still audible.')).toBeVisible();
   });
 
   test('bootstrap public repo launch preloads the draft and auto-loads the replay', async () => {
@@ -138,10 +143,14 @@ describeIfApp('Player Shell UI', () => {
     });
 
     await waitFor(() => {
-      expect(findSourceSummaryText([publicRepoUrl, 'openai/maestro-player'])).toBeVisible();
-      expect(findEventCountSummary(fixtures.gitlabPublicEventCount)).toBeVisible();
+      expect(findSourceSummaryText([publicRepoUrl, 'openai/maestro-player'])).toBeInTheDocument();
     });
 
+    await openDeckTab(user, 'Session');
+    expect(findSourceSummaryText([publicRepoUrl, 'openai/maestro-player'])).toBeVisible();
+    expect(findEventCountSummary(fixtures.gitlabPublicEventCount)).toBeVisible();
+
+    await openDeckTab(user, 'Source');
     expect(screen.getByLabelText('Public Repository URL')).toHaveValue(publicRepoUrl);
     expect(screen.getByLabelText('Branch')).toHaveValue(publicBranch);
 
@@ -191,9 +200,11 @@ describeIfApp('Player Shell UI', () => {
     await user.click(screen.getByRole('button', { name: 'Load Replay' }));
 
     await waitFor(() => {
-      expect(findSourceSummaryText([fixtures.accountRepoSlug])).toBeVisible();
-      expect(findEventCountSummary(fixtures.accountEventCount)).toBeVisible();
+      expect(findSourceSummaryText([fixtures.accountRepoSlug])).toBeInTheDocument();
     });
+
+    await openDeckTab(user, 'Session');
+    expect(findEventCountSummary(fixtures.accountEventCount)).toBeVisible();
 
     expect(
       requestLog.some(({ init, url }) => (
@@ -223,9 +234,11 @@ describeIfApp('Player Shell UI', () => {
     await user.click(screen.getByRole('button', { name: 'Load Replay' }));
 
     await waitFor(() => {
-      expect(findSourceSummaryText([fixtures.gitlabAccountRepoSlug])).toBeVisible();
-      expect(findEventCountSummary(fixtures.gitlabAccountEventCount)).toBeVisible();
+      expect(findSourceSummaryText([fixtures.gitlabAccountRepoSlug])).toBeInTheDocument();
     });
+
+    await openDeckTab(user, 'Session');
+    expect(findEventCountSummary(fixtures.gitlabAccountEventCount)).toBeVisible();
 
     expect(
       requestLog.some(({ init, url }) => (
@@ -246,10 +259,13 @@ describeIfApp('Player Shell UI', () => {
     await user.click(screen.getByRole('button', { name: 'Load Replay' }));
 
     await waitFor(() => {
-      expect(findSourceSummaryText([fixtures.localRepoPath])).toBeVisible();
-      expect(findEventCountSummary(fixtures.localEventCount)).toBeVisible();
-      expect(screen.getByText('feat: local bridge playback')).toBeVisible();
+      expect(findSourceSummaryText([fixtures.localRepoPath])).toBeInTheDocument();
     });
+
+    await openDeckTab(user, 'Session');
+    expect(findSourceSummaryText([fixtures.localRepoPath])).toBeVisible();
+    expect(findEventCountSummary(fixtures.localEventCount)).toBeVisible();
+    expect(screen.getByText('feat: local bridge playback')).toBeVisible();
 
     expect(bridgeLog).toHaveLength(1);
     expect(bridgeLog[0]).toMatchObject({
@@ -265,12 +281,17 @@ describeIfApp('Player Shell UI', () => {
 
     await user.click(screen.getByRole('button', { name: 'Autoplay demo for GitHub Public PR Cadence' }));
 
+    // golden 실행은 play 탭으로 자동 전환된다
     await waitFor(() => {
-      expect(screen.getByText('GitHub Public PR Cadence', { selector: 'dd' })).toBeVisible();
       expect(screen.getByText('Run active')).toBeVisible();
       expect(screen.getByRole('tab', { name: 'Auto Preview' })).toHaveAttribute('aria-selected', 'true');
-      expect(screen.getByText('Active demo')).toBeVisible();
     });
+
+    await openDeckTab(user, 'Session');
+    expect(screen.getByText('GitHub Public PR Cadence', { selector: 'dd' })).toBeVisible();
+
+    await openDeckTab(user, 'Source');
+    expect(screen.getByText('Active demo')).toBeVisible();
   });
 
   test('loads persisted score history for the active source', async () => {
@@ -340,16 +361,48 @@ describeIfApp('Player Shell UI', () => {
     await user.click(screen.getByRole('button', { name: 'Load Replay' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Filtered')).toBeVisible();
-      expect(screen.getByRole('heading', { name: 'Recent score history' })).toBeVisible();
-      expect(screen.getByText('9,870 pts')).toBeVisible();
-      expect(screen.getByText('18 max combo')).toBeVisible();
-      expect(screen.getByText(/18 \/ 19 notes, 1 misses/i)).toBeVisible();
+      expect(screen.getByText('9,870 pts')).toBeInTheDocument();
     });
+
+    await openDeckTab(user, 'Records');
+    expect(screen.getByText('Filtered')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Recent score history' })).toBeVisible();
+    expect(screen.getByText('9,870 pts')).toBeVisible();
+    expect(screen.getByText('18 max combo')).toBeVisible();
+    expect(screen.getByText(/18 \/ 19 notes, 1 misses/i)).toBeVisible();
 
     expect(screen.queryByText('1,111 pts')).not.toBeInTheDocument();
   });
+
+  test('deck tabs default to source and reveal the run panel on demand', async () => {
+    const { user } = renderPlayerApp(App);
+
+    expect(screen.getByRole('tablist', { name: 'Player deck' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Play the chart' })).not.toBeInTheDocument();
+
+    await openDeckTab(user, 'Play');
+    expect(screen.getByRole('heading', { name: 'Play the chart' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Choose the right input path' })).not.toBeInTheDocument();
+  });
+
+  test('replay load failure surfaces a global error banner above the deck', async () => {
+    const { user } = renderPlayerApp(App);
+
+    await user.click(getSourceModeControl('Public Repo URL'));
+    await user.clear(screen.getByLabelText('Public Repository URL'));
+    await user.type(screen.getByLabelText('Public Repository URL'), 'https://example.com/not/supported');
+    await user.click(screen.getByRole('button', { name: 'Load Replay' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeVisible();
+    });
+  });
 });
+
+async function openDeckTab(user, name) {
+  await user.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }));
+}
 
 function getSourceModeControl(name) {
   return screen.queryByRole('tab', { name }) || screen.getByRole('button', { name });

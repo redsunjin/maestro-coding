@@ -1,6 +1,7 @@
 import React, { startTransition, useEffect, useState } from 'react';
 import GoldenListeningPanel from './components/GoldenListeningPanel.jsx';
 import ExtensionPublicLauncher from './components/ExtensionPublicLauncher.jsx';
+import PlayerDeckTabs from './components/PlayerDeckTabs.jsx';
 import PlayerRunPanel from './components/PlayerRunPanel.jsx';
 import ReplayEventTimeline from './components/ReplayEventTimeline.jsx';
 import ScoreHistoryPanel from './components/ScoreHistoryPanel.jsx';
@@ -59,6 +60,7 @@ export default function App({ bootstrap = null }) {
   const [pendingRunRequest, setPendingRunRequest] = useState(null);
   const [runRequest, setRunRequest] = useState(null);
   const [bootstrapAutoLoadPending, setBootstrapAutoLoadPending] = useState(() => resolvedBootstrap.autoLoadPublicReplay);
+  const [deckTab, setDeckTab] = useState('source');
   const localBridgeAvailable = hasLocalRepoBridge(globalThis);
   const copy = getPlayerCopy(language);
   const modeDefinitions = copy.modeDefinitions;
@@ -321,6 +323,7 @@ export default function App({ bootstrap = null }) {
       setLoadedEvents(normalizedEvents);
       setMusicPlan(nextMusicPlan);
       setChart(nextChart);
+      setDeckTab('play'); // 로드 성공 = 재생 준비 — 플레이 탭으로 자동 전환 (스펙 §1)
     });
   };
 
@@ -401,9 +404,24 @@ export default function App({ bootstrap = null }) {
           </div>
         </header>
 
-        <main className="player-grid">
-          <div className="player-column">
-            {isExtensionSurface ? (
+        <main className="player-deck">
+          <PlayerDeckTabs
+            activeTab={deckTab}
+            onSelect={setDeckTab}
+            language={language}
+            indicators={{
+              play: Boolean(chart?.notes?.length),
+              session: Boolean(activeSource),
+              records: visiblePerformanceHistory.length > 0,
+            }}
+          />
+          {errorMessage ? (
+            <div className="player-deck__error" role="alert">{errorMessage}</div>
+          ) : null}
+          <section hidden={deckTab !== 'source'} className="player-deck__panel">
+            <div className="player-grid">
+              <div className="player-column">
+                {isExtensionSurface ? (
               <ExtensionPublicLauncher
                 language={language}
                 publicUrl={drafts.public.url}
@@ -461,22 +479,19 @@ export default function App({ bootstrap = null }) {
                 />
               </>
             )}
-            <GoldenListeningPanel
-              entries={goldenListeningEntries}
-              activeScenarioId={activeGoldenScenarioId}
-              onAutoplay={handleAutoplayGoldenScenario}
-              language={language}
-              compact={isExtensionSurface}
-            />
-          </div>
-          <div className="player-column">
-            <ReplayStatusPanel
-              activeSource={activeSource}
-              replaySummary={replaySummary}
-              chartSummary={chartSummary}
-              latestError={errorMessage}
-              language={language}
-            />
+              </div>
+              <div className="player-column">
+                <GoldenListeningPanel
+                  entries={goldenListeningEntries}
+                  activeScenarioId={activeGoldenScenarioId}
+                  onAutoplay={handleAutoplayGoldenScenario}
+                  language={language}
+                  compact={isExtensionSurface}
+                />
+              </div>
+            </div>
+          </section>
+          <section hidden={deckTab !== 'play'} className="player-deck__panel">
             <PlayerRunPanel
               chart={chart}
               tempo={musicPlan[0]?.tempo || 120}
@@ -484,9 +499,13 @@ export default function App({ bootstrap = null }) {
               language={language}
               runRequest={runRequest}
             />
-            <ScoreHistoryPanel
+          </section>
+          <section hidden={deckTab !== 'session'} className="player-deck__panel">
+            <ReplayStatusPanel
               activeSource={activeSource}
-              records={visiblePerformanceHistory}
+              replaySummary={replaySummary}
+              chartSummary={chartSummary}
+              latestError={errorMessage}
               language={language}
             />
             <ReplayEventTimeline
@@ -496,7 +515,14 @@ export default function App({ bootstrap = null }) {
               maxItems={6}
               language={language}
             />
-          </div>
+          </section>
+          <section hidden={deckTab !== 'records'} className="player-deck__panel">
+            <ScoreHistoryPanel
+              activeSource={activeSource}
+              records={visiblePerformanceHistory}
+              language={language}
+            />
+          </section>
         </main>
       </div>
     </div>
