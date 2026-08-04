@@ -1,5 +1,26 @@
 const PERFORMANCE_HISTORY_STORAGE_KEY = 'maestro-player-performance-history-v1';
-const MAX_PERFORMANCE_HISTORY_RECORDS = 18;
+// 저장 정책 (G2 스펙 §2): 소스별 최근 50건 + 전체 200건, 초과분은 오래된 순 삭제.
+const MAX_RECORDS_PER_SOURCE = 50;
+const MAX_TOTAL_RECORDS = 200;
+
+function applyRetentionPolicy(records) {
+  const perSourceCounts = new Map();
+  const retained = [];
+
+  for (const record of records) { // 최신순 정렬 전제
+    const count = perSourceCounts.get(record.sourceKey) || 0;
+    if (count >= MAX_RECORDS_PER_SOURCE) {
+      continue;
+    }
+    perSourceCounts.set(record.sourceKey, count + 1);
+    retained.push(record);
+    if (retained.length >= MAX_TOTAL_RECORDS) {
+      break;
+    }
+  }
+
+  return retained;
+}
 
 export function getPerformanceHistoryStorageKey() {
   return PERFORMANCE_HISTORY_STORAGE_KEY;
@@ -23,11 +44,12 @@ export function loadPerformanceHistory(globalObject = globalThis) {
       return [];
     }
 
-    return parsed
-      .map(normalizePerformanceRecord)
-      .filter(Boolean)
-      .sort(comparePerformanceRecords)
-      .slice(0, MAX_PERFORMANCE_HISTORY_RECORDS);
+    return applyRetentionPolicy(
+      parsed
+        .map(normalizePerformanceRecord)
+        .filter(Boolean)
+        .sort(comparePerformanceRecords),
+    );
   } catch {
     return [];
   }
@@ -39,12 +61,12 @@ export function appendPerformanceRecord(record, globalObject = globalThis) {
     return loadPerformanceHistory(globalObject);
   }
 
-  const nextHistory = [
-    normalizedRecord,
-    ...loadPerformanceHistory(globalObject).filter((entry) => entry.runId !== normalizedRecord.runId),
-  ]
-    .sort(comparePerformanceRecords)
-    .slice(0, MAX_PERFORMANCE_HISTORY_RECORDS);
+  const nextHistory = applyRetentionPolicy(
+    [
+      normalizedRecord,
+      ...loadPerformanceHistory(globalObject).filter((entry) => entry.runId !== normalizedRecord.runId),
+    ].sort(comparePerformanceRecords),
+  );
 
   writePerformanceHistory(nextHistory, globalObject);
   return nextHistory;
