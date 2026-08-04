@@ -51,6 +51,32 @@ test('clearPerformanceHistory removes stored records', () => {
   assert.deepEqual(loadPerformanceHistory(globalObject), []);
 });
 
+test('소스별 50건 상한: 초과 시 해당 소스의 가장 오래된 기록만 삭제한다', () => {
+  const globalObject = createStorageHarness();
+
+  appendPerformanceRecord(createRecord({
+    runId: 'run-other',
+    sourceKey: 'git-public-url:github:someone/else:main',
+    finishedAt: '2026-04-01T00:00:00Z',
+  }), globalObject);
+
+  for (let index = 1; index <= 51; index += 1) {
+    appendPerformanceRecord(createRecord({
+      runId: `run-a-${index}`,
+      finishedAt: `2026-04-18T${String(Math.floor(index / 60)).padStart(2, '0')}:${String(index % 60).padStart(2, '0')}:00Z`,
+    }), globalObject);
+  }
+
+  const history = loadPerformanceHistory(globalObject);
+  const sourceARecords = history.filter((entry) => entry.sourceKey.includes('openai/maestro-player'));
+  assert.equal(sourceARecords.length, 50);
+  // 가장 오래된 run-a-1이 밀려나고 최신 run-a-51은 유지된다
+  assert.equal(sourceARecords.some((entry) => entry.runId === 'run-a-1'), false);
+  assert.equal(sourceARecords[0].runId, 'run-a-51');
+  // 다른 소스의 오래된 기록은 유지된다
+  assert.equal(history.some((entry) => entry.runId === 'run-other'), true);
+});
+
 function createRecord(overrides = {}) {
   return {
     runId: 'run-default',

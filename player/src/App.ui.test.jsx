@@ -386,6 +386,47 @@ describeIfApp('Player Shell UI', () => {
     expect(screen.queryByRole('heading', { name: 'Choose the right input path' })).not.toBeInTheDocument();
   });
 
+  test('public load 403 shows a rate-limit banner and retry succeeds into the play tab', async () => {
+    const { fixtures, user } = renderPlayerApp(App);
+
+    await user.click(getSourceModeControl('Public Repo URL'));
+    await user.clear(screen.getByLabelText('Public Repository URL'));
+    await user.type(screen.getByLabelText('Public Repository URL'), fixtures.publicRepoUrl);
+    await user.clear(screen.getByLabelText('Branch'));
+    await user.type(screen.getByLabelText('Branch'), fixtures.publicBranch);
+
+    const harnessFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: false, status: 403 });
+    await user.click(screen.getByRole('button', { name: 'Load Replay' }));
+
+    const banner = await screen.findByRole('alert');
+    expect(banner).toHaveTextContent(/rate limit/i);
+
+    globalThis.fetch = harnessFetch;
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Play the chart' })).toBeVisible();
+    });
+  });
+
+  test('empty history keeps the source tab and explains there is nothing to replay', async () => {
+    const { fixtures, user } = renderPlayerApp(App);
+
+    await user.click(getSourceModeControl('Public Repo URL'));
+    await user.clear(screen.getByLabelText('Public Repository URL'));
+    await user.type(screen.getByLabelText('Public Repository URL'), fixtures.publicRepoUrl);
+
+    globalThis.fetch = async () => ({ ok: true, json: async () => [] });
+    await user.click(screen.getByRole('button', { name: 'Load Replay' }));
+
+    const banner = await screen.findByRole('alert');
+    expect(banner).toHaveTextContent(/no replayable history/i);
+    expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Play the chart' })).not.toBeInTheDocument();
+  });
+
   test('replay load failure surfaces a global error banner above the deck', async () => {
     const { user } = renderPlayerApp(App);
 
