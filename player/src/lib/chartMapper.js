@@ -1,4 +1,8 @@
 import { clamp, hashString } from './types.js';
+import { snapToScale } from './musicTheory.js';
+
+// registerBand별 tonic 기준 옥타브 (스펙 2026-08-04 §2)
+const REGISTER_BASE_MIDI = Object.freeze({ low: 36, mid: 48, high: 60 });
 
 const PATTERN_OFFSETS = Object.freeze({
   steady: [0, 0.75, 1.5, 2.25],
@@ -17,7 +21,7 @@ export function createChartFromMusicPlan(musicPlan, options = {}) {
   for (const session of musicPlan) {
     for (const intent of session.intents) {
       const phraseLength = estimatePhraseLength(intent);
-      const patternNotes = composeIntentNotes(intent, beatCursor, laneCount, maxNotesPerBeat);
+      const patternNotes = composeIntentNotes(intent, beatCursor, laneCount, maxNotesPerBeat, session);
       notes.push(...patternNotes);
       beatCursor += phraseLength;
     }
@@ -39,7 +43,7 @@ export function resolveLaneIndex(intent, laneCount = 4) {
   return baseLane;
 }
 
-function composeIntentNotes(intent, baseBeat, laneCount, maxNotesPerBeat) {
+function composeIntentNotes(intent, baseBeat, laneCount, maxNotesPerBeat, session = null) {
   const lane = resolveLaneIndex(intent, laneCount);
   const offsets = PATTERN_OFFSETS[intent.rhythmPattern] || PATTERN_OFFSETS.steady;
   const noteBudget = getNoteBudget(intent, maxNotesPerBeat);
@@ -54,6 +58,7 @@ function composeIntentNotes(intent, baseBeat, laneCount, maxNotesPerBeat) {
       durationBeats: 2 + Math.round(intent.accentLevel * 2),
       noteType: intent.accentLevel >= 0.7 ? 'accent' : 'hold',
       eventRef: intent.eventRef,
+      pitchMidi: computePitchMidi(intent, session, 0),
     });
     return notes;
   }
@@ -67,10 +72,27 @@ function composeIntentNotes(intent, baseBeat, laneCount, maxNotesPerBeat) {
       durationBeats: intent.rhythmPattern === 'fill' ? 0.5 : 1,
       noteType: pickNoteType(intent, noteIndex),
       eventRef: intent.eventRef,
+      pitchMidi: computePitchMidi(intent, session, noteIndex),
     });
   }
 
   return notes;
+}
+
+// 세션 harmony(조성·선법)와 motif 음정을 실제 음높이로 배선한다 (스펙 §2).
+// 세션 정보가 없으면 null — 오디오 엔진이 레거시 레인 주파수로 폴백한다.
+function computePitchMidi(intent, session, noteIndex) {
+  const harmony = session?.harmony;
+  const motif = session?.motif;
+  if (!harmony || !motif) {
+    return null;
+  }
+
+  const baseMidi = (REGISTER_BASE_MIDI[intent.registerBand] ?? REGISTER_BASE_MIDI.mid)
+    + (harmony.tonicIndex || 0);
+  const intervals = motif.intervals?.length ? motif.intervals : [0];
+  const rawOffset = intervals[(noteIndex + (motif.variation || 0)) % intervals.length];
+  return baseMidi + snapToScale(rawOffset, harmony.mode);
 }
 
 function estimatePhraseLength(intent) {
