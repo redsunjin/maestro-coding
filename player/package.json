@@ -1,0 +1,31 @@
+{
+  "name": "@maestro/player",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Deterministic git-to-music mapping engine for Maestro Player",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:extension": "node scripts/buildExtensionBundle.mjs",
+    "preview": "vite preview",
+    "listening:pack": "node scripts/exportGoldenListeningPack.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:ui": "vitest run --passWithNoTests src",
+    "test:harness": "node --test tests/playerHarness.test.mjs",
+    "qa": "npm run test && npm run test:ui && npm run test:harness"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@vitejs/plugin-react": "^4.4.1",
+    "jsdom": "^28.1.0",
+    "vite": "^6.3.5",
+    "vitest": "^4.0.18"
+  }
+}
