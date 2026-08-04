@@ -31,11 +31,17 @@ WebSocket은 접속 직후 `{"type":"WORKFLOW_AUTH","token":"…"}` 첫 메시�
 `MAESTRO_WORKFLOW_WS_AUTH_TIMEOUT_MS`(기본 5000ms) 후 4401로 닫힌다.
 끊긴 WS는 1s→2s→4s…(최대 15s) 백오프로 자동 재연결한다 (4401 제외).
 
+actor도 자신의 actorToken으로 같은 `WORKFLOW_AUTH` 핸드셰이크를 쓸 수 있다
+(`WORKFLOW_AUTH_OK`에 `scope:"actor"`). actor 소켓은 자기 요청의
+`WORKFLOW_DECIDED`만 수신하며(REQUEST_CREATED/HISTORY 미수신), revoke 시
+즉시 4401로 닫힌다. WS는 알림용이다 — 스냅샷·전달 보장은 폴링
+(`GET /api/decision-requests/:id/decision`) + ack가 담당하므로 재연결 후
+폴링 1회를 권장한다.
+
 - 스펙: [`docs/superpowers/specs/2026-08-03-workflow-strict-dashboard-design.md`](../docs/superpowers/specs/2026-08-03-workflow-strict-dashboard-design.md)
 
 ## 알려진 한계 (MVP)
 
 - 토큰은 localStorage에 평문 저장된다 — 로컬 신뢰 기기 전제. TLS 없음, 기본
   `HOST=127.0.0.1` 로컬 전용 전제를 유지하라.
-- WS 구독은 운영자(서버 토큰) 전용이다. actor 토큰의 WS 구독, 다중 운영자/권한
-  분리는 후속 스펙으로 예약한다.
+- 다중 운영자/권한 분리는 후속 스펙으로 예약한다.
