@@ -56,6 +56,7 @@ export default function App({ bootstrap = null }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isRepoListLoading, setIsRepoListLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [loadErrorCode, setLoadErrorCode] = useState('');
   const [performanceHistory, setPerformanceHistory] = useState(() => loadPerformanceHistory(globalThis));
   const [pendingRunRequest, setPendingRunRequest] = useState(null);
   const [runRequest, setRunRequest] = useState(null);
@@ -173,6 +174,7 @@ export default function App({ bootstrap = null }) {
 
   const handleLoadReplay = async () => {
     setErrorMessage('');
+    setLoadErrorCode('');
     setIsLoading(true);
 
     try {
@@ -273,6 +275,7 @@ export default function App({ bootstrap = null }) {
       applyReplayResult(source, mergeReplayEvents(replayEvents, overlayEvents));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : copy.app.errors.loadReplayFailed);
+      setLoadErrorCode(error?.code || '');
     } finally {
       setIsLoading(false);
     }
@@ -318,6 +321,18 @@ export default function App({ bootstrap = null }) {
       maxNotesPerBeat: 2,
     });
 
+    if (normalizedEvents.length === 0) {
+      // 재생할 이력이 없으면 플레이 탭으로 점프하지 않는다 (G2 스펙 §1 EMPTY_HISTORY)
+      startTransition(() => {
+        setActiveSource(source);
+        setLoadedEvents([]);
+        setMusicPlan(nextMusicPlan);
+        setChart(nextChart);
+      });
+      setLoadErrorCode('EMPTY_HISTORY');
+      return;
+    }
+
     startTransition(() => {
       setActiveSource(source);
       setLoadedEvents(normalizedEvents);
@@ -360,6 +375,7 @@ export default function App({ bootstrap = null }) {
 
   const handleAutoplayGoldenScenario = (entry) => {
     setErrorMessage('');
+    setLoadErrorCode('');
     const source = buildGoldenListeningSource(entry);
     applyReplayResult(source, entry.events);
     setPendingRunRequest({
@@ -415,8 +431,21 @@ export default function App({ bootstrap = null }) {
               records: visiblePerformanceHistory.length > 0,
             }}
           />
-          {errorMessage ? (
-            <div className="player-deck__error" role="alert">{errorMessage}</div>
+          {loadErrorCode || errorMessage ? (
+            <div className="player-deck__error" role="alert">
+              <span>
+                {(loadErrorCode && copy.app.errors.publicLoad[loadErrorCode]) || errorMessage || copy.app.errors.loadReplayFailed}
+              </span>
+              <button
+                type="button"
+                className="player-deck__retry"
+                onClick={() => {
+                  void handleLoadReplay();
+                }}
+              >
+                {copy.app.errors.retryLabel}
+              </button>
+            </div>
           ) : null}
           <section hidden={deckTab !== 'source'} className="player-deck__panel">
             <div className="player-grid">
