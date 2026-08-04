@@ -2,6 +2,13 @@ const PLAYER_COPY = {
   en: {
     locale: 'en-US',
     languageLabel: 'Language',
+    deckTabs: {
+      ariaLabel: 'Player deck',
+      source: 'Source',
+      play: 'Play',
+      session: 'Session',
+      records: 'Records',
+    },
     languages: {
       ko: '한국어',
       en: 'English',
@@ -350,6 +357,13 @@ const PLAYER_COPY = {
   ko: {
     locale: 'ko-KR',
     languageLabel: '언어',
+    deckTabs: {
+      ariaLabel: '플레이어 덱',
+      source: '소스',
+      play: '플레이',
+      session: '세션',
+      records: '기록',
+    },
     languages: {
       ko: '한국어',
       en: 'English',
