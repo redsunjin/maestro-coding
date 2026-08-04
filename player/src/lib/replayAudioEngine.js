@@ -55,6 +55,16 @@ export function createBrowserReplayAudioDriver(globalObject = globalThis, option
 
       batch.cues.forEach((cue, index) => {
         playCueOnContext(context, cue, baseVolume, index);
+        // 코드 컬러 보이싱: 화음 음은 sine 패드로 낮은 게인·긴 길이로 얹는다 (스펙 화음 §1)
+        (cue.chordFrequencies || []).forEach((chordFrequencyHz) => {
+          playCueOnContext(context, {
+            ...cue,
+            frequencyHz: chordFrequencyHz,
+            waveform: 'sine',
+            gainMultiplier: cue.gainMultiplier * 0.35,
+            durationSeconds: cue.durationSeconds * 1.6,
+          }, baseVolume, index);
+        });
       });
 
       return true;
@@ -73,6 +83,9 @@ function createCueFromNote(note, stepIndex, options) {
   const frequencyHz = Number.isFinite(note.pitchMidi)
     ? resolvePitchedFrequency(note)
     : resolveLegacyLaneFrequency(note, laneIndex, laneCount);
+  const chordFrequencies = Array.isArray(note.chordMidis) && note.chordMidis.length
+    ? note.chordMidis.map((midi) => Math.round(midiToFrequency(midi) * 100) / 100)
+    : null;
 
   return {
     cueId: `${note.noteId || `cue-${stepIndex}-${laneIndex}`}`,
@@ -82,6 +95,7 @@ function createCueFromNote(note, stepIndex, options) {
     noteType: note.noteType || 'tap',
     stepIndex,
     frequencyHz,
+    chordFrequencies,
     durationSeconds: note.noteType === 'hold' ? 0.28 : note.noteType === 'accent' ? 0.18 : 0.12,
     gainMultiplier: note.noteType === 'accent' ? 1.15 : note.noteType === 'hold' ? 0.8 : 0.92,
     waveform: note.noteType === 'hold' ? 'sawtooth' : note.noteType === 'accent' ? 'triangle' : 'sine',
