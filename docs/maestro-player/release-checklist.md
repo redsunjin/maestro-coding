@@ -10,7 +10,8 @@
       (`tests/extensionManifest.test.mjs`가 불일치를 잡는다)
 - [ ] clean-profile smoke: 새 Chrome 프로필에서 unpacked 설치 → ① GitHub 탭 팝업 감지
       → ② GitLab URL 수동 로드 → ③ golden 자동 재생 → 제거까지 확인
-- [ ] 잔여 수동 게이트: G1 툴바 팝업 현재 탭 감지 확인, 골든 청취 rubric 재확인
+- [x] G1 툴바 팝업 현재 탭 감지 — 자동 증거로 완결 (evidence/2026-08-04-g1-popup-results.json)
+- [ ] 골든 청취 rubric 재확인 (사용자 청취, 비차단 권장)
 
 ## 2. 권한 justification (manifest와 1:1 — 문구 수정 시 manifest도 검토)
 
@@ -37,8 +38,8 @@
 - **상세 설명**: 저장소 URL 입력 또는 현재 탭 감지 → 커밋/PR 이력을 결정적
   모티프의 리듬 차트로 변환 → 수동 플레이(A/S/D/F) 또는 자동 프리뷰.
   골든 데모 팩은 네트워크 없이 동작. 점수는 로컬에만 저장.
-- **스크린샷(1280×800) 목록**: ① 소스 탭(덱 셀렉터), ② 런 세션 플레이 중,
-  ③ 세션 상태, ④ 기록 탭.
+- **스크린샷(1280×800)**: [store-assets/](store-assets/)에 4종 준비됨 — ① 소스 탭(덱 셀렉터),
+  ② 런 세션 플레이 중, ③ 세션 상태, ④ 기록 탭.
 - **카테고리**: Developer Tools / **언어**: 한국어, English
 
 ## 5. 제출 절차

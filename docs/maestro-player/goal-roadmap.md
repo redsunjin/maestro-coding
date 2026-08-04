@@ -1,7 +1,7 @@
 # Maestro Player Goal Roadmap
 
 기준일: 2026-08-04 (최초 2026-07-10)  
-상태: **G1 자동 증거 확보 — 툴바 팝업 현재 탭 감지 수동 확인 1건 대기**  
+상태: **G3 NEXT — G1·G2 DONE (2026-08-04), 제출 패킷 준비 완료, CWS 제출 대기**  
 기준 브랜치: `main` (PR #42로 파운데이션 편입 완료, QA Gate `player-app` 잡 포함)  
 G1 증거: [`evidence/2026-08-04-g1-chromium-runtime.md`](evidence/2026-08-04-g1-chromium-runtime.md)
 
@@ -52,9 +52,9 @@ G1 증거: [`evidence/2026-08-04-g1-chromium-runtime.md`](evidence/2026-08-04-g1
 | Goal | 상태 | 목적 | 예상 작업량 | 선행 조건 |
 | --- | --- | --- | --- | --- |
 | G0 | DONE | 코드·문서 기준선과 extension bundle 정리 | 완료 | 없음 |
-| G1 | NEXT | 실제 Chrome에서 public launch와 golden autoplay가 끝까지 동작하는지 증명 | 0.5–1일 | G0 |
-| G2 | BLOCKED BY G1 | public replay failure UX와 반복 사용성을 베타 수준으로 보강 | 2–3일 | G1 evidence |
-| G3 | BLOCKED BY G2 | private distribution 또는 Web Store 제출 준비 | 2–5일 + 심사 | G2 evidence |
+| G1 | DONE | 실제 Chrome에서 public launch와 golden autoplay가 끝까지 동작하는지 증명 | 완료 | G0 |
+| G2 | DONE | public replay failure UX와 반복 사용성을 베타 수준으로 보강 | 완료 | G1 evidence |
+| G3 | NEXT | private distribution 또는 Web Store 제출 준비 | 패킷 완료·제출 대기 | G2 evidence |
 | G4 | DEFERRED | Connected Account/token 또는 OAuth를 별도 trust boundary로 도입 | 별도 결정 | G3 또는 제품 결정 |
 
 ### G0 — Code and document baseline
@@ -78,13 +78,14 @@ G1 증거: [`evidence/2026-08-04-g1-chromium-runtime.md`](evidence/2026-08-04-g1
 
 ### G1 — Unpacked Chrome runtime proof
 
-상태: **NEXT — 자동 증거 확보 (2026-08-04), 완료 조건 4(툴바 팝업 현재 탭 감지)만 수동 확인 대기**
+상태: **DONE (2026-08-04)** — 조건 4의 실제 툴바 팝업 감지까지 원시 CDP로 완결
+([증거](evidence/2026-08-04-g1-chromium-runtime.md): 감지 문구·프리필·재생 클릭→player 로드)
 
 확보된 증거([상세](evidence/2026-08-04-g1-chromium-runtime.md), Chromium 145 + Playwright unpacked 로드):
 
 - 조건 1·2: `npm run qa`(74+24+8), `npm run build:extension` 통과
 - 조건 3: Chromium 145 unpacked 로드 (브랜드 Chrome 137+는 CLI `--load-extension` 제거 — 수동 확인은 chrome://extensions 개발자 모드 경로 사용)
-- 조건 4 일부: GitHub 공개 URL → popup → player 리플레이 로드 성공 (커밋 8·머지 4·노트 20). 툴바 팝업의 현재 탭 감지만 수동 대기
+- 조건 4: GitHub 공개 URL → popup → player 리플레이 로드 성공 (커밋 8·머지 4·노트 20). 실제 툴바 팝업의 현재 탭 감지·프리필·재생 클릭→player 로드까지 원시 CDP로 완결 (2026-08-04 후속 런)
 - 조건 5: GitLab 공개 URL(gitlab-org/gitlab-foss) 리플레이 로드 성공 (커밋 12)
 - 조건 6: golden demo 자동 프리뷰 완주 — 퍼펙트 15/점수 1540/정확도 100%, forge 요청 0건
 - 조건 7: console/SW 오류 0건
@@ -130,11 +131,10 @@ npm run build:extension
 
 ### G2 — Public replay beta hardening
 
-상태: **BLOCKED BY G1 — 오류/재시도 UX와 storage 정책은 선반영됨 (2026-08-04, 스펙 `docs/superpowers/specs/2026-08-04-player-g2-replay-hardening-design.md`)**
-
-선반영된 범위: 오류 분류 코드 + 전역 배너/다시 시도 버튼, EMPTY_HISTORY 처리,
-점수 기록 소스별 50건 + 전체 200건 상한, launch 세션 단일 보관 테스트 고정.
-잔여: G1 evidence 확정, 2개 public repo 수동 리그레션 기록, 골든 청취 rubric 재확인.
+상태: **DONE (2026-08-04)** — 완료 조건 3건 충족: ① G1 evidence clean 고정,
+② failure state별 UI test(오류 분류·재시도·EMPTY_HISTORY) + NOT_FOUND 실브라우저 재현,
+③ read-only 유지 + qa/build 통과. 리그레션 기록: [evidence/2026-08-04-g2-regression.md](evidence/2026-08-04-g2-regression.md).
+권장 후속(비차단): 골든 청취 rubric 사용자 재확인.
 
 목적:
 
@@ -155,12 +155,13 @@ npm run build:extension
 
 ### G3 — Distribution readiness
 
-상태: **BLOCKED BY G2 — 제출 패킷은 선반영됨 (2026-08-04, 스펙 `docs/superpowers/specs/2026-08-04-player-g3-distribution-design.md`)**
+상태: **NEXT — 패킷 완료, 제출만 대기 (스펙 `docs/superpowers/specs/2026-08-04-player-g3-distribution-design.md`)**
 
-선반영된 범위: 확장 아이콘 4종(manifest 연결), 버전 동기 테스트, `npm run
-package:extension` zip 패키징, 릴리스 체크리스트([release-checklist.md](release-checklist.md)
-— 권한 justification·개인정보 문구·CWS 리스팅 초안·사설 배포 부록).
-잔여: clean-profile smoke 실행 기록, 실제 CWS 등록·제출(사용자).
+완료된 범위: 확장 아이콘 4종(manifest 연결), 버전 동기·최소 권한 테스트, `npm run
+package:extension` zip 패키징, 릴리스 체크리스트([release-checklist.md](release-checklist.md)),
+스토어 스크린샷 4종([store-assets/](store-assets/)). clean-profile 설치 smoke는 매 증거 런이
+새 프로필로 수행됨(제거 smoke는 제출 전 수동 1회 권장).
+잔여: CWS 개발자 등록·zip 업로드·리스팅 입력(사용자 — 체크리스트 §5).
 
 범위:
 
@@ -185,4 +186,6 @@ package:extension` zip 패키징, 릴리스 체크리스트([release-checklist.m
 
 ## 5. 현재 다음 행동
 
-현재 할 일은 **G1만**이다. 코드를 넓히기 전에 unpacked extension을 실제 Chrome에 올려 세 가지 흐름(현재 GitHub 탭, GitLab URL, golden autoplay)을 증명한다.
+**G3 제출만 남았다**: 릴리스 체크리스트 §5에 따라 CWS 개발자 등록 후
+`npm run package:extension` 산출 zip을 업로드한다 (스크린샷은 store-assets/).
+코드 트랙 다음 결정은 G4(계정 연동) 착수 여부 — 제품 결정 필요.
