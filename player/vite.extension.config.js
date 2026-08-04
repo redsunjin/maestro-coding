@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { cpSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
@@ -20,6 +20,10 @@ function copyExtensionManifest() {
         fileName: 'manifest.json',
         source: readFileSync(manifestPath, 'utf8'),
       });
+    },
+    closeBundle() {
+      // 확장 아이콘은 정적 자산으로 그대로 복사한다
+      cpSync(path.resolve(extensionRoot, 'icons'), path.resolve(extensionDistRoot, 'icons'), { recursive: true });
     },
   };
 }

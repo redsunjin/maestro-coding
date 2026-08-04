@@ -56,3 +56,10 @@ player/
 NOT_FOUND / API_ERROR / NETWORK / EMPTY_HISTORY)로 분류되어 덱 탭 아래
 전역 배너에 ko/en 문구 + "다시 시도" 버튼으로 표시된다. 이벤트 0건
 (EMPTY_HISTORY)은 플레이 탭 자동 전환을 하지 않는다.
+
+## 배포 패키징 (G3)
+
+    npm run package:extension   # build 후 output/maestro-player-extension-v<버전>.zip 생성
+
+아이콘 재생성은 `node scripts/renderExtensionIcons.mjs` (public/favicon.svg 기준).
+제출 절차·권한 문구는 [release-checklist](../docs/maestro-player/release-checklist.md) 참고.
