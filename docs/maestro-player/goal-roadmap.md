@@ -130,7 +130,11 @@ npm run build:extension
 
 ### G2 — Public replay beta hardening
 
-상태: **BLOCKED BY G1**
+상태: **BLOCKED BY G1 — 오류/재시도 UX와 storage 정책은 선반영됨 (2026-08-04, 스펙 `docs/superpowers/specs/2026-08-04-player-g2-replay-hardening-design.md`)**
+
+선반영된 범위: 오류 분류 코드 + 전역 배너/다시 시도 버튼, EMPTY_HISTORY 처리,
+점수 기록 소스별 50건 + 전체 200건 상한, launch 세션 단일 보관 테스트 고정.
+잔여: G1 evidence 확정, 2개 public repo 수동 리그레션 기록, 골든 청취 rubric 재확인.
 
 목적:
 

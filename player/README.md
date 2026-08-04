@@ -43,3 +43,16 @@ player/
   public/
   tests/
 ```
+
+## 저장 정책 (G2)
+
+- **점수 기록**: localStorage(`maestro-player-performance-history-v1`)에 소스별
+  최근 50건 + 전체 200건 상한, 초과분은 오래된 순 삭제.
+- **확장 launch 세션**: `chrome.storage.local` 단일 키에 마지막 1건만 유지.
+
+## 공개 리플레이 오류 UX (G2)
+
+로드 실패는 원인별 코드(INVALID_URL / UNSUPPORTED_HOST / RATE_LIMITED /
+NOT_FOUND / API_ERROR / NETWORK / EMPTY_HISTORY)로 분류되어 덱 탭 아래
+전역 배너에 ko/en 문구 + "다시 시도" 버튼으로 표시된다. 이벤트 0건
+(EMPTY_HISTORY)은 플레이 탭 자동 전환을 하지 않는다.
