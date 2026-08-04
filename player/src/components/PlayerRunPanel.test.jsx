@@ -121,7 +121,8 @@ describe('PlayerRunPanel', () => {
     expect(screen.getByText('Perfect 2')).toBeVisible();
     expect(screen.getByText('Great 0')).toBeVisible();
     expect(screen.getByText('Timing bias: Centered')).toBeVisible();
-    expect(screen.getByText(/BGM state:/i)).toBeVisible();
+    // BGM 상태 라인은 정보 다이어트로 제거 — 상태는 sync 칩이 단독 표기한다
+    expect(screen.queryByText(/BGM state:/i)).not.toBeInTheDocument();
     expect(screen.getByText(/Completed manual play with 2 \/ 2 notes resolved/i)).toBeVisible();
     expect(onRunComplete).toHaveBeenCalledTimes(1);
     expect(onRunComplete).toHaveBeenCalledWith(expect.objectContaining({
@@ -178,7 +179,7 @@ describe('PlayerRunPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mute BGM Layer' }));
 
     expect(screen.getByText('BGM Layer Off')).toBeVisible();
-    expect(screen.getByText('BGM state: BGM muted')).toBeVisible();
+    expect(screen.queryByText('BGM state: BGM muted')).not.toBeInTheDocument();
   });
 
   test('accepts an external autoplay run request from the shell demo panel', () => {

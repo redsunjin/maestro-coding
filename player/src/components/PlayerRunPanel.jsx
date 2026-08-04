@@ -376,24 +376,26 @@ export default function PlayerRunPanel({
       <div className="player-run-panel__hero">
         <div>
           <p className="player-run-panel__tempo">{playMode === 'manual' ? copy.runPanel.tempoManual(tempo) : copy.runPanel.tempoAuto(tempo)}</p>
-          <p className="player-run-panel__subtitle">
-            {playMode === 'manual'
-              ? copy.runPanel.subtitles.manual
-              : copy.runPanel.subtitles.auto}
-          </p>
+          {playMode === 'manual' ? (
+            <p className="player-run-panel__subtitle">{copy.runPanel.subtitles.manual}</p>
+          ) : null}
         </div>
         <div className="player-run-panel__sync">
           <div className="player-run-panel__sync-meta">
             <span className={`player-pill${clickTrackEnabled && audioSupported ? ' is-live' : ''}`}>
               {audioSupported ? (clickTrackEnabled ? copy.runPanel.sync.clickOn : copy.runPanel.sync.clickOff) : copy.runPanel.sync.clickPending}
             </span>
-            <span className="player-run-panel__sync-label">{audioSyncLabel}</span>
+            {audioSupported && clickTrackEnabled && pulseIndicator ? (
+              <span className="player-run-panel__sync-label">{audioSyncLabel}</span>
+            ) : null}
           </div>
           <div className="player-run-panel__sync-meta">
             <span className={`player-pill${bgmEnabled && bgmSupported ? ' is-live' : ''}`}>
               {bgmSupported ? (bgmEnabled ? copy.runPanel.sync.bgmOn : copy.runPanel.sync.bgmOff) : copy.runPanel.sync.bgmPending}
             </span>
-            <span className="player-run-panel__sync-label">{bgmStatusLabel}</span>
+            {bgmSupported && bgmEnabled && activeCueSummary ? (
+              <span className="player-run-panel__sync-label">{bgmStatusLabel}</span>
+            ) : null}
           </div>
           <div className="player-run-panel__meter" aria-label={language === 'ko' ? '비트 미터' : 'Beat meter'}>
             {Array.from({ length: 4 }, (_, beatOffset) => {
@@ -535,10 +537,9 @@ export default function PlayerRunPanel({
         </article>
       </div>
 
-      <p className="player-run-panel__timing-note">
-        {playMode === 'manual' ? copy.runPanel.timingBias(averageOffsetLabel) : copy.runPanel.autoTimingBias}
-      </p>
-      <p className="player-run-panel__timing-note">{copy.runPanel.bgmState(bgmStatusLabel)}</p>
+      {playMode === 'manual' ? (
+        <p className="player-run-panel__timing-note">{copy.runPanel.timingBias(averageOffsetLabel)}</p>
+      ) : null}
 
       <div className="player-run-panel__lanes" aria-label={language === 'ko' ? '차트 레인' : 'Chart lanes'}>
         {Array.from({ length: laneCount }, (_, laneOffset) => {
