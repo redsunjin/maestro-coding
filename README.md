@@ -21,7 +21,7 @@
 |---|---|---|
 | **Maestro Coding** | 레포 루트 (본체) | AI 에이전트 코드 변경의 승인·머지 실행 |
 | **Maestro Workflow** | [`workflow/`](workflow/) | 범용 승인·결정·이력 (record-only, 포트 8090) |
-| **Maestro Player** | `player/` (전용 브랜치) | 완료된 활동의 리듬게임·악보 재생 |
+| **Maestro Player** | [`player/`](player/) | 완료된 활동의 리듬게임·악보 재생 (git-to-music, 크롬 확장 포함) |
 
 Workflow의 비전은 [`docs/vision/2026-07-21-universal-approval-record-service.md`](docs/vision/2026-07-21-universal-approval-record-service.md), 설계는 [`docs/superpowers/specs/2026-07-31-maestro-workflow-subapp-design.md`](docs/superpowers/specs/2026-07-31-maestro-workflow-subapp-design.md)를 참고하세요.
 
