@@ -69,6 +69,7 @@ const PLAYER_COPY = {
       density: (value) => `${value}/beat`,
     },
     goldenListening: {
+      detailsLabel: 'Details',
       kicker: 'Golden Listening',
       title: 'Autoplay demo pack',
       meta: 'Load a fixed listening scenario and jump straight into autoplay preview.',
@@ -135,6 +136,7 @@ const PLAYER_COPY = {
       },
     },
     sourceGuide: {
+      toggleLabel: 'Source guide',
       kicker: 'Source Modes',
       title: 'Choose the right input path',
       meta: 'Public and account modes are ready in the shell now for GitHub and GitLab. Local mode stays staged until a bridge can read machine repositories safely.',
@@ -435,6 +437,7 @@ const PLAYER_COPY = {
       density: (value) => `${value}/박`,
     },
     goldenListening: {
+      detailsLabel: '상세',
       kicker: '골든 리스닝',
       title: '자동 재생 데모 팩',
       meta: '고정된 리스닝 시나리오를 불러와 바로 자동 프리뷰로 들어갑니다.',
@@ -501,6 +504,7 @@ const PLAYER_COPY = {
       },
     },
     sourceGuide: {
+      toggleLabel: '가이드 보기',
       kicker: '소스 모드',
       title: '맞는 입력 경로 선택',
       meta: '공개 모드와 계정 모드는 GitHub, GitLab 기준으로 바로 사용할 수 있습니다. 로컬 모드는 머신 저장소를 안전하게 읽는 브리지가 붙을 때까지 단계적으로 유지됩니다.',
