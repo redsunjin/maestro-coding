@@ -9,7 +9,7 @@ export function parsePublicRepositoryUrl(inputUrl) {
   try {
     parsedUrl = new URL(inputUrl);
   } catch (error) {
-    throw new Error(`invalid public repository url: ${inputUrl}`);
+    throw Object.assign(new Error(`invalid public repository url: ${inputUrl}`), { code: 'INVALID_URL' });
   }
 
   if (GITHUB_HOSTS.has(parsedUrl.hostname)) {
@@ -20,7 +20,10 @@ export function parsePublicRepositoryUrl(inputUrl) {
     return parseGitLabPublicRepositoryUrl(parsedUrl);
   }
 
-  throw new Error(`unsupported public repository host: ${parsedUrl.hostname}`);
+  throw Object.assign(
+    new Error(`unsupported public repository host: ${parsedUrl.hostname}`),
+    { code: 'UNSUPPORTED_HOST' },
+  );
 }
 
 export function createPublicRepoSource(input) {
@@ -123,10 +126,26 @@ export function mapGitLabCommitToReplayEvent(detail, diffEntries, source) {
 }
 
 async function fetchJson(fetchImpl, url) {
-  const response = await fetchImpl(url);
+  let response;
+  try {
+    response = await fetchImpl(url);
+  } catch (error) {
+    throw Object.assign(
+      new Error(`public repo adapter network failure: ${url}`),
+      { code: 'NETWORK', cause: error },
+    );
+  }
 
   if (!response.ok) {
-    throw new Error(`public repo adapter request failed: ${response.status} ${url}`);
+    const code = response.status === 403 || response.status === 429
+      ? 'RATE_LIMITED'
+      : response.status === 404
+        ? 'NOT_FOUND'
+        : 'API_ERROR';
+    throw Object.assign(
+      new Error(`public repo adapter request failed: ${response.status} ${url}`),
+      { code, status: response.status },
+    );
   }
 
   return response.json();
@@ -197,7 +216,7 @@ function parseGitHubPublicRepositoryUrl(parsedUrl) {
     .filter(Boolean);
 
   if (pathSegments.length < 2) {
-    throw new Error(`public repository url is missing owner/repo: ${parsedUrl}`);
+    throw Object.assign(new Error(`public repository url is missing owner/repo: ${parsedUrl}`), { code: 'INVALID_URL' });
   }
 
   const owner = pathSegments[0];
@@ -229,7 +248,7 @@ function parseGitLabPublicRepositoryUrl(parsedUrl) {
   const repoSegments = dashIndex >= 0 ? pathSegments.slice(0, dashIndex) : pathSegments;
 
   if (repoSegments.length < 2) {
-    throw new Error(`public repository url is missing owner/repo: ${parsedUrl}`);
+    throw Object.assign(new Error(`public repository url is missing owner/repo: ${parsedUrl}`), { code: 'INVALID_URL' });
   }
 
   const repo = repoSegments.at(-1);

@@ -172,3 +172,40 @@ test('loadPublicRepoReplayEvents loads commit and merge events through mocked gi
   assert.equal(replayEvents[1].eventType, 'merge');
   assert.ok(requestedUrls[0].includes('https://gitlab.com/api/v4/projects/openai%2Fplatform%2Fmaestro-player/repository/commits?ref_name=main&per_page=2'));
 });
+
+test('오류 분류: 응답 상태를 code로 부여한다 (403/429→RATE_LIMITED, 404→NOT_FOUND, 500→API_ERROR)', async () => {
+  for (const [status, code] of [[403, 'RATE_LIMITED'], [429, 'RATE_LIMITED'], [404, 'NOT_FOUND'], [500, 'API_ERROR']]) {
+    const fetchImpl = async () => ({ ok: false, status });
+    await assert.rejects(
+      loadPublicRepoReplayEvents({
+        url: 'https://github.com/openai/maestro-player',
+        branchName: 'main',
+        fetchImpl,
+        maxCommits: 3,
+      }),
+      (error) => error.code === code && error.status === status,
+      `status ${status} should map to ${code}`,
+    );
+  }
+});
+
+test('오류 분류: fetch 예외는 NETWORK code를 갖는다', async () => {
+  const fetchImpl = async () => {
+    throw new TypeError('Failed to fetch');
+  };
+  await assert.rejects(
+    loadPublicRepoReplayEvents({
+      url: 'https://github.com/openai/maestro-player',
+      branchName: 'main',
+      fetchImpl,
+      maxCommits: 3,
+    }),
+    (error) => error.code === 'NETWORK',
+  );
+});
+
+test('오류 분류: URL 문제는 INVALID_URL/UNSUPPORTED_HOST code를 갖는다', () => {
+  assert.throws(() => parsePublicRepositoryUrl('not a url'), (error) => error.code === 'INVALID_URL');
+  assert.throws(() => parsePublicRepositoryUrl('https://bitbucket.org/a/b'), (error) => error.code === 'UNSUPPORTED_HOST');
+  assert.throws(() => parsePublicRepositoryUrl('https://github.com/onlyowner'), (error) => error.code === 'INVALID_URL');
+});
