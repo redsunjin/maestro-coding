@@ -74,33 +74,36 @@ export default function GoldenListeningPanel({
                   </div>
                 </div>
 
-                <dl className="golden-listening-panel__stats">
-                  <div className="status-item">
-                    <dt>{copy.goldenListening.labels.events}</dt>
-                    <dd>{entry.eventCount}</dd>
-                  </div>
-                  <div className="status-item">
-                    <dt>{copy.goldenListening.labels.notes}</dt>
-                    <dd>{entry.noteCount}</dd>
-                  </div>
-                  <div className="status-item">
-                    <dt>{copy.goldenListening.labels.peakTension}</dt>
-                    <dd>{formatPeakLabel(entry.peakTensionEvent, copy)}</dd>
-                  </div>
-                  <div className="status-item">
-                    <dt>{copy.goldenListening.labels.peakResolution}</dt>
-                    <dd>{formatPeakLabel(entry.peakResolutionEvent, copy)}</dd>
-                  </div>
-                </dl>
+                <details className="player-collapsible player-collapsible--inline">
+                  <summary className="player-collapsible__summary">{copy.goldenListening.detailsLabel}</summary>
+                  <dl className="golden-listening-panel__stats">
+                    <div className="status-item">
+                      <dt>{copy.goldenListening.labels.events}</dt>
+                      <dd>{entry.eventCount}</dd>
+                    </div>
+                    <div className="status-item">
+                      <dt>{copy.goldenListening.labels.notes}</dt>
+                      <dd>{entry.noteCount}</dd>
+                    </div>
+                    <div className="status-item">
+                      <dt>{copy.goldenListening.labels.peakTension}</dt>
+                      <dd>{formatPeakLabel(entry.peakTensionEvent, copy)}</dd>
+                    </div>
+                    <div className="status-item">
+                      <dt>{copy.goldenListening.labels.peakResolution}</dt>
+                      <dd>{formatPeakLabel(entry.peakResolutionEvent, copy)}</dd>
+                    </div>
+                  </dl>
 
-                <div className="golden-listening-panel__focus">
-                  <h3 className="status-section__title">{copy.goldenListening.labels.focus}</h3>
-                  <ul className="source-mode-guide__list-items">
-                    {entry.listeningFocus.map((focus) => (
-                      <li key={focus}>{focus}</li>
-                    ))}
-                  </ul>
-                </div>
+                  <div className="golden-listening-panel__focus">
+                    <h3 className="status-section__title">{copy.goldenListening.labels.focus}</h3>
+                    <ul className="source-mode-guide__list-items">
+                      {entry.listeningFocus.map((focus) => (
+                        <li key={focus}>{focus}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </details>
 
                 <div className="player-actions">
                   <button

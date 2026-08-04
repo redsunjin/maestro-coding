@@ -387,16 +387,10 @@ export default function App({ bootstrap = null }) {
   return (
     <div className={`player-shell${isExtensionSurface ? ' player-shell--extension' : ''}`}>
       <div className="player-shell__inner">
-        <header className="player-hero">
+        <header className="player-hero player-hero--compact">
           <div className="player-hero__content">
             <p className="player-kicker">{copy.hero.eyebrow}</p>
             <h1 className="player-title">{renderHeroTitle(copy, language)}</h1>
-            <p className="player-subtitle">{copy.hero.subtitle}</p>
-            <div className="player-hero__meta">
-              {copy.hero.meta.map((item) => (
-                <span key={item}>{item}</span>
-              ))}
-            </div>
           </div>
           <div className="player-hero__controls">
             <span className="player-language-switch__label">{copy.languageLabel}</span>
@@ -468,11 +462,17 @@ export default function App({ bootstrap = null }) {
                   onModeChange={setSourceMode}
                   ariaLabel={language === 'ko' ? '리플레이 소스 모드' : 'Replay source mode'}
                 />
-                <SourceModeGuide
-                  mode={sourceMode}
-                  sourceState={sourceGuideState}
-                  language={language}
-                />
+                <p className="source-mode-caption">
+                  {modeDefinitions.find((item) => item.id === sourceMode)?.description}
+                </p>
+                <details className="player-collapsible">
+                  <summary className="player-collapsible__summary">{copy.sourceGuide.toggleLabel}</summary>
+                  <SourceModeGuide
+                    mode={sourceMode}
+                    sourceState={sourceGuideState}
+                    language={language}
+                  />
+                </details>
                 <SourceInputPanel
                   mode={sourceMode}
                   language={language}

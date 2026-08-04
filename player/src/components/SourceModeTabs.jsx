@@ -25,7 +25,6 @@ export default function SourceModeTabs({
             onClick={() => onModeChange?.(item.id)}
           >
             <span className="source-mode-tab__label">{item.label}</span>
-            <span className="source-mode-tab__description">{item.description}</span>
           </button>
         );
       })}

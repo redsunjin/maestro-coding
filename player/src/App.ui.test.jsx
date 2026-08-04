@@ -30,17 +30,16 @@ describeIfApp('Player Shell UI', () => {
   test('language toggle switches the shell copy between English and Korean', async () => {
     const { user } = renderPlayerApp(App);
 
-    expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
+    expect(screen.getByText('Source guide')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: '한국어' }));
 
-    expect(screen.getByRole('heading', { name: '맞는 입력 경로 선택' })).toBeVisible();
+    expect(screen.getByText('가이드 보기')).toBeVisible();
     expect(screen.getByRole('button', { name: '리플레이 불러오기' })).toBeVisible();
-    expect(screen.getByText('읽기 전용 리플레이')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'English' }));
 
-    expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
+    expect(screen.getByText('Source guide')).toBeVisible();
   });
 
   test('switching source modes updates the visible form controls', async () => {
@@ -49,7 +48,6 @@ describeIfApp('Player Shell UI', () => {
     expect(getSourceModeControl('Local Repo')).toBeVisible();
     expect(getSourceModeControl('Public Repo URL')).toBeVisible();
     expect(getSourceModeControl('Connected Account')).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
 
     await user.click(getSourceModeControl('Public Repo URL'));
 
@@ -378,12 +376,12 @@ describeIfApp('Player Shell UI', () => {
     const { user } = renderPlayerApp(App);
 
     expect(screen.getByRole('tablist', { name: 'Player deck' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
+    expect(screen.getByText('Source guide')).toBeVisible();
     expect(screen.queryByRole('heading', { name: 'Play the chart' })).not.toBeInTheDocument();
 
     await openDeckTab(user, 'Play');
     expect(screen.getByRole('heading', { name: 'Play the chart' })).toBeVisible();
-    expect(screen.queryByRole('heading', { name: 'Choose the right input path' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Source guide')).not.toBeVisible();
   });
 
   test('public load 403 shows a rate-limit banner and retry succeeds into the play tab', async () => {
@@ -423,7 +421,7 @@ describeIfApp('Player Shell UI', () => {
 
     const banner = await screen.findByRole('alert');
     expect(banner).toHaveTextContent(/no replayable history/i);
-    expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
+    expect(screen.getByText('Source guide')).toBeVisible();
     expect(screen.queryByRole('heading', { name: 'Play the chart' })).not.toBeInTheDocument();
   });
 
@@ -438,6 +436,17 @@ describeIfApp('Player Shell UI', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeVisible();
     });
+  });
+
+  test('source guide stays collapsed by default and expands on demand', async () => {
+    const { user } = renderPlayerApp(App);
+
+    expect(screen.getByRole('heading', { name: 'Choose the right input path' })).not.toBeVisible();
+    // 히어로 다이어트: 부제·메타 칩이 사라졌다
+    expect(screen.queryByText('Read-only replay')).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('Source guide'));
+    expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
   });
 });
 
