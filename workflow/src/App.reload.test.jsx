@@ -7,6 +7,9 @@ vi.mock('./lib/api.js', () => ({
   fetchPendingRequests: (...args) => fetchPendingRequests(...args),
   fetchHistory: vi.fn().mockResolvedValue([]),
   decideRequest: vi.fn(),
+  loadServerToken: vi.fn().mockReturnValue(''),
+  getServerToken: vi.fn().mockReturnValue(''),
+  setServerToken: vi.fn(),
 }));
 
 import App from './App.jsx';
@@ -15,6 +18,7 @@ class FakeWebSocket {
   constructor() {
     FakeWebSocket.instance = this;
   }
+  send() {}
   close() {}
 }
 

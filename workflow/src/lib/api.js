@@ -2,14 +2,42 @@
 export const SERVER_URL = import.meta.env.VITE_WORKFLOW_SERVER_URL || 'http://127.0.0.1:8090';
 export const WS_URL = SERVER_URL.replace(/^http/, 'ws');
 
+export const TOKEN_STORAGE_KEY = 'maestro-workflow-server-token';
+let serverToken = '';
+
+// localStorage 불가 환경(사파리 프라이빗 등)은 메모리 토큰만 사용한다.
+export function loadServerToken() {
+  try {
+    serverToken = window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+  } catch {
+    serverToken = '';
+  }
+  return serverToken;
+}
+
+export function setServerToken(token) {
+  serverToken = (token || '').trim();
+  try {
+    if (serverToken) window.localStorage.setItem(TOKEN_STORAGE_KEY, serverToken);
+    else window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch {
+    // 저장 실패 무시
+  }
+}
+
+export function getServerToken() {
+  return serverToken;
+}
+
 async function requestJson(path, options = {}) {
-  const res = await fetch(`${SERVER_URL}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-  });
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (serverToken) headers.Authorization = `Bearer ${serverToken}`;
+  const res = await fetch(`${SERVER_URL}${path}`, { ...options, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `HTTP ${res.status}`);
+    const error = new Error(body.error || `HTTP ${res.status}`);
+    if (res.status === 401) error.code = 'UNAUTHORIZED';
+    throw error;
   }
   return res.json();
 }

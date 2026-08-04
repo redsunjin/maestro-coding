@@ -3,7 +3,7 @@
 // 실행: node server.js  (기본 http://127.0.0.1:8090)
 import http from 'node:http';
 import { WebSocketServer, WebSocket as WSWebSocket } from 'ws';
-import { PORT, HOST, ALLOWED_ORIGINS, ACTOR_STORE_PATH, DECISION_STORE_PATH, HISTORY_STORE_PATH } from './server/config.js';
+import { PORT, HOST, ALLOWED_ORIGINS, ACTOR_STORE_PATH, DECISION_STORE_PATH, HISTORY_STORE_PATH, SERVER_TOKEN, WS_AUTH_TIMEOUT_MS } from './server/config.js';
 import {
   heartbeatActor,
   initActorStore,
@@ -313,10 +313,39 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({ server });
 
+// WS 첫 메시지 인증 (스펙 2026-08-03 §2): 엄격 모드에서 미인가 소켓은 브로드캐스트 대상이 아니다.
+wss.on('connection', (socket) => {
+  socket.isAuthorized = !SERVER_TOKEN;
+  const authTimer = SERVER_TOKEN
+    ? setTimeout(() => {
+        if (!socket.isAuthorized) socket.close(4401, 'AUTH_TIMEOUT');
+      }, WS_AUTH_TIMEOUT_MS)
+    : null;
+  socket.on('message', (raw) => {
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return; // 비JSON은 무시 — 미인가라면 타임아웃이 정리한다
+    }
+    if (!data || data.type !== 'WORKFLOW_AUTH') return;
+    if (!SERVER_TOKEN || data.token === SERVER_TOKEN) {
+      socket.isAuthorized = true;
+      if (authTimer) clearTimeout(authTimer);
+      socket.send(JSON.stringify({ type: 'WORKFLOW_AUTH_OK' }));
+    } else {
+      socket.close(4401, 'UNAUTHORIZED');
+    }
+  });
+  socket.on('close', () => {
+    if (authTimer) clearTimeout(authTimer);
+  });
+});
+
 function broadcast(data) {
   const message = JSON.stringify(data);
   wss.clients.forEach((client) => {
-    if (client.readyState === WSWebSocket.OPEN) {
+    if (client.readyState === WSWebSocket.OPEN && client.isAuthorized) {
       client.send(message);
     }
   });
