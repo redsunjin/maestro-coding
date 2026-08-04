@@ -155,7 +155,12 @@ npm run build:extension
 
 ### G3 — Distribution readiness
 
-상태: **BLOCKED BY G2**
+상태: **BLOCKED BY G2 — 제출 패킷은 선반영됨 (2026-08-04, 스펙 `docs/superpowers/specs/2026-08-04-player-g3-distribution-design.md`)**
+
+선반영된 범위: 확장 아이콘 4종(manifest 연결), 버전 동기 테스트, `npm run
+package:extension` zip 패키징, 릴리스 체크리스트([release-checklist.md](release-checklist.md)
+— 권한 justification·개인정보 문구·CWS 리스팅 초안·사설 배포 부록).
+잔여: clean-profile smoke 실행 기록, 실제 CWS 등록·제출(사용자).
 
 범위:
 
