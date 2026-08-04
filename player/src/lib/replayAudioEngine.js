@@ -1,3 +1,5 @@
+import { midiToFrequency } from './musicTheory.js';
+
 const STEP_BEATS = 0.5;
 const BASE_FREQUENCIES = Object.freeze([220, 261.63, 329.63, 392, 523.25, 659.25]);
 
@@ -68,13 +70,9 @@ export function createBrowserReplayAudioDriver(globalObject = globalThis, option
 function createCueFromNote(note, stepIndex, options) {
   const laneIndex = note.laneIndex || 1;
   const laneCount = Math.max(1, options.laneCount || 4);
-  const baseFrequency = BASE_FREQUENCIES[(laneIndex - 1) % BASE_FREQUENCIES.length];
-  const octaveShift = laneIndex > laneCount / 2 ? 2 : 1;
-  const frequencyHz = note.noteType === 'accent'
-    ? baseFrequency * octaveShift
-    : note.noteType === 'hold'
-      ? baseFrequency / 2
-      : baseFrequency;
+  const frequencyHz = Number.isFinite(note.pitchMidi)
+    ? resolvePitchedFrequency(note)
+    : resolveLegacyLaneFrequency(note, laneIndex, laneCount);
 
   return {
     cueId: `${note.noteId || `cue-${stepIndex}-${laneIndex}`}`,
@@ -88,6 +86,23 @@ function createCueFromNote(note, stepIndex, options) {
     gainMultiplier: note.noteType === 'accent' ? 1.15 : note.noteType === 'hold' ? 0.8 : 0.92,
     waveform: note.noteType === 'hold' ? 'sawtooth' : note.noteType === 'accent' ? 'triangle' : 'sine',
   };
+}
+
+// harmony/motif가 배선된 노트: 옥타브 이동만 허용해 피치 클래스(선법 적합)를 보존한다.
+function resolvePitchedFrequency(note) {
+  const octaveShift = note.noteType === 'hold' ? -12 : note.noteType === 'accent' ? 12 : 0;
+  return Math.round(midiToFrequency(note.pitchMidi + octaveShift) * 100) / 100;
+}
+
+// pitchMidi가 없는 노트(레거시/외부 차트) 폴백: 기존 레인 고정 주파수 유지.
+function resolveLegacyLaneFrequency(note, laneIndex, laneCount) {
+  const baseFrequency = BASE_FREQUENCIES[(laneIndex - 1) % BASE_FREQUENCIES.length];
+  const octaveShift = laneIndex > laneCount / 2 ? 2 : 1;
+  return note.noteType === 'accent'
+    ? baseFrequency * octaveShift
+    : note.noteType === 'hold'
+      ? baseFrequency / 2
+      : baseFrequency;
 }
 
 function summarizeCueBatch(cues) {
