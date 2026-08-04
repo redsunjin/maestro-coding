@@ -5,6 +5,7 @@ import http from 'node:http';
 import { WebSocketServer, WebSocket as WSWebSocket } from 'ws';
 import { PORT, HOST, ALLOWED_ORIGINS, ACTOR_STORE_PATH, DECISION_STORE_PATH, HISTORY_STORE_PATH, SERVER_TOKEN, WS_AUTH_TIMEOUT_MS } from './server/config.js';
 import {
+  findActorByToken,
   heartbeatActor,
   initActorStore,
   listActors,
@@ -157,6 +158,7 @@ async function handleRequest(req, res) {
       return;
     }
     recordHistory({ event: 'ACTOR_REVOKED', actorId });
+    closeActorSockets(actorId);
     sendJson(res, 200, { success: true, item: toPublicActor(actor) });
     return;
   }
@@ -234,7 +236,10 @@ async function handleRequest(req, res) {
       return;
     }
     console.log(`🎯 결정 기록: [${result.request.subjectType}] ${result.item.decision} (${requestId})`);
-    broadcast({ type: 'WORKFLOW_DECIDED', item: result.item, request: result.request });
+    broadcast(
+      { type: 'WORKFLOW_DECIDED', item: result.item, request: result.request },
+      { targetActorId: result.request.actorId },
+    );
     recordHistory({ event: 'DECIDED', requestId, actorId: result.request.actorId, subjectType: result.request.subjectType, title: result.request.subject.title, decision: result.item.decision, comment: result.item.comment, decidedBy: result.item.decidedBy });
     sendJson(res, 200, { success: true, item: result.item, request: result.request });
     return;
@@ -313,9 +318,12 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({ server });
 
-// WS 첫 메시지 인증 (스펙 2026-08-03 §2): 엄격 모드에서 미인가 소켓은 브로드캐스트 대상이 아니다.
+// WS 첫 메시지 인증 (스펙 2026-08-03 §2, 2026-08-04 §1):
+// 서버 토큰 → operator 스코프(전체 스트림), actor 토큰 → actor 스코프(자기 결정만).
 wss.on('connection', (socket) => {
   socket.isAuthorized = !SERVER_TOKEN;
+  socket.scope = SERVER_TOKEN ? null : 'operator'; // open 모드 무인증 = 운영자 뷰 (하위 호환)
+  socket.actorId = null;
   const authTimer = SERVER_TOKEN
     ? setTimeout(() => {
         if (!socket.isAuthorized) socket.close(4401, 'AUTH_TIMEOUT');
@@ -329,24 +337,51 @@ wss.on('connection', (socket) => {
       return; // 비JSON은 무시 — 미인가라면 타임아웃이 정리한다
     }
     if (!data || data.type !== 'WORKFLOW_AUTH') return;
-    if (!SERVER_TOKEN || data.token === SERVER_TOKEN) {
+    const token = typeof data.token === 'string' ? data.token : '';
+    const grant = (scope, actorId = null) => {
       socket.isAuthorized = true;
+      socket.scope = scope;
+      socket.actorId = actorId;
       if (authTimer) clearTimeout(authTimer);
-      socket.send(JSON.stringify({ type: 'WORKFLOW_AUTH_OK' }));
-    } else {
-      socket.close(4401, 'UNAUTHORIZED');
+      socket.send(JSON.stringify(
+        scope === 'actor'
+          ? { type: 'WORKFLOW_AUTH_OK', scope, actorId }
+          : { type: 'WORKFLOW_AUTH_OK', scope },
+      ));
+    };
+    if (SERVER_TOKEN && token === SERVER_TOKEN) {
+      grant('operator');
+      return;
     }
+    const actor = token ? findActorByToken(token) : null;
+    if (actor) {
+      grant('actor', actor.actorId);
+      return;
+    }
+    if (!SERVER_TOKEN) {
+      grant('operator'); // open 모드: 빈/불일치 토큰도 운영자 뷰 (현행 유지)
+      return;
+    }
+    socket.close(4401, 'UNAUTHORIZED');
   });
   socket.on('close', () => {
     if (authTimer) clearTimeout(authTimer);
   });
 });
 
-function broadcast(data) {
+function broadcast(data, { targetActorId = null } = {}) {
   const message = JSON.stringify(data);
   wss.clients.forEach((client) => {
-    if (client.readyState === WSWebSocket.OPEN && client.isAuthorized) {
-      client.send(message);
+    if (client.readyState !== WSWebSocket.OPEN || !client.isAuthorized) return;
+    if (client.scope === 'actor' && client.actorId !== targetActorId) return;
+    client.send(message);
+  });
+}
+
+function closeActorSockets(actorId) {
+  wss.clients.forEach((client) => {
+    if (client.scope === 'actor' && client.actorId === actorId) {
+      client.close(4401, 'ACTOR_REVOKED');
     }
   });
 }

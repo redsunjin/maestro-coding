@@ -38,21 +38,36 @@ function waitForClose(ws, timeoutMs = 2000) {
   });
 }
 
-async function registerActor(port, serverToken) {
+async function registerActor(port, serverToken, actorId = 'agent_ws') {
   const res = await fetch(`http://127.0.0.1:${port}/api/actors/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(serverToken) },
-    body: JSON.stringify({ actorId: 'agent_ws' }),
+    body: JSON.stringify({ actorId }),
   });
   assert.equal(res.status, 200);
   return (await res.json()).actorToken;
 }
 
-async function createRequest(port, token = '') {
+async function createRequest(port, token = '', actorId = 'agent_ws', title = 'WS 인증 테스트') {
   const res = await fetch(`http://127.0.0.1:${port}/api/decision-requests`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-    body: JSON.stringify({ actorId: 'agent_ws', subjectType: 'spend', subject: { title: 'WS 인증 테스트' } }),
+    body: JSON.stringify({ actorId, subjectType: 'spend', subject: { title } }),
+  });
+  assert.equal(res.status, 200);
+  return (await res.json()).item.requestId;
+}
+
+async function authAs(ws, token) {
+  ws.send(JSON.stringify({ type: 'WORKFLOW_AUTH', token }));
+  return waitForType(ws, 'WORKFLOW_AUTH_OK');
+}
+
+async function decideRequestHttp(port, serverToken, requestId) {
+  const res = await fetch(`http://127.0.0.1:${port}/api/decision-requests/${encodeURIComponent(requestId)}/decide`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(serverToken) },
+    body: JSON.stringify({ decision: 'approve' }),
   });
   assert.equal(res.status, 200);
 }
@@ -118,6 +133,106 @@ test('엄격 모드: 미인가 소켓은 브로드캐스트를 못 받고 타임
     assert.equal(await waitForClose(ws), 4401);
     assert.deepEqual(leaked, []);
   } finally {
+    await server.stop();
+    cleanupDataDir(server.dataDir);
+  }
+});
+
+test('actor 토큰 AUTH는 scope actor의 AUTH_OK를 받는다', async () => {
+  const server = await startServer({ serverToken: 'wf-secret' });
+  const ws = await openSocket(server.port);
+  try {
+    const actorToken = await registerActor(server.port, 'wf-secret', 'agent_a');
+    const ok = await authAs(ws, actorToken);
+    assert.equal(ok.scope, 'actor');
+    assert.equal(ok.actorId, 'agent_a');
+  } finally {
+    ws.close();
+    await server.stop();
+    cleanupDataDir(server.dataDir);
+  }
+});
+
+test('actor 소켓은 자기 WORKFLOW_DECIDED만 받고 다른 이벤트는 받지 않는다', async () => {
+  const server = await startServer({ serverToken: 'wf-secret' });
+  const wsA = await openSocket(server.port);
+  const wsB = await openSocket(server.port);
+  const wsOp = await openSocket(server.port);
+  try {
+    const tokenA = await registerActor(server.port, 'wf-secret', 'agent_a');
+    const tokenB = await registerActor(server.port, 'wf-secret', 'agent_b');
+    await authAs(wsA, tokenA);
+    await authAs(wsB, tokenB);
+    const okOp = await authAs(wsOp, 'wf-secret');
+    assert.equal(okOp.scope, 'operator');
+
+    const receivedA = [];
+    const receivedB = [];
+    wsA.on('message', (raw) => receivedA.push(JSON.parse(raw.toString()).type));
+    wsB.on('message', (raw) => receivedB.push(JSON.parse(raw.toString()).type));
+
+    const requestId = await createRequest(server.port, tokenA, 'agent_a', 'A의 요청');
+    const opDecided = waitForType(wsOp, 'WORKFLOW_DECIDED');
+    const aDecided = waitForType(wsA, 'WORKFLOW_DECIDED');
+    await decideRequestHttp(server.port, 'wf-secret', requestId);
+    const event = await aDecided;
+    assert.equal(event.request.actorId, 'agent_a');
+    await opDecided; // 운영자는 여전히 전체 수신
+
+    // actor A는 DECIDED만, B는 아무것도 못 받았다 (REQUEST_CREATED/HISTORY 미노출)
+    assert.deepEqual(receivedA, ['WORKFLOW_DECIDED']);
+    assert.deepEqual(receivedB, []);
+  } finally {
+    wsA.close();
+    wsB.close();
+    wsOp.close();
+    await server.stop();
+    cleanupDataDir(server.dataDir);
+  }
+});
+
+test('revoke는 해당 actor 소켓을 4401로 닫고 운영자 소켓은 유지한다', async () => {
+  const server = await startServer({ serverToken: 'wf-secret' });
+  const wsA = await openSocket(server.port);
+  const wsOp = await openSocket(server.port);
+  try {
+    const tokenA = await registerActor(server.port, 'wf-secret', 'agent_a');
+    await authAs(wsA, tokenA);
+    await authAs(wsOp, 'wf-secret');
+    const closed = waitForClose(wsA);
+    const res = await fetch(`http://127.0.0.1:${server.port}/api/actors/agent_a/revoke`, {
+      method: 'POST',
+      headers: authHeaders('wf-secret'),
+    });
+    assert.equal(res.status, 200);
+    assert.equal(await closed, 4401);
+    assert.equal(wsOp.readyState, WebSocket.OPEN);
+  } finally {
+    wsOp.close();
+    await server.stop();
+    cleanupDataDir(server.dataDir);
+  }
+});
+
+test('open 모드에서도 actor 토큰 인증 소켓은 자기 결정만 받는다', async () => {
+  const server = await startServer();
+  const ws = await openSocket(server.port);
+  try {
+    const tokenA = await registerActor(server.port, '', 'agent_a');
+    const ok = await authAs(ws, tokenA);
+    assert.equal(ok.scope, 'actor');
+    const received = [];
+    ws.on('message', (raw) => received.push(JSON.parse(raw.toString()).type));
+    const otherId = await createRequest(server.port, '', 'agent_other', '남의 요청');
+    const mine = await createRequest(server.port, '', 'agent_a', '내 요청');
+    const decided = waitForType(ws, 'WORKFLOW_DECIDED');
+    await decideRequestHttp(server.port, '', otherId);
+    await decideRequestHttp(server.port, '', mine);
+    const event = await decided;
+    assert.equal(event.request.actorId, 'agent_a');
+    assert.deepEqual(received, ['WORKFLOW_DECIDED']);
+  } finally {
+    ws.close();
     await server.stop();
     cleanupDataDir(server.dataDir);
   }
