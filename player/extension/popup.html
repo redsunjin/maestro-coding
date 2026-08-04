@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Maestro Player</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="popup-body">
+    <main class="shell shell-popup">
+      <header class="hero">
+        <p class="eyebrow" id="popup-eyebrow"></p>
+        <h1 class="hero-title" id="popup-title"></h1>
+        <p class="hero-copy" id="popup-subtitle"></p>
+      </header>
+
+      <form class="card stack" id="repo-form">
+        <label class="field">
+          <span class="field-label" id="url-label"></span>
+          <input
+            id="repo-url"
+            class="text-input"
+            type="url"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="https://github.com/owner/repo"
+          />
+        </label>
+
+        <div class="notice" id="detected-context"></div>
+        <p class="status" id="popup-status" role="status"></p>
+
+        <div class="button-row">
+          <button class="button button-primary" id="play-button" type="submit"></button>
+          <button class="button button-secondary" id="open-player-button" type="button"></button>
+        </div>
+      </form>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

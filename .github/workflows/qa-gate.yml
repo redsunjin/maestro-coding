@@ -69,3 +69,21 @@ jobs:
 
       - name: Run workflow tests
         run: npm test --prefix workflow
+
+  player-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install player dependencies
+        run: npm ci --prefix player
+
+      - name: Run player QA (test + UI + harness)
+        run: npm run qa --prefix player
