@@ -55,6 +55,7 @@ test('createBrowserReplayAudioDriver degrades safely without audio support', asy
 function createAudioHarness() {
   const frequencyValues = [];
   const starts = [];
+  const filterCutoffs = [];
   let resumeCalls = 0;
   let suspendCalls = 0;
 
@@ -91,6 +92,18 @@ function createAudioHarness() {
       };
     }
 
+    createBiquadFilter() {
+      return {
+        type: 'lowpass',
+        frequency: {
+          setValueAtTime(value) {
+            filterCutoffs.push(value);
+          },
+        },
+        connect() {},
+      };
+    }
+
     createGain() {
       return {
         gain: {
@@ -106,6 +119,7 @@ function createAudioHarness() {
     AudioContext: FakeAudioContext,
     frequencyValues,
     starts,
+    filterCutoffs,
     get resumeCalls() {
       return resumeCalls;
     },
@@ -147,4 +161,49 @@ test('createReplayCuePlan은 chordMidis를 chordFrequencies로 변환한다', ()
   const cue = batch.cues[0];
   assert.equal(cue.chordFrequencies.length, 4);
   assert.equal(Math.round(cue.chordFrequencies[0]), 65); // C2 베이스
+});
+
+test('cue는 velocity 반영 게인과 type별 엔벨로프·컷오프를 갖는다', () => {
+  const [batch] = createReplayCuePlan([
+    { noteId: 'v1', laneIndex: 1, beatOffset: 0, durationBeats: 1, noteType: 'accent', pitchMidi: 60, velocity: 1.1 },
+    { noteId: 'v2', laneIndex: 2, beatOffset: 0, durationBeats: 1, noteType: 'tap', pitchMidi: 62, velocity: 0.7 },
+    { noteId: 'v3', laneIndex: 3, beatOffset: 0, durationBeats: 1, noteType: 'hold', pitchMidi: 48, velocity: 0.8 },
+  ], { laneCount: 4 });
+  const [accent, tap, hold] = batch.cues;
+
+  assert.equal(accent.gainMultiplier, Math.round(1.15 * 1.1 * 100) / 100);
+  assert.equal(tap.gainMultiplier, Math.round(0.92 * 0.7 * 100) / 100);
+  assert.deepEqual([accent.attackSeconds, accent.releaseSeconds], [0.005, 0.12]);
+  assert.deepEqual([tap.attackSeconds, tap.releaseSeconds], [0.008, 0.06]);
+  assert.deepEqual([hold.attackSeconds, hold.releaseSeconds], [0.03, 0.2]);
+  assert.equal(hold.filterCutoffHz, 1400);
+  assert.equal(accent.filterCutoffHz, 2600);
+  assert.equal(tap.filterCutoffHz, 3200);
+});
+
+test('드라이버는 voice마다 로우패스 필터를 연결한다 (미지원 mock은 폴백)', async () => {
+  const harness = createAudioHarness();
+  const driver = createBrowserReplayAudioDriver({ AudioContext: harness.AudioContext });
+  await driver.prime();
+
+  driver.playCueBatch({
+    batch: {
+      cues: [{
+        frequencyHz: 440,
+        durationSeconds: 0.18,
+        gainMultiplier: 1,
+        waveform: 'triangle',
+        filterCutoffHz: 2600,
+        attackSeconds: 0.005,
+        releaseSeconds: 0.12,
+        chordFrequencies: [110, 220],
+      }],
+    },
+  });
+
+  // 메인 1 + 화음 2 = 3 voice, 각각 필터 1개
+  assert.equal(harness.starts.length, 3);
+  assert.equal(harness.filterCutoffs.length, 3);
+  assert.equal(harness.filterCutoffs[0], 2600);
+  assert.ok(harness.filterCutoffs[1] <= 1400); // 화음 패드는 더 어둡게
 });

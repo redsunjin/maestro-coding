@@ -116,3 +116,29 @@ test('accent 노트는 chordMidis(베이스 최저음 포함)를 갖고 tap 노�
   }
   assert.ok(accentTotal > 0, '전체 픽스처에 accent가 하나도 없음');
 });
+
+test('모든 픽스처: 노트 velocity는 [0.6, 1.1] 범위이고 accent가 tap보다 크게 울린다', () => {
+  let accentSum = 0;
+  let accentCount = 0;
+  let tapSum = 0;
+  let tapCount = 0;
+  for (const fixture of collectFixtures()) {
+    const { chart } = renderFixture(fixture.events);
+    for (const note of chart.notes) {
+      assert.ok(
+        Number.isFinite(note.velocity) && note.velocity >= 0.6 && note.velocity <= 1.1,
+        `${fixture.label} ${note.noteId} velocity ${note.velocity}`,
+      );
+      if (note.noteType === 'accent') {
+        accentSum += note.velocity;
+        accentCount += 1;
+      }
+      if (note.noteType === 'tap') {
+        tapSum += note.velocity;
+        tapCount += 1;
+      }
+    }
+  }
+  assert.ok(accentCount > 0 && tapCount > 0);
+  assert.ok(accentSum / accentCount > tapSum / tapCount, '강조 노트의 평균 velocity가 더 커야 함');
+});
