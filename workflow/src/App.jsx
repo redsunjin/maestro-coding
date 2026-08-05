@@ -8,6 +8,7 @@ import {
   decideRequest,
   fetchHistory,
   fetchPendingRequests,
+  fetchRequestChain,
   getServerToken,
   loadServerToken,
   setServerToken,
@@ -19,6 +20,7 @@ const MAX_RECONNECT_DELAY_MS = 15000;
 export default function App() {
   const [requests, setRequests] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [selectedChain, setSelectedChain] = useState(null);
   const [connected, setConnected] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState([]);
@@ -106,17 +108,32 @@ export default function App() {
       {showHistory ? (
         <HistoryPanel entries={history} />
       ) : (
-        <ChannelBoard requests={requests} onSelect={setSelected} />
+        <ChannelBoard
+          requests={requests}
+          onSelect={(request) => {
+            setSelected(request);
+            setSelectedChain(null);
+            if (request.parentRequestId) {
+              // 체인 로드는 논블로킹 — 도착하는 대로 시트에 타임라인 표시 (스펙 2026-08-05 §1)
+              fetchRequestChain(request.requestId).then(setSelectedChain).catch(() => {});
+            }
+          }}
+        />
       )}
       {selected ? (
         <DecisionSheet
           request={selected}
-          onClose={() => setSelected(null)}
+          chain={selectedChain}
+          onClose={() => {
+            setSelected(null);
+            setSelectedChain(null);
+          }}
           onDecide={(decision, comment) => {
             decideRequest(selected.requestId, { decision, comment })
               .catch(() => {})
               .finally(() => {
                 setSelected(null);
+                setSelectedChain(null);
                 reload();
               });
           }}

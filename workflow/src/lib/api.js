@@ -54,6 +54,12 @@ export function decideRequest(requestId, { decision, comment = '' }) {
   });
 }
 
+// 체인 시각화 (스펙 2026-08-05): 선택 요청의 결정 체인 전체 조회 (운영자/서버 토큰)
+export async function fetchRequestChain(requestId) {
+  const body = await requestJson(`/api/decision-requests/${encodeURIComponent(requestId)}/chain`);
+  return body.items || [];
+}
+
 export async function fetchHistory(limit = 40) {
   const body = await requestJson(`/api/history?limit=${limit}`);
   return body.items || [];
