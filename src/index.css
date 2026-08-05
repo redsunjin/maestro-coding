@@ -45,12 +45,14 @@
   min-width: auto;
 }
 
-/* --- PWA standalone(홈 화면 추가) 안전 영역 — 노치/홈 인디케이터 침범 방지 --- */
-@media (display-mode: standalone) {
-  body {
-    padding-top: env(safe-area-inset-top);
-    padding-right: env(safe-area-inset-right);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: env(safe-area-inset-left);
-  }
+/* --- 안전 영역 — 노치/홈 인디케이터 침범 방지 ---
+   PWA standalone뿐 아니라 Capacitor 네이티브 셸(WKWebView, display-mode: browser)도
+   침범 대상이라 무조건 적용한다. 데스크톱/일반 브라우저는 env()가 0이라 무해. */
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  /* 안전 영역(패딩) 뒤로 비치는 배경을 앱 다크 톤(bg-gray-950)과 일치시킨다 */
+  background-color: #030712;
 }
