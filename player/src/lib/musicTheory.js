@@ -45,23 +45,43 @@ export function snapToScale(semitoneOffset, mode) {
   return semitoneOffset;
 }
 
+// 코드 컬러 구성음 (스펙 2026-08-04 화음 §1) — 선법 스냅으로 3도/7도가 자동 조정된다.
+const CHORD_COLOR_BASE = Object.freeze({
+  triad: [0, 4, 7],
+  add9: [0, 4, 7, 14],
+  sus2: [0, 2, 7],
+  sus4: [0, 5, 7],
+  maj7: [0, 4, 7, 11],
+  flat7: [0, 4, 7, 10],
+});
+
+export function buildChordOffsets(chordColor, mode) {
+  const base = CHORD_COLOR_BASE[chordColor] || CHORD_COLOR_BASE.triad;
+  return base.map((offset) => snapToScale(offset, mode));
+}
+
 export function scaleConformance(cuePlan, harmony) {
   const scale = MODE_INTERVALS[harmony?.mode] || MODE_INTERVALS.ionian;
   const tonicPitchClass = NOTE_NAME_TO_PITCH_CLASS[harmony?.tonic] ?? 0;
   const cues = cuePlan.flatMap((batch) => batch.cues);
   const offenders = [];
+  let total = 0;
 
   for (const cue of cues) {
-    const pitchClass = ((frequencyToMidi(cue.frequencyHz) - tonicPitchClass) % 12 + 12) % 12;
-    if (!scale.includes(pitchClass)) {
-      offenders.push({ cueId: cue.cueId, pitchClass });
+    const frequencies = [cue.frequencyHz, ...(cue.chordFrequencies || [])];
+    for (const frequencyHz of frequencies) {
+      total += 1;
+      const pitchClass = ((frequencyToMidi(frequencyHz) - tonicPitchClass) % 12 + 12) % 12;
+      if (!scale.includes(pitchClass)) {
+        offenders.push({ cueId: cue.cueId, pitchClass });
+      }
     }
   }
 
   return {
-    total: cues.length,
-    conformant: cues.length - offenders.length,
-    ratio: cues.length ? (cues.length - offenders.length) / cues.length : 1,
+    total,
+    conformant: total - offenders.length,
+    ratio: total ? (total - offenders.length) / total : 1,
     offenders,
   };
 }

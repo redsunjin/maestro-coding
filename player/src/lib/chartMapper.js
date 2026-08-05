@@ -1,5 +1,5 @@
 import { clamp, hashString } from './types.js';
-import { snapToScale } from './musicTheory.js';
+import { buildChordOffsets, snapToScale } from './musicTheory.js';
 
 // registerBand별 tonic 기준 옥타브 (스펙 2026-08-04 §2)
 const REGISTER_BASE_MIDI = Object.freeze({ low: 36, mid: 48, high: 60 });
@@ -51,32 +51,54 @@ function composeIntentNotes(intent, baseBeat, laneCount, maxNotesPerBeat, sessio
   const notes = [];
 
   if (intent.rhythmPattern === 'hold') {
+    const holdType = intent.accentLevel >= 0.7 ? 'accent' : 'hold';
     notes.push({
       noteId: `${intent.intentId}:0`,
       laneIndex: lane,
       beatOffset: roundBeat(baseBeat),
       durationBeats: 2 + Math.round(intent.accentLevel * 2),
-      noteType: intent.accentLevel >= 0.7 ? 'accent' : 'hold',
+      noteType: holdType,
       eventRef: intent.eventRef,
       pitchMidi: computePitchMidi(intent, session, 0),
+      chordMidis: computeChordMidis(session, holdType),
     });
     return notes;
   }
 
   for (let noteIndex = 0; noteIndex < noteBudget; noteIndex += 1) {
     const laneOffset = pickLaneOffset(intent, noteSeed, noteIndex, laneCount);
+    const noteType = pickNoteType(intent, noteIndex);
     notes.push({
       noteId: `${intent.intentId}:${noteIndex}`,
       laneIndex: clamp(lane + laneOffset, 1, laneCount),
       beatOffset: roundBeat(baseBeat + offsets[noteIndex]),
       durationBeats: intent.rhythmPattern === 'fill' ? 0.5 : 1,
-      noteType: pickNoteType(intent, noteIndex),
+      noteType,
       eventRef: intent.eventRef,
       pitchMidi: computePitchMidi(intent, session, noteIndex),
+      chordMidis: computeChordMidis(session, noteType),
     });
   }
 
   return notes;
+}
+
+// accent/hold에만 코드 컬러 보이싱 + 베이스 토닉을 부여한다 (tap은 단선율 — 과밀 방지).
+function computeChordMidis(session, noteType) {
+  if (noteType !== 'accent' && noteType !== 'hold') {
+    return null;
+  }
+
+  const harmony = session?.harmony;
+  if (!harmony) {
+    return null;
+  }
+
+  const tonicIndex = harmony.tonicIndex || 0;
+  const bassMidi = REGISTER_BASE_MIDI.low + tonicIndex;
+  const chordRoot = REGISTER_BASE_MIDI.mid + tonicIndex;
+  const chordOffsets = buildChordOffsets(harmony.chordColor, harmony.mode);
+  return [bassMidi, ...chordOffsets.map((offset) => chordRoot + offset)];
 }
 
 // 세션 harmony(조성·선법)와 motif 음정을 실제 음높이로 배선한다 (스펙 §2).

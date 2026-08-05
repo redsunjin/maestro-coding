@@ -114,3 +114,37 @@ function createAudioHarness() {
     },
   };
 }
+
+test('chordFrequencies가 있는 cue는 화음 오실레이터를 추가로 울린다', async () => {
+  const harness = createAudioHarness();
+  const driver = createBrowserReplayAudioDriver({ AudioContext: harness.AudioContext });
+  await driver.prime();
+
+  const played = driver.playCueBatch({
+    batch: {
+      cues: [
+        {
+          frequencyHz: 440,
+          durationSeconds: 0.18,
+          gainMultiplier: 1,
+          waveform: 'triangle',
+          chordFrequencies: [110, 220, 277.18],
+        },
+      ],
+    },
+  });
+
+  assert.equal(played, true);
+  assert.equal(harness.starts.length, 4); // 메인 1 + 화음 3
+  assert.deepEqual(harness.frequencyValues, [440, 110, 220, 277.18]);
+});
+
+test('createReplayCuePlan은 chordMidis를 chordFrequencies로 변환한다', () => {
+  const [batch] = createReplayCuePlan([
+    { noteId: 'n1', laneIndex: 4, beatOffset: 0, durationBeats: 1, noteType: 'accent', pitchMidi: 60, chordMidis: [36, 48, 51, 55] },
+  ], { laneCount: 4 });
+
+  const cue = batch.cues[0];
+  assert.equal(cue.chordFrequencies.length, 4);
+  assert.equal(Math.round(cue.chordFrequencies[0]), 65); // C2 베이스
+});
