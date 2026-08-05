@@ -1,0 +1,50 @@
+{
+  "name": "maestro-coding-vscode",
+  "displayName": "Maestro Coding",
+  "description": "VS Code에서 Maestro 승인 서버를 띄우고 대시보드를 엽니다 (read-only 결정 관제탑).",
+  "version": "0.1.0",
+  "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.cjs",
+  "contributes": {
+    "commands": [
+      {
+        "command": "maestro.startServer",
+        "title": "Maestro: 서버 시작"
+      },
+      {
+        "command": "maestro.stopServer",
+        "title": "Maestro: 서버 중지"
+      },
+      {
+        "command": "maestro.openDashboard",
+        "title": "Maestro: 대시보드 열기"
+      },
+      {
+        "command": "maestro.showLogs",
+        "title": "Maestro: 서버 로그 보기"
+      }
+    ],
+    "configuration": {
+      "title": "Maestro Coding",
+      "properties": {
+        "maestro.port": {
+          "type": "number",
+          "default": 8080,
+          "description": "Maestro 서버 포트"
+        },
+        "maestro.repoPath": {
+          "type": "string",
+          "default": "",
+          "description": "감시할 저장소 경로 (비우면 첫 번째 워크스페이스 폴더)"
+        }
+      }
+    }
+  }
+}
