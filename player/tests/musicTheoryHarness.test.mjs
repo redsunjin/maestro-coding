@@ -89,12 +89,14 @@ test('buildChordOffsets는 선법에 맞게 구성음을 스냅한다', async ()
 });
 
 test('accent 노트는 chordMidis(베이스 최저음 포함)를 갖고 tap 노트는 단선율을 유지한다', () => {
+  let accentTotal = 0;
   for (const fixture of collectFixtures()) {
     const { plan, chart } = renderFixture(fixture.events);
     const harmony = plan[0].harmony;
     const accents = chart.notes.filter((note) => note.noteType === 'accent');
     const taps = chart.notes.filter((note) => note.noteType === 'tap');
-    assert.ok(accents.length > 0, `${fixture.label}: accent 노트 없음`);
+    // 종지 없는 픽스처(예: 거친 이력 대조 B)는 accent가 0일 수 있다 — 있는 경우만 검증
+    accentTotal += accents.length;
     for (const note of accents) {
       assert.ok(Array.isArray(note.chordMidis) && note.chordMidis.length >= 3, `${fixture.label} ${note.noteId} chordMidis 없음`);
       assert.equal(Math.min(...note.chordMidis), note.chordMidis[0], '베이스가 최저음이어야 함');
@@ -112,4 +114,5 @@ test('accent 노트는 chordMidis(베이스 최저음 포함)를 갖고 tap 노�
       assert.equal(note.chordMidis ?? null, null, 'tap은 단선율');
     }
   }
+  assert.ok(accentTotal > 0, '전체 픽스처에 accent가 하나도 없음');
 });
