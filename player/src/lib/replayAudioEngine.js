@@ -2,6 +2,13 @@ import { midiToFrequency } from './musicTheory.js';
 
 const STEP_BEATS = 0.5;
 const BASE_FREQUENCIES = Object.freeze([220, 261.63, 329.63, 392, 523.25, 659.25]);
+// 신스 다듬기 (스펙 2026-08-05 §2-3): type별 엔벨로프와 로우패스 컷오프
+const VOICE_SHAPE = Object.freeze({
+  tap: { attackSeconds: 0.008, releaseSeconds: 0.06, filterCutoffHz: 3200 },
+  accent: { attackSeconds: 0.005, releaseSeconds: 0.12, filterCutoffHz: 2600 },
+  hold: { attackSeconds: 0.03, releaseSeconds: 0.2, filterCutoffHz: 1400 },
+});
+const CHORD_PAD_CUTOFF_HZ = 1200;
 
 export function createReplayCuePlan(notes = [], options = {}) {
   const sortedNotes = [...notes].sort((left, right) => left.beatOffset - right.beatOffset);
@@ -63,6 +70,7 @@ export function createBrowserReplayAudioDriver(globalObject = globalThis, option
             waveform: 'sine',
             gainMultiplier: cue.gainMultiplier * 0.35,
             durationSeconds: cue.durationSeconds * 1.6,
+            filterCutoffHz: CHORD_PAD_CUTOFF_HZ,
           }, baseVolume, index);
         });
       });
@@ -97,8 +105,12 @@ function createCueFromNote(note, stepIndex, options) {
     frequencyHz,
     chordFrequencies,
     durationSeconds: note.noteType === 'hold' ? 0.28 : note.noteType === 'accent' ? 0.18 : 0.12,
-    gainMultiplier: note.noteType === 'accent' ? 1.15 : note.noteType === 'hold' ? 0.8 : 0.92,
+    gainMultiplier: Math.round(
+      (note.noteType === 'accent' ? 1.15 : note.noteType === 'hold' ? 0.8 : 0.92)
+      * (Number.isFinite(note.velocity) ? note.velocity : 1) * 100,
+    ) / 100,
     waveform: note.noteType === 'hold' ? 'sawtooth' : note.noteType === 'accent' ? 'triangle' : 'sine',
+    ...(VOICE_SHAPE[note.noteType] || VOICE_SHAPE.tap),
   };
 }
 
@@ -154,18 +166,30 @@ function playCueOnContext(context, cue, baseVolume, indexOffset) {
   const oscillator = context.createOscillator();
   const gainNode = context.createGain();
   const startTime = context.currentTime + (indexOffset * 0.008);
+  const attack = cue.attackSeconds || 0.01;
+  const release = cue.releaseSeconds || 0.02;
   const endTime = startTime + cue.durationSeconds;
 
   oscillator.type = cue.waveform;
   oscillator.frequency.setValueAtTime(cue.frequencyHz, startTime);
   gainNode.gain.setValueAtTime(0.0001, startTime);
-  gainNode.gain.exponentialRampToValueAtTime(baseVolume * cue.gainMultiplier, startTime + 0.01);
-  gainNode.gain.exponentialRampToValueAtTime(0.0001, endTime);
+  gainNode.gain.exponentialRampToValueAtTime(baseVolume * cue.gainMultiplier, startTime + attack);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, endTime + release);
 
-  oscillator.connect(gainNode);
+  // 로우패스로 사각·톱니 하모닉을 정리한다 (미지원 환경은 폴백)
+  let head = oscillator;
+  if (cue.filterCutoffHz && typeof context.createBiquadFilter === 'function') {
+    const filter = context.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(cue.filterCutoffHz, startTime);
+    oscillator.connect(filter);
+    head = filter;
+  }
+
+  head.connect(gainNode);
   gainNode.connect(context.destination);
   oscillator.start(startTime);
-  oscillator.stop(endTime + 0.02);
+  oscillator.stop(endTime + release + 0.02);
 }
 
 function clamp(value, min, max) {

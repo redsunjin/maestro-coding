@@ -61,6 +61,7 @@ function composeIntentNotes(intent, baseBeat, laneCount, maxNotesPerBeat, sessio
       eventRef: intent.eventRef,
       pitchMidi: computePitchMidi(intent, session, 0),
       chordMidis: computeChordMidis(session, holdType),
+      velocity: computeVelocity(intent),
     });
     return notes;
   }
@@ -77,10 +78,19 @@ function composeIntentNotes(intent, baseBeat, laneCount, maxNotesPerBeat, sessio
       eventRef: intent.eventRef,
       pitchMidi: computePitchMidi(intent, session, noteIndex),
       chordMidis: computeChordMidis(session, noteType),
+      velocity: computeVelocity(intent),
     });
   }
 
   return notes;
+}
+
+// 벨로시티 커브 (스펙 2026-08-05 §1): 강조·에너지가 실제 음량으로 반영된다.
+function computeVelocity(intent) {
+  const accentLevel = clamp(intent.accentLevel || 0, 0, 1);
+  const energy = clamp(intent.energy || 0, 0, 1);
+  const velocity = clamp(0.7 + accentLevel * 0.3 + energy * 0.1, 0.6, 1.1);
+  return Math.round(velocity * 100) / 100;
 }
 
 // accent/hold에만 코드 컬러 보이싱 + 베이스 토닉을 부여한다 (tap은 단선율 — 과밀 방지).
