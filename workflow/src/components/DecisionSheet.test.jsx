@@ -51,4 +51,21 @@ describe('DecisionSheet', () => {
     await userEvent.click(screen.getByRole('button', { name: '보완 요청' }));
     expect(onDecide).toHaveBeenCalledWith('revise', '');
   });
+
+  it('parentRequestId가 있으면 체인 이전 요청을 표시한다', () => {
+    render(
+      <DecisionSheet
+        request={{
+          requestId: 'dcr_2',
+          parentRequestId: 'dcr_1',
+          subjectType: 'email-reply',
+          actorId: 'agent_mail',
+          subject: { title: '답장 초안 v2', summary: '', payload: { to: 'client@corp.com' } },
+        }}
+        onDecide={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByText(/체인 이전 요청: dcr_1/)).toBeInTheDocument();
+  });
 });

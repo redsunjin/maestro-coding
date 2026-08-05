@@ -32,7 +32,7 @@ export function initDecisionStore(path) {
   }
 }
 
-export function createDecisionRequest({ actorId, subjectType, subject = {}, source = 'agent' } = {}) {
+export function createDecisionRequest({ actorId, subjectType, subject = {}, source = 'agent', parentRequestId = null } = {}) {
   const type = sanitizeText(subjectType, 40).toLowerCase();
   if (!type) {
     const error = new Error('SUBJECT_TYPE_REQUIRED');
@@ -45,9 +45,18 @@ export function createDecisionRequest({ actorId, subjectType, subject = {}, sour
     error.code = 'SUBJECT_TITLE_REQUIRED';
     throw error;
   }
+  // 요청 체인 (스펙 2026-08-04 §2): 부모는 반드시 실존해야 한다
+  const parentId = sanitizeText(parentRequestId, 60) || null;
+  if (parentId && !requestsById.has(parentId)) {
+    const error = new Error('PARENT_REQUEST_NOT_FOUND');
+    error.code = 'PARENT_REQUEST_NOT_FOUND';
+    throw error;
+  }
+
   const now = new Date().toISOString();
   const request = {
     requestId: `dcr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    parentRequestId: parentId,
     actorId: sanitizeText(actorId, 80) || 'unknown',
     subjectType: type,
     subject: {
@@ -70,6 +79,40 @@ export function createDecisionRequest({ actorId, subjectType, subject = {}, sour
 
 export function getRequest(requestId) {
   return requestsById.get(requestId) || null;
+}
+
+// 체인 전체 조회: 루트까지 조상 추적 후 자손 포함, createdAt 오름차순 (스펙 2026-08-04 §2).
+export function listRequestChain(requestId) {
+  const start = requestsById.get(requestId);
+  if (!start) {
+    return null;
+  }
+
+  let root = start;
+  const visited = new Set([root.requestId]);
+  while (root.parentRequestId && requestsById.has(root.parentRequestId) && !visited.has(root.parentRequestId)) {
+    root = requestsById.get(root.parentRequestId);
+    visited.add(root.requestId);
+  }
+
+  const chain = [];
+  const queue = [root.requestId];
+  const included = new Set();
+  while (queue.length) {
+    const currentId = queue.shift();
+    if (included.has(currentId)) continue;
+    included.add(currentId);
+    const current = requestsById.get(currentId);
+    if (!current) continue;
+    chain.push(current);
+    for (const candidate of requestsById.values()) {
+      if (candidate.parentRequestId === currentId && !included.has(candidate.requestId)) {
+        queue.push(candidate.requestId);
+      }
+    }
+  }
+
+  return chain.sort((left, right) => new Date(left.createdAt) - new Date(right.createdAt));
 }
 
 export function listRequests({ status = null } = {}) {

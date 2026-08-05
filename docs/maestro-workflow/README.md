@@ -18,4 +18,4 @@ Maestro Harmony 제품군의 범용 승인·결정·이력 앱. 구현은 [`work
 
 ## 후속 구상
 
-- 채널 에이전트 연동(이메일 triage/reply 승인, 요청 체인): 비전 문서 §4(d) 및 설계 스펙 §9 참조 (2026-08-04 현행화, 미착수)
+- 채널 에이전트 연동: Workflow측 토대 구현됨(2026-08-04) — email 프리셋 2종 + parentRequestId 체인/조회 API. 커넥터 에이전트는 미착수 (비전 §4(d), 스펙 2026-08-04-workflow-email-presets-chain 참조)

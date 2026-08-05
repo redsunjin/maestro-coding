@@ -16,5 +16,25 @@ export function formatPresetHighlight(subjectType, payload = {}) {
       detail: payload.contentSummary ? String(payload.contentSummary) : '',
     };
   }
+  // 이메일 채널 프리셋 (스펙 2026-08-04 §1) — 역시 표시 전용
+  if (subjectType === 'email-reply') {
+    if (!payload.to) return null;
+    const draftSnippet = payload.draft ? String(payload.draft).slice(0, 80) : '';
+    return {
+      label: `↩ ${payload.to}`,
+      detail: payload.subject ? String(payload.subject) : draftSnippet,
+    };
+  }
+  if (subjectType === 'email-triage') {
+    if (!payload.from) return null;
+    return {
+      label: `✉ ${payload.from}`,
+      detail: payload.proposedAction
+        ? String(payload.proposedAction)
+        : payload.subject
+          ? String(payload.subject)
+          : '',
+    };
+  }
   return null;
 }
