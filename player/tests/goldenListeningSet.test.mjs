@@ -4,21 +4,23 @@ import assert from 'node:assert/strict';
 import { buildGoldenListeningPack } from '../scripts/exportGoldenListeningPack.mjs';
 import { buildGoldenListeningScenarios } from '../src/lib/goldenListeningPack.js';
 
-test('golden listening set exposes three stable autoplay scenarios', () => {
+test('golden listening set exposes five stable autoplay scenarios', () => {
   const scenarios = buildGoldenListeningScenarios();
 
-  assert.equal(scenarios.length, 3);
+  assert.equal(scenarios.length, 5);
   assert.deepEqual(scenarios.map((scenario) => scenario.id), [
     'github-public-pr-cadence',
     'gitlab-public-discussion-resolution',
     'transition-overlay-practice',
+    'contrast-clean-flow',
+    'contrast-rough-flow',
   ]);
 });
 
 test('golden listening pack summarizes each scenario with stable musical metadata', () => {
   const entries = buildGoldenListeningPack();
 
-  assert.equal(entries.length, 3);
+  assert.equal(entries.length, 5);
   assert.ok(entries.every((entry) => entry.tempo >= 100));
   assert.ok(entries.every((entry) => entry.noteCount >= 2));
   assert.ok(entries.every((entry) => entry.cueBatchCount >= 1));

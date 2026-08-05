@@ -332,6 +332,194 @@ export function buildGoldenListeningScenarios() {
       ],
       events: buildTransitionValidationFixture(),
     },
+    {
+      id: 'contrast-clean-flow',
+      label: '대조 A — 모범 PR 흐름',
+      provider: 'github',
+      sourceUrl: 'fixture://contrast-clean-flow',
+      sourceLabel: '대조 A — 모범 PR 흐름',
+      listeningFocus: [
+        '멜로디가 밝은 장조계(ionian)로 안정되게 진행해야 한다.',
+        '리뷰 반영 구간이 과하지 않은 긴장으로 지나가야 한다.',
+        'merge에서 베이스+화음의 분명한 종지가 들려야 한다.',
+      ],
+      events: buildContrastCleanFlowFixture(),
+    },
+    {
+      id: 'contrast-rough-flow',
+      label: '대조 B — 거친 이력',
+      provider: 'github',
+      sourceUrl: 'fixture://contrast-rough-flow',
+      sourceLabel: '대조 B — 거친 이력',
+      listeningFocus: [
+        '어두운 선법(phrygian)과 sus4 긴장 화음이 유지되어야 한다.',
+        'revert 반복이 재작업의 불안정함으로 들려야 한다.',
+        '종지 없이 끝나 미해결감이 남아야 한다.',
+      ],
+      events: buildContrastRoughFlowFixture(),
+    },
+  ];
+}
+
+// A/B 대조 픽스처 (스펙 2026-08-04 대조 §1): 같은 repoId + pr:7 → 같은 조성·모티프로 통제.
+const CONTRAST_REPO_ID = 'ab-contrast-showcase';
+const CONTRAST_BRANCH = 'feature/showcase';
+const CONTRAST_PR = 7;
+
+function contrastEvent(overrides) {
+  return {
+    repoId: CONTRAST_REPO_ID,
+    branchName: CONTRAST_BRANCH,
+    prNumber: CONTRAST_PR,
+    changedFiles: [],
+    filesChanged: 0,
+    linesAdded: 0,
+    linesDeleted: 0,
+    newFileCount: 0,
+    newDirectoryCount: 0,
+    ...overrides,
+  };
+}
+
+export function buildContrastCleanFlowFixture() {
+  return [
+    contrastEvent({
+      eventId: 'ab-a-commit-1',
+      eventType: 'commit',
+      timestamp: '2026-05-02T10:00:00.000Z',
+      message: 'feat: scaffold showcase module',
+      changedFiles: ['new:src/showcase/index.js', 'src/player/registry.js'],
+      filesChanged: 2,
+      linesAdded: 42,
+      linesDeleted: 4,
+      newFileCount: 1,
+      newDirectoryCount: 1,
+    }),
+    contrastEvent({
+      eventId: 'ab-a-commit-2',
+      eventType: 'commit',
+      timestamp: '2026-05-02T10:06:00.000Z',
+      message: 'feat: wire showcase into player shell',
+      changedFiles: ['src/showcase/index.js', 'src/player/shell.js'],
+      filesChanged: 2,
+      linesAdded: 38,
+      linesDeleted: 9,
+    }),
+    contrastEvent({
+      eventId: 'ab-a-commit-3',
+      eventType: 'commit',
+      timestamp: '2026-05-02T10:12:00.000Z',
+      message: 'feat: add showcase golden preset',
+      changedFiles: ['src/showcase/presets.js'],
+      filesChanged: 1,
+      linesAdded: 26,
+      linesDeleted: 2,
+    }),
+    contrastEvent({
+      eventId: 'ab-a-pr-open',
+      eventType: 'pr-open',
+      timestamp: '2026-05-02T10:16:00.000Z',
+      message: 'Showcase flow polish',
+    }),
+    contrastEvent({
+      eventId: 'ab-a-review-comment',
+      eventType: 'review-comment',
+      timestamp: '2026-05-02T10:20:00.000Z',
+      message: 'Naming looks off in presets.',
+    }),
+    contrastEvent({
+      eventId: 'ab-a-commit-4',
+      eventType: 'commit',
+      timestamp: '2026-05-02T10:26:00.000Z',
+      message: 'fix: apply review naming feedback',
+      changedFiles: ['src/showcase/presets.js'],
+      filesChanged: 1,
+      linesAdded: 12,
+      linesDeleted: 8,
+    }),
+    contrastEvent({
+      eventId: 'ab-a-approve',
+      eventType: 'review-approve',
+      timestamp: '2026-05-02T10:30:00.000Z',
+      message: 'Clean and focused. Ship it.',
+    }),
+    contrastEvent({
+      eventId: 'ab-a-merge',
+      eventType: 'merge',
+      timestamp: '2026-05-02T10:33:00.000Z',
+      message: 'Merge pull request #7 from contributor/feature-showcase',
+      changedFiles: ['src/showcase/index.js', 'src/showcase/presets.js', 'src/player/shell.js'],
+      filesChanged: 3,
+      linesAdded: 118,
+      linesDeleted: 23,
+    }),
+  ];
+}
+
+export function buildContrastRoughFlowFixture() {
+  return [
+    contrastEvent({
+      eventId: 'ab-b-commit-1',
+      eventType: 'commit',
+      timestamp: '2026-05-02T10:00:00.000Z',
+      message: 'wip: dump everything before deadline',
+      changedFiles: Array.from({ length: 18 }, (_, i) => `src/dump/file-${i}.js`),
+      filesChanged: 18,
+      linesAdded: 940,
+      linesDeleted: 310,
+    }),
+    contrastEvent({
+      eventId: 'ab-b-revert-1',
+      eventType: 'revert',
+      timestamp: '2026-05-02T10:02:00.000Z',
+      message: 'Revert "wip: dump everything before deadline"',
+      changedFiles: Array.from({ length: 18 }, (_, i) => `src/dump/file-${i}.js`),
+      filesChanged: 18,
+      linesAdded: 310,
+      linesDeleted: 940,
+    }),
+    contrastEvent({
+      eventId: 'ab-b-commit-2',
+      eventType: 'commit',
+      timestamp: '2026-05-02T10:05:00.000Z',
+      message: 'wip: force it again',
+      changedFiles: Array.from({ length: 12 }, (_, i) => `src/dump/retry-${i}.js`),
+      filesChanged: 12,
+      linesAdded: 620,
+      linesDeleted: 180,
+    }),
+    contrastEvent({
+      eventId: 'ab-b-request-changes',
+      eventType: 'review-request-changes',
+      timestamp: '2026-05-02T10:08:00.000Z',
+      message: 'This breaks the replay loader. Please split it up.',
+    }),
+    contrastEvent({
+      eventId: 'ab-b-revert-2',
+      eventType: 'revert',
+      timestamp: '2026-05-02T10:10:00.000Z',
+      message: 'Revert "wip: force it again"',
+      changedFiles: Array.from({ length: 12 }, (_, i) => `src/dump/retry-${i}.js`),
+      filesChanged: 12,
+      linesAdded: 180,
+      linesDeleted: 620,
+    }),
+    contrastEvent({
+      eventId: 'ab-b-reopen',
+      eventType: 'review-reopen',
+      timestamp: '2026-05-02T10:12:00.000Z',
+      message: 'Reopening — regression is still there.',
+    }),
+    contrastEvent({
+      eventId: 'ab-b-revert-3',
+      eventType: 'revert',
+      timestamp: '2026-05-02T10:14:00.000Z',
+      message: 'Revert "hotfix attempt"',
+      changedFiles: ['src/dump/hotfix.js'],
+      filesChanged: 1,
+      linesAdded: 12,
+      linesDeleted: 260,
+    }),
   ];
 }
 
