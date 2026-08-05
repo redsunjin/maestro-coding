@@ -2,6 +2,7 @@
 // 본체와 달리 grace 경로 없음 — 엄격 per-actor 전용.
 import { SERVER_TOKEN } from './config.js';
 import { findActorByToken } from './actors.js';
+import { findOperatorByToken } from './operators.js';
 
 export function extractBearerToken(headerValue) {
   if (typeof headerValue !== 'string') return null;
@@ -14,6 +15,17 @@ export function extractBearerToken(headerValue) {
 export function isServerAuthorized(req) {
   if (!SERVER_TOKEN) return true;
   return extractBearerToken(req.headers.authorization) === SERVER_TOKEN;
+}
+
+// 운영자급 인가 (스펙 2026-08-04 다중 운영자 §1): root(서버 토큰) 또는 개별 운영자 토큰.
+export function resolveOperatorAuth(req) {
+  if (!SERVER_TOKEN) return { ok: true, mode: 'open', operatorId: null };
+  const token = extractBearerToken(req.headers.authorization);
+  if (!token) return { ok: false, status: 401, error: 'Unauthorized' };
+  if (token === SERVER_TOKEN) return { ok: true, mode: 'root', operatorId: 'root' };
+  const operator = findOperatorByToken(token);
+  if (operator) return { ok: true, mode: 'operator', operatorId: operator.operatorId };
+  return { ok: false, status: 401, error: 'Unauthorized' };
 }
 
 export function resolveActorAuth(req) {

@@ -41,6 +41,7 @@ export async function startServer({ serverToken = '', tempDir = null, extraEnv =
       MAESTRO_WORKFLOW_ACTOR_STORE_PATH: resolve(dataDir, 'actors.json'),
       MAESTRO_WORKFLOW_DECISION_STORE_PATH: resolve(dataDir, 'decisions.json'),
       MAESTRO_WORKFLOW_HISTORY_STORE_PATH: resolve(dataDir, 'history.json'),
+      MAESTRO_WORKFLOW_OPERATOR_STORE_PATH: resolve(dataDir, 'operators.json'),
       ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],

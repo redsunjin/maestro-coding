@@ -3,7 +3,14 @@
 // 실행: node server.js  (기본 http://127.0.0.1:8090)
 import http from 'node:http';
 import { WebSocketServer, WebSocket as WSWebSocket } from 'ws';
-import { PORT, HOST, ALLOWED_ORIGINS, ACTOR_STORE_PATH, DECISION_STORE_PATH, HISTORY_STORE_PATH, SERVER_TOKEN, WS_AUTH_TIMEOUT_MS } from './server/config.js';
+import { PORT, HOST, ALLOWED_ORIGINS, ACTOR_STORE_PATH, DECISION_STORE_PATH, HISTORY_STORE_PATH, OPERATOR_STORE_PATH, SERVER_TOKEN, WS_AUTH_TIMEOUT_MS } from './server/config.js';
+import {
+  initOperatorStore,
+  listOperators,
+  registerOperator,
+  revokeOperator,
+  toPublicOperator,
+} from './server/operators.js';
 import {
   findActorByToken,
   heartbeatActor,
@@ -13,7 +20,8 @@ import {
   revokeActor,
   toPublicActor,
 } from './server/actors.js';
-import { authorizeActor, isServerAuthorized } from './server/auth.js';
+import { authorizeActor, isServerAuthorized, resolveOperatorAuth } from './server/auth.js';
+import { findOperatorByToken } from './server/operators.js';
 import {
   acknowledgeDecision,
   countPendingRequests,
@@ -31,6 +39,7 @@ import { appendHistory, initHistoryStore, listHistory } from './server/history.j
 initActorStore(ACTOR_STORE_PATH);
 initDecisionStore(DECISION_STORE_PATH);
 initHistoryStore(HISTORY_STORE_PATH);
+initOperatorStore(OPERATOR_STORE_PATH);
 
 export function sendJson(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -164,6 +173,60 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── 운영자 레지스트리 (root 전용) ────────────────────────────────────────
+  if (req.method === 'POST' && pathname === '/api/operators/register') {
+    if (!isServerAuthorized(req)) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+    let data;
+    try {
+      data = await readJsonBody(req);
+    } catch (error) {
+      sendJson(res, error?.code === 'BODY_TOO_LARGE' ? 413 : 400, { error: error?.code || 'Invalid JSON body' });
+      return;
+    }
+    const registered = registerOperator(data);
+    if (!registered) {
+      sendJson(res, 400, { error: 'OPERATOR_ID_REQUIRED' });
+      return;
+    }
+    recordHistory({ event: 'OPERATOR_REGISTERED', operatorId: registered.operator.operatorId });
+    sendJson(res, 200, {
+      success: true,
+      item: toPublicOperator(registered.operator),
+      operatorToken: registered.operatorToken,
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/operators') {
+    if (!isServerAuthorized(req)) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+    sendJson(res, 200, { items: listOperators() });
+    return;
+  }
+
+  const operatorRevokeMatch = pathname.match(/^\/api\/operators\/([^/]+)\/revoke$/);
+  if (req.method === 'POST' && operatorRevokeMatch) {
+    if (!isServerAuthorized(req)) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+    const operatorId = decodeURIComponent(operatorRevokeMatch[1]);
+    const operator = revokeOperator(operatorId);
+    if (!operator) {
+      sendJson(res, 404, { error: 'OPERATOR_NOT_FOUND' });
+      return;
+    }
+    recordHistory({ event: 'OPERATOR_REVOKED', operatorId });
+    closeOperatorSockets(operatorId);
+    sendJson(res, 200, { success: true, item: toPublicOperator(operator) });
+    return;
+  }
+
   // ── DecisionRequest (actor 토큰) ─────────────────────────────────────────
   if (req.method === 'POST' && pathname === '/api/decision-requests') {
     const auth = authorizeActor(req, res);
@@ -209,7 +272,7 @@ async function handleRequest(req, res) {
 
   const chainMatch = pathname.match(/^\/api\/decision-requests\/([^/]+)\/chain$/);
   if (req.method === 'GET' && chainMatch) {
-    if (!isServerAuthorized(req)) {
+    if (!resolveOperatorAuth(req).ok) {
       sendJson(res, 401, { error: 'Unauthorized' });
       return;
     }
@@ -223,7 +286,7 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === 'GET' && pathname === '/api/decision-requests') {
-    if (!isServerAuthorized(req)) {
+    if (!resolveOperatorAuth(req).ok) {
       sendJson(res, 401, { error: 'Unauthorized' });
       return;
     }
@@ -234,7 +297,8 @@ async function handleRequest(req, res) {
 
   const decideMatch = pathname.match(/^\/api\/decision-requests\/([^/]+)\/decide$/);
   if (req.method === 'POST' && decideMatch) {
-    if (!isServerAuthorized(req)) {
+    const operatorAuth = resolveOperatorAuth(req);
+    if (!operatorAuth.ok) {
       sendJson(res, 401, { error: 'Unauthorized' });
       return;
     }
@@ -250,6 +314,10 @@ async function handleRequest(req, res) {
       return;
     }
     const requestId = decodeURIComponent(decideMatch[1]);
+    // 엄격 모드에선 신원을 토큰에서 강제한다 — body decidedBy 위조 방지 (스펙 §2)
+    if (operatorAuth.mode !== 'open') {
+      data.decidedBy = operatorAuth.operatorId;
+    }
     const result = decideRequest(requestId, data);
     if (result.error) {
       sendJson(res, result.status, { error: result.error });
@@ -313,7 +381,7 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === 'GET' && pathname === '/api/history') {
-    if (!isServerAuthorized(req)) {
+    if (!resolveOperatorAuth(req).ok) {
       sendJson(res, 401, { error: 'Unauthorized' });
       return;
     }
@@ -371,6 +439,17 @@ wss.on('connection', (socket) => {
     };
     if (SERVER_TOKEN && token === SERVER_TOKEN) {
       grant('operator');
+      socket.operatorId = 'root';
+      return;
+    }
+    // 개별 운영자 토큰 → 전체 스트림 (스펙 2026-08-04 다중 운영자 §2)
+    const operator = token ? findOperatorByToken(token) : null;
+    if (operator) {
+      socket.isAuthorized = true;
+      socket.scope = 'operator';
+      socket.operatorId = operator.operatorId;
+      if (authTimer) clearTimeout(authTimer);
+      socket.send(JSON.stringify({ type: 'WORKFLOW_AUTH_OK', scope: 'operator', operatorId: operator.operatorId }));
       return;
     }
     const actor = token ? findActorByToken(token) : null;
@@ -395,6 +474,14 @@ function broadcast(data, { targetActorId = null } = {}) {
     if (client.readyState !== WSWebSocket.OPEN || !client.isAuthorized) return;
     if (client.scope === 'actor' && client.actorId !== targetActorId) return;
     client.send(message);
+  });
+}
+
+function closeOperatorSockets(operatorId) {
+  wss.clients.forEach((client) => {
+    if (client.scope === 'operator' && client.operatorId === operatorId) {
+      client.close(4401, 'OPERATOR_REVOKED');
+    }
   });
 }
 

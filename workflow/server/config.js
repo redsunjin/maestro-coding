@@ -22,6 +22,10 @@ export const HISTORY_STORE_PATH = path.resolve(
   ROOT_DIR,
   process.env.MAESTRO_WORKFLOW_HISTORY_STORE_PATH || '.maestro-workflow-history.json',
 );
+export const OPERATOR_STORE_PATH = path.resolve(
+  ROOT_DIR,
+  process.env.MAESTRO_WORKFLOW_OPERATOR_STORE_PATH || '.maestro-workflow-operators.json',
+);
 
 export const ALLOWED_ORIGINS = (
   process.env.MAESTRO_WORKFLOW_ALLOWED_ORIGINS
