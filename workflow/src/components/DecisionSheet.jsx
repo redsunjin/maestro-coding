@@ -42,6 +42,9 @@ export default function DecisionSheet({ request, onDecide, onClose }) {
           {JSON.stringify(request.subject.payload, null, 2)}
         </pre>
         <div className="mt-2 text-xs text-slate-500">요청자: {request.actorId}</div>
+        {request.parentRequestId ? (
+          <div className="mt-1 text-xs text-indigo-300">체인 이전 요청: {request.parentRequestId}</div>
+        ) : null}
 
         {rejecting ? (
           <div className="mt-4">

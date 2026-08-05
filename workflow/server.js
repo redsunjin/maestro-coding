@@ -23,6 +23,7 @@ import {
   getDecisionByRequestId,
   getRequest,
   initDecisionStore,
+  listRequestChain,
   listRequests,
 } from './server/decisions.js';
 import { appendHistory, initHistoryStore, listHistory } from './server/history.js';
@@ -190,15 +191,34 @@ async function handleRequest(req, res) {
       const request = createDecisionRequest(data);
       console.log(`📨 결정 요청 수신: [${request.actorId}] (${request.subjectType}) ${request.subject.title}`);
       broadcast({ type: 'WORKFLOW_REQUEST_CREATED', item: request });
-      recordHistory({ event: 'REQUEST_CREATED', requestId: request.requestId, actorId: request.actorId, subjectType: request.subjectType, title: request.subject.title });
+      recordHistory({ event: 'REQUEST_CREATED', requestId: request.requestId, actorId: request.actorId, subjectType: request.subjectType, title: request.subject.title, parentRequestId: request.parentRequestId });
       sendJson(res, 200, { success: true, item: request });
     } catch (error) {
       if (error.code === 'SUBJECT_TYPE_REQUIRED' || error.code === 'SUBJECT_TITLE_REQUIRED') {
         sendJson(res, 400, { error: error.code });
         return;
       }
+      if (error.code === 'PARENT_REQUEST_NOT_FOUND') {
+        sendJson(res, 404, { error: error.code });
+        return;
+      }
       sendJson(res, 500, { error: 'INTERNAL_ERROR' });
     }
+    return;
+  }
+
+  const chainMatch = pathname.match(/^\/api\/decision-requests\/([^/]+)\/chain$/);
+  if (req.method === 'GET' && chainMatch) {
+    if (!isServerAuthorized(req)) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+    const chain = listRequestChain(decodeURIComponent(chainMatch[1]));
+    if (!chain) {
+      sendJson(res, 404, { error: 'DECISION_REQUEST_NOT_FOUND' });
+      return;
+    }
+    sendJson(res, 200, { items: chain });
     return;
   }
 
