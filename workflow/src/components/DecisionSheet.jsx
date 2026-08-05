@@ -9,7 +9,7 @@ const SECONDARY_ACTIONS = [
 ];
 
 // 결정 시트: 상세 표시 + 승인/반려. 반려는 사유 칩 + 자유 입력 (본체 터치 반려 시트 패턴 계승).
-export default function DecisionSheet({ request, onDecide, onClose }) {
+export default function DecisionSheet({ request, onDecide, onClose, chain = null }) {
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
   const highlight = formatPresetHighlight(request.subjectType, request.subject.payload);
@@ -42,7 +42,19 @@ export default function DecisionSheet({ request, onDecide, onClose }) {
           {JSON.stringify(request.subject.payload, null, 2)}
         </pre>
         <div className="mt-2 text-xs text-slate-500">요청자: {request.actorId}</div>
-        {request.parentRequestId ? (
+        {chain && chain.length > 1 ? (
+          <ol className="mt-3 space-y-1 rounded-lg bg-slate-800/60 p-2 text-xs" aria-label="결정 체인">
+            {chain.map((item) => {
+              const isCurrent = item.requestId === request.requestId;
+              return (
+                <li key={item.requestId} className={isCurrent ? 'font-semibold text-indigo-300' : 'text-slate-400'}>
+                  {item.subjectType} · {item.subject?.title} · {item.status === 'pending_decision' ? '대기' : '결정됨'}
+                  {isCurrent ? ' ← 현재' : ''}
+                </li>
+              );
+            })}
+          </ol>
+        ) : request.parentRequestId ? (
           <div className="mt-1 text-xs text-indigo-300">체인 이전 요청: {request.parentRequestId}</div>
         ) : null}
 

@@ -52,6 +52,31 @@ describe('DecisionSheet', () => {
     expect(onDecide).toHaveBeenCalledWith('revise', '');
   });
 
+  it('chain prop이 있으면 타임라인을 렌더하고 현재 요청을 강조한다', () => {
+    render(
+      <DecisionSheet
+        request={{
+          requestId: 'dcr_2',
+          parentRequestId: 'dcr_1',
+          subjectType: 'email-reply',
+          actorId: 'agent_mail',
+          subject: { title: '답장 초안 v1', summary: '', payload: {} },
+        }}
+        chain={[
+          { requestId: 'dcr_1', subjectType: 'email-triage', status: 'decided', subject: { title: '메일 분류' } },
+          { requestId: 'dcr_2', subjectType: 'email-reply', status: 'pending_decision', subject: { title: '답장 초안 v1' } },
+        ]}
+        onDecide={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    const timeline = screen.getByLabelText('결정 체인');
+    expect(timeline.textContent).toContain('메일 분류');
+    expect(timeline.textContent).toContain('결정됨');
+    expect(timeline.textContent).toContain('대기');
+    expect(timeline.textContent).toContain('← 현재');
+  });
+
   it('parentRequestId가 있으면 체인 이전 요청을 표시한다', () => {
     render(
       <DecisionSheet

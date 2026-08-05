@@ -23,6 +23,9 @@ export default function ChannelBoard({ requests, channelCount = 4, onSelect }) {
               <span className="mr-2 rounded bg-indigo-600/70 px-1.5 py-0.5 text-[10px] uppercase">
                 {request.subjectType}
               </span>
+              {request.parentRequestId ? (
+                <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-indigo-300">🔗 체인</span>
+              ) : null}
               <span className="block mt-1 text-sm font-medium">{request.subject.title}</span>
               <span className="block text-xs text-slate-400">{request.actorId}</span>
             </button>
