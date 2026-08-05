@@ -50,7 +50,8 @@ test('full flow leaves append-only audit trail that survives restart', async () 
     })).json()).items.find((item) => item.event === 'DECIDED');
     assert.equal(decidedEntry.decision, 'approve');
     assert.equal(decidedEntry.subjectType, 'spend');
-    assert.equal(decidedEntry.decidedBy, 'operator');
+    // 다중 운영자 스펙(2026-08-04): 엄격 모드에선 토큰 신원이 강제된다 — 서버 토큰 = root
+    assert.equal(decidedEntry.decidedBy, 'root');
 
     await first.stop();
 

@@ -49,7 +49,11 @@ actor도 자신의 actorToken으로 같은 `WORKFLOW_AUTH` 핸드셰이크를 �
 
 - 토큰은 localStorage에 평문 저장된다 — 로컬 신뢰 기기 전제. TLS 없음, 기본
   `HOST=127.0.0.1` 로컬 전용 전제를 유지하라.
-- 다중 운영자/권한 분리는 후속 스펙으로 예약한다.
+- 다중 운영자 구현됨(2026-08-04): root(서버 토큰)는 관리 전용(actor/운영자
+  등록·폐기), 결정·조회는 개별 운영자 토큰(`POST /api/operators/register`)으로
+  수행하며 엄격 모드에선 `decidedBy`가 토큰 신원으로 강제된다(위조 불가).
+  대시보드 토큰 게이트에 운영자 토큰을 넣으면 그대로 동작한다. RBAC/승인선은
+  후속.
 - 채널 에이전트 연동의 Workflow측 토대는 구현됨(2026-08-04): 프리셋
   `email-triage`/`email-reply` 표시, `parentRequestId` 요청 체인 +
   `GET /api/decision-requests/:id/chain`(운영자 토큰). 커넥터(IMAP/발송)
