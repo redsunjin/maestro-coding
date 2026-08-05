@@ -192,3 +192,14 @@ maestro-coding/                     ← 현재 레포 (이름 유지)
 4. **이력 뷰** + 재시작 복구 확인
 5. **CI 잡 추가** + `docs/maestro-workflow/README.md` + 루트 `README.md`에 Maestro Harmony
    제품군(Coding/Workflow/Player) 선언 1개 섹션 추가
+
+## 9. 후속 구상 — 채널 에이전트 연동 (2026-08-04 추가, 미착수)
+
+이메일 등 외부 채널 업무(확인→처리→답변, 분기 포함)를 결정 채널로 관리하는
+구상. 상세는 비전 문서 §4(d) 참조. Workflow에 필요한 확장은 두 가지뿐:
+
+1. 프리셋 subjectType `email-triage` / `email-reply` (표시 전용 — spend/publish 패턴).
+2. `parentRequestId` 요청 체인 + 체인 조회 API (선형·분기 이력 시각화 토대).
+
+커넥터(IMAP/Gmail)·초안 생성·발송 실행은 에이전트 몫으로 Workflow 비범위 —
+record-only와 자격증명 비보유 경계를 유지한다.
