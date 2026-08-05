@@ -40,6 +40,11 @@ actor도 자신의 actorToken으로 같은 `WORKFLOW_AUTH` 핸드셰이크를 �
 
 - 스펙: [`docs/superpowers/specs/2026-08-03-workflow-strict-dashboard-design.md`](../docs/superpowers/specs/2026-08-03-workflow-strict-dashboard-design.md)
 
+## 예제
+
+- [`examples/email-connector/`](examples/email-connector/) — 이메일 업무 루프
+  참조 클라이언트(목 드라이버). e2e: `tests/email-connector-demo.test.mjs`.
+
 ## 알려진 한계 (MVP)
 
 - 토큰은 localStorage에 평문 저장된다 — 로컬 신뢰 기기 전제. TLS 없음, 기본
