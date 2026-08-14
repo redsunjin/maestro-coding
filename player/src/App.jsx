@@ -23,6 +23,7 @@ import { loadPublicRepoReplayEvents, createPublicRepoSource } from './lib/public
 import { buildMusicPlan } from './lib/musicIntentMapper.js';
 import { buildGoldenListeningPackEntries, buildGoldenListeningSource } from './lib/goldenListeningPack.js';
 import { registerLocalRepoSource } from './lib/sourceRegistry.js';
+import { isNativeShell } from './lib/nativeShell.js';
 import './styles.css';
 
 const INITIAL_DRAFTS = {
@@ -393,6 +394,15 @@ export default function App({ bootstrap = null }) {
             <h1 className="player-title">{renderHeroTitle(copy, language)}</h1>
           </div>
           <div className="player-hero__controls">
+            {isNativeShell() && (
+              <button
+                type="button"
+                className="player-switch-app"
+                onClick={() => { window.location.href = '../index.html'; }}
+              >
+                <span aria-hidden="true">⇄ </span>Coding으로 전환
+              </button>
+            )}
             <span className="player-language-switch__label">{copy.languageLabel}</span>
             <div className="player-language-switch" role="group" aria-label={copy.languageLabel}>
               {PLAYER_LANGUAGES.map((item) => {
