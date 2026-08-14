@@ -33,17 +33,28 @@ Coding/Player를 완전히 분리된 화면 트리로 제공**하는 방향으�
 ## 2. iOS 웹뷰 디렉토리 구조
 
 ```
-ios/App/App/public/
-  index.html          ← 런처(신규, 정적 HTML/CSS/JS, React 미사용)
+dist-ios-shell/
+  index.html          ← 런처(정적 HTML, React 미사용)
+  launcher.js          ← 런처 순수 로직(마지막 선택 저장/조회)
   coding/              ← 루트 앱(src/) vite build 결과물
-  player/              ← player/ vite build 결과물 (공개 URL 모드만)
+  player/              ← player/ vite build 결과물
 ```
+
+`dist-ios-shell/`은 `scripts/build-ios-shell.mjs`가 생성하는 빌드
+산출물 디렉토리이며, `capacitor.config.json`의 `"webDir":
+"dist-ios-shell"`이 이를 가리킨다. `cap sync ios`가 이 디렉토리를
+그대로 네이티브 프로젝트로 복사하므로 `ios/App/App/public/`에 수동으로
+파일을 복사하는 단계는 없다.
 
 - Capacitor 웹뷰는 `capacitor://localhost` 단일 origin으로 이 전체를
   서빙하므로, `coding/`과 `player/`는 origin이 같아 `localStorage`를
   공유한다 (런처의 "마지막 선택" 저장에 사용).
-- `player/` 서브트리는 확장/웹 배포와 동일한 빌드(공개 URL 모드만
-  노출)를 그대로 재사용한다 — iOS 전용 빌드 변형을 만들지 않는다.
+- `player/` 서브트리는 확장/웹 배포와 동일한 빌드를 그대로 재사용한다
+  — iOS 전용 빌드 변형을 만들지 않는다 (자세한 기능 범위는 §6 참고).
+- 런처 소스는 `ios/launcher/`(`index.html` + 순수 로직 `launcher.js`)에
+  둔다. `public/launcher/`가 아닌 이유: `public/`은 Vite가 빌드 시
+  그대로 복사하는 정적 디렉토리라서, 여기에 두면 런처 파일이 Coding
+  앱 자체의 번들(`dist-ios-shell/coding/`)에도 새어 들어가게 된다.
 
 ## 3. 빌드 파이프라인
 
@@ -51,20 +62,19 @@ ios/App/App/public/
 `package.json`의 `ios:build`가 이를 호출하도록 바꾼다.
 
 ```
-CAPACITOR_BUILD=1 vite build --outDir dist/coding-tmp
-(cd player && vite build --outDir ../dist/player-tmp)
-# dist/coding-tmp → ios/App/App/public/coding/
-# dist/player-tmp → ios/App/App/public/player/
-# public/launcher/index.html (신규 정적 파일) → ios/App/App/public/index.html
-cap sync ios
+vite build --config vite.config.js --base ./ --outDir dist-ios-shell/coding
+(cd player && vite build --base ./ --outDir ../dist-ios-shell/player)
+# ios/launcher/{index.html, launcher.js} → dist-ios-shell/{index.html, launcher.js}
+cap sync ios   # capacitor.config.json의 webDir(dist-ios-shell)을 네이티브 프로젝트로 복사
 ```
 
-- 런처의 정적 파일은 `public/launcher/`(신규 디렉토리)에 소스로 두고,
-  빌드 스크립트가 그대로 복사한다 (별도 빌드 단계 불필요 — 순수
-  HTML/CSS/inline JS).
-- `player/vite.config.js`의 base path 설정이 `/player/` 서브경로에서도
-  정상 동작하는지 확인 필요(현재 확장/웹 배포 base와 다를 수 있음 —
-  구현 시 점검).
+- 런처의 정적 파일은 `ios/launcher/`에 소스로 두고, 빌드 스크립트가
+  그대로 복사한다 (별도 빌드 단계 불필요 — 순수 HTML/CSS/inline JS +
+  테스트 가능한 `launcher.js`).
+- Coding·Player 두 빌드 모두 `base: './'`로 상대 경로 에셋을 생성해야
+  `dist-ios-shell/coding/`, `dist-ios-shell/player/` 서브경로에서
+  정상 동작한다 — `scripts/build-ios-shell.mjs`에서 각 빌드 호출 시
+  이를 지정한다.
 
 ## 4. 런처 화면 동작
 
@@ -95,14 +105,22 @@ cap sync ios
 
 ## 6. Player iOS 모드의 기능 범위
 
-- **공개 URL 모드만** 지원한다 (Chrome 확장과 동일 범위).
-  - Local Repo 모드: 데스크톱/서버 브리지가 필요해 iOS에 의미 없음 —
-    비범위.
+- iOS의 Player 화면은 `player/`를 별도로 변형하지 않고 브라우저/확장
+  배포와 **동일한 웹 빌드**를 그대로 공유한다 (계획서상 `player/`의
+  기존 모드 선택 UI를 건드리지 않기로 했기 때문). 따라서 Local Repo /
+  Connected Account 탭도 화면에는 그대로 노출된다.
+- 다만 실제로 동작하는 것은 **공개 URL 모드뿐**이다.
+  - Local Repo 모드: 데스크톱/서버 브리지가 필요한데 iOS에는 그
+    브리지가 없어, 선택하면 "브리지 필요"/사용 불가 안내로
+    막다른 길이 된다.
   - Connected Account 모드: OAuth 등 전제조건이 제품 전체 범위에서
-    이미 deferred(G4) — 비범위.
+    이미 deferred(G4)라 마찬가지로 사용 불가 안내로 막다른 길이
+    된다.
 - 공개 URL 모드는 GitHub/GitLab public API를 클라이언트에서 직접 호출
   하므로 Maestro 서버 연결이 필요 없다 (Coding과 달리 "서버 주소" 설정
   불필요).
+- 이는 문서상의 정정일 뿐 코드 변경 사항은 아니다 — Local Repo /
+  Connected Account 탭을 iOS에서 숨기는 것은 비범위로 남는다.
 
 ## 7. 테스트 & 검증 계획
 

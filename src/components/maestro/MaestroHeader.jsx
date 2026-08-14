@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Play, Pause, Square, Wifi, WifiOff } from 'lucide-react';
 import { isHapticsEnabled, setHapticsEnabled } from '../../utils/haptics.js';
+import { isNativeShell } from '../../utils/server-address.js';
 
 export default function MaestroHeader({
   headerRef,
@@ -390,6 +391,15 @@ export default function MaestroHeader({
         </div>
 
         <div className="flex w-full flex-wrap items-center justify-end gap-4 2xl:w-auto">
+          {isNativeShell() && (
+            <button
+              type="button"
+              onClick={() => { window.location.href = '../index.html'; }}
+              className="maestro-touch-control flex items-center rounded-md border border-gray-700 bg-gray-900/70 px-2 py-1 text-[11px] font-semibold text-gray-300 transition-colors hover:border-cyan-400/50 hover:text-cyan-100"
+            >
+              <span aria-hidden="true">⇄ </span>Player로 전환
+            </button>
+          )}
           <div className="flex flex-col items-end">
             <span className="text-xs text-gray-400 uppercase tracking-wider">Merged PRs</span>
             <span data-testid="merged-count" className="text-2xl font-mono font-bold text-green-400">{mergedCount}</span>

@@ -24,6 +24,7 @@ afterEach(() => {
   cleanup();
   globalThis.localStorage?.clear();
   teardownPlayerAppUiEnvironment();
+  delete window.Capacitor;
 });
 
 describeIfApp('Player Shell UI', () => {
@@ -447,6 +448,18 @@ describeIfApp('Player Shell UI', () => {
 
     await user.click(screen.getByText('Source guide'));
     expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
+  });
+
+  test('네이티브 셸에서만 전환 버튼이 보인다', () => {
+    window.Capacitor = { isNativePlatform: () => true };
+    renderPlayerApp(App);
+
+    expect(screen.getByRole('button', { name: 'Coding으로 전환' })).toBeVisible();
+  });
+
+  test('웹/확장 배포(Capacitor 없음)에서는 전환 버튼이 없다', () => {
+    renderPlayerApp(App);
+    expect(screen.queryByRole('button', { name: 'Coding으로 전환' })).toBeNull();
   });
 });
 

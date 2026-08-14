@@ -150,6 +150,22 @@ textarea {
   color: var(--player-text);
 }
 
+.player-switch-app {
+  border: 1px solid var(--player-panel-border);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  background: rgba(2, 6, 23, 0.4);
+  color: var(--player-text-dim);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease;
+}
+
+.player-switch-app:hover {
+  color: var(--player-text);
+  border-color: var(--player-violet);
+}
+
 .player-pill {
   display: inline-flex;
   align-items: center;
