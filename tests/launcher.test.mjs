@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   LAST_APP_STORAGE_KEY,
   getLastApp,
@@ -49,4 +52,15 @@ test('buildLauncherState는 마지막 선택에만 배지를 켠다', () => {
     coding: { badge: false },
     player: { badge: true },
   });
+});
+
+const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+test('launcher index.html은 Coding/Player 버튼과 launcher.js import를 포함한다', () => {
+  const html = readFileSync(resolve(ROOT_DIR, 'ios/launcher/index.html'), 'utf8');
+  assert.match(html, /data-app="coding"/);
+  assert.match(html, /data-app="player"/);
+  assert.match(html, /from\s+['"]\.\/launcher\.js['"]/);
+  assert.match(html, /coding\/index\.html/);
+  assert.match(html, /player\/index\.html/);
 });
