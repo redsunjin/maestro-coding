@@ -21,7 +21,8 @@
         align-items: center;
         justify-content: center;
         gap: 20px;
-        padding: 24px;
+        padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+          max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
         box-sizing: border-box;
       }
       h1 {
@@ -92,19 +93,29 @@
     <script type="module">
       import { getLastApp, setLastApp, buildLauncherState } from './launcher.js';
 
-      const state = buildLauncherState(getLastApp(window.localStorage));
-      for (const appId of ['coding', 'player']) {
-        const badge = document.querySelector(`[data-badge="${appId}"]`);
-        badge.hidden = !state[appId].badge;
-      }
-
       const paths = { coding: 'coding/index.html', player: 'player/index.html' };
       for (const button of document.querySelectorAll('.launcher-button')) {
         button.addEventListener('click', () => {
           const appId = button.dataset.app;
-          setLastApp(window.localStorage, appId);
+          try {
+            setLastApp(window.localStorage, appId);
+          } catch {
+            // localStorage 쓰기 실패는 무시 — 화면 전환은 계속 진행한다.
+          }
           window.location.href = paths[appId];
         });
+      }
+
+      try {
+        const state = buildLauncherState(getLastApp(window.localStorage));
+        for (const appId of ['coding', 'player']) {
+          const badge = document.querySelector(`[data-badge="${appId}"]`);
+          if (badge) {
+            badge.hidden = !state[appId].badge;
+          }
+        }
+      } catch {
+        // localStorage 읽기 실패는 "마지막 사용" 배지만 건너뛴다 — 버튼 동작에는 영향 없음.
       }
     </script>
   </body>
