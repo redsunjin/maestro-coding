@@ -24,6 +24,7 @@ afterEach(() => {
   cleanup();
   globalThis.localStorage?.clear();
   teardownPlayerAppUiEnvironment();
+  delete window.Capacitor;
 });
 
 describeIfApp('Player Shell UI', () => {
@@ -454,8 +455,6 @@ describeIfApp('Player Shell UI', () => {
     renderPlayerApp(App);
 
     expect(screen.getByRole('button', { name: 'Coding으로 전환' })).toBeVisible();
-
-    delete window.Capacitor;
   });
 
   test('웹/확장 배포(Capacitor 없음)에서는 전환 버튼이 없다', () => {
