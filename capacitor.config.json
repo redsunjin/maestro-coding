@@ -1,5 +1,5 @@
 {
   "appId": "kr.selim.maestro",
   "appName": "Maestro",
-  "webDir": "dist"
+  "webDir": "dist-ios-shell"
 }

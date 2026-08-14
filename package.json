@@ -22,7 +22,7 @@
     "qa": "bash scripts/qa-agent.sh",
     "setup": "sh scripts/setup_env.sh",
     "install:hook": "node scripts/install-maestro-hook.mjs --target=all",
-    "ios:build": "CAPACITOR_BUILD=1 vite build && cap sync ios",
+    "ios:build": "node scripts/build-ios-shell.mjs && cap sync ios",
     "ios:open": "cap open ios",
     "ios:run": "npm run ios:build && cap run ios",
     "configure": "node scripts/configure.js",
