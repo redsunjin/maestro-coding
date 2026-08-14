@@ -15,6 +15,7 @@
     "start:app": "npm run check:env && node scripts/start-app.mjs",
     "test": "npm run test:server && npm run test:ui",
     "test:server": "node --test tests/*.test.mjs",
+    "test:ios-shell": "node --test tests/build-ios-shell.itest.mjs",
     "test:ui": "vitest run --passWithNoTests",
     "test:e2e": "playwright test",
     "smoke:integration": "bash scripts/smoke-agent-integration.sh",
