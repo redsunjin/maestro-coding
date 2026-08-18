@@ -44,6 +44,7 @@ const PLAYER_COPY = {
       notLoaded: 'Not loaded',
       activeMode: 'Active mode',
       selectRepository: 'Select repository',
+      close: 'Close',
     },
     app: {
       errors: {
@@ -412,6 +413,7 @@ const PLAYER_COPY = {
       notLoaded: '불러오지 않음',
       activeMode: '현재 모드',
       selectRepository: '저장소 선택',
+      close: '닫기',
     },
     app: {
       errors: {

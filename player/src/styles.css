@@ -196,6 +196,8 @@ textarea {
 .player-column {
   display: grid;
   gap: 20px;
+  align-items: start;
+  align-content: start;
 }
 
 .player-card {
@@ -1410,4 +1412,59 @@ textarea {
 
 .player-collapsible--inline {
   background: rgba(8, 12, 24, 0.4);
+}
+
+.player-collapsible__summary--button {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+}
+
+.player-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.player-modal {
+  position: relative;
+  width: 100%;
+  max-width: 920px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  border-radius: 22px;
+}
+
+.player-modal__bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 12px;
+}
+
+.player-modal__close {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--player-panel-border);
+  border-radius: 999px;
+  background: var(--player-bg-elevated);
+  color: var(--player-text);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.player-modal__close:hover {
+  border-color: var(--player-panel-border-strong);
 }
