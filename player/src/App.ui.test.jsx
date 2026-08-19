@@ -439,15 +439,18 @@ describeIfApp('Player Shell UI', () => {
     });
   });
 
-  test('source guide stays collapsed by default and expands on demand', async () => {
+  test('source guide is not rendered until opened, then shows in a modal', async () => {
     const { user } = renderPlayerApp(App);
 
-    expect(screen.getByRole('heading', { name: 'Choose the right input path' })).not.toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Choose the right input path' })).not.toBeInTheDocument();
     // 히어로 다이어트: 부제·메타 칩이 사라졌다
     expect(screen.queryByText('Read-only replay')).not.toBeInTheDocument();
 
     await user.click(screen.getByText('Source guide'));
     expect(screen.getByRole('heading', { name: 'Choose the right input path' })).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('heading', { name: 'Choose the right input path' })).not.toBeInTheDocument();
   });
 
   test('네이티브 셸에서만 전환 버튼이 보인다', () => {

@@ -63,6 +63,7 @@ export default function App({ bootstrap = null }) {
   const [runRequest, setRunRequest] = useState(null);
   const [bootstrapAutoLoadPending, setBootstrapAutoLoadPending] = useState(() => resolvedBootstrap.autoLoadPublicReplay);
   const [deckTab, setDeckTab] = useState('source');
+  const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
   const localBridgeAvailable = hasLocalRepoBridge(globalThis);
   const copy = getPlayerCopy(language);
   const modeDefinitions = copy.modeDefinitions;
@@ -475,14 +476,15 @@ export default function App({ bootstrap = null }) {
                 <p className="source-mode-caption">
                   {modeDefinitions.find((item) => item.id === sourceMode)?.description}
                 </p>
-                <details className="player-collapsible">
-                  <summary className="player-collapsible__summary">{copy.sourceGuide.toggleLabel}</summary>
-                  <SourceModeGuide
-                    mode={sourceMode}
-                    sourceState={sourceGuideState}
-                    language={language}
-                  />
-                </details>
+                <div className="player-collapsible">
+                  <button
+                    type="button"
+                    className="player-collapsible__summary player-collapsible__summary--button"
+                    onClick={() => setIsGuideModalOpen(true)}
+                  >
+                    {copy.sourceGuide.toggleLabel}
+                  </button>
+                </div>
                 <SourceInputPanel
                   mode={sourceMode}
                   language={language}
@@ -564,6 +566,37 @@ export default function App({ bootstrap = null }) {
           </section>
         </main>
       </div>
+      {isGuideModalOpen && (
+        <div
+          className="player-modal-backdrop"
+          role="presentation"
+          onClick={() => setIsGuideModalOpen(false)}
+        >
+          <div
+            className="player-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="source-mode-guide-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="player-modal__bar">
+              <button
+                type="button"
+                className="player-modal__close"
+                aria-label={copy.common.close}
+                onClick={() => setIsGuideModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <SourceModeGuide
+              mode={sourceMode}
+              sourceState={sourceGuideState}
+              language={language}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
