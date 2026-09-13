@@ -75,6 +75,67 @@ Implication:
 
 The spike should attach observation to the existing WorkSession lifecycle rather than create another session model or dashboard.
 
+Maestro already persists arbitrary WorkSession `metadata` across restart. For the spike, the exact external reference can therefore be carried without a core schema change:
+
+```json
+{
+  "metadata": {
+    "observationRefs": [
+      {
+        "provider": "agentsview",
+        "externalSessionId": "<canonical-or-native-session-id>",
+        "agent": "codex",
+        "observedAt": "2026-09-13T00:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+This is a spike-only use of existing metadata, not yet a formal public contract.
+
+### F4. AgentsView has a stable exact-session read surface
+
+AgentsView documents `session get <id>` / `GET /api/v1/sessions/{id}` as a stable programmatic surface and states that session API changes are additive-only with stable field types.
+
+For Codex, Copilot, Gemini and other UUID-style providers, bare UUIDs are accepted and resolved without the Codebuff/Freebuff ambiguity rules. `session list` also exposes project, agent, activity-window, branch and other filters.
+
+Implication:
+
+- The authoritative binding should be an **explicit external session ID** propagated by the launching/adapter layer.
+- `session list?project=...&agent=...&active_since=...` may help an operator discover candidates, but candidate discovery must not silently become authoritative binding.
+- Repo/path/time matching is diagnostic fallback only.
+
+### F5. Exact-session Recent Edits can be filtered client-side, but paging remains a caveat
+
+The AgentsView frontend model shows each Recent Edits row contains nested edits with `session_id`, `ordinal`, tool/category and timestamp. Therefore a project-level page can be reduced to edits whose `session_id` exactly matches the linked external session.
+
+However, the endpoint is still paginated by grouped files and does not document a session filter. If a session's edits fall outside the fetched project page, absence from the filtered result is not evidence of no edits.
+
+Therefore:
+
+- positive exact-session matches are useful observation;
+- zero matches are `unknown/no match in fetched window`, not `no edits`;
+- a future upstream session filter or a session-scoped tool-call query may be preferable for production evidence.
+
+## Probe script
+
+This branch includes a read-only spike helper:
+
+```bash
+node scripts/spike-agentsview-observation.mjs \
+  --session-id <agentsview-session-id> \
+  --base-url http://127.0.0.1:8080
+```
+
+It probes:
+
+1. `GET /api/v1/sessions/{id}`
+2. `GET /api/v1/sessions/{id}/usage`
+3. project-level `GET /api/v1/recent-edits`, then retains only nested edits whose `session_id` exactly equals the supplied session id.
+
+Timeout/unavailable/partial data are reported as degraded observation and do not mutate Maestro state.
+
 ## Spike questions
 
 ### S1. Availability
@@ -84,6 +145,8 @@ Confirm that Maestro can probe a local AgentsView daemon with a short timeout an
 Pass condition:
 
 - unavailable AgentsView never blocks normal Maestro operations.
+
+Current state: **probe path implemented; live daemon verification still required.**
 
 ### S2. Exact session correlation
 
@@ -100,6 +163,12 @@ Pass condition:
 
 - two concurrent agent sessions in the same repository can be distinguished reliably.
 
+Current conclusion:
+
+- **Design PASS when the adapter supplies the exact external session id.**
+- **Discovery-only correlation is not accepted as PASS.**
+- Maestro can carry the binding in existing WorkSession metadata during the spike, so no core model change is needed to test it.
+
 ### S3. Session-scoped observation
 
 For one linked external session, confirm which of the following can be recovered reliably:
@@ -114,6 +183,13 @@ Pass condition:
 
 - at least identity + activity + one useful evidence/telemetry class is session-attributable without direct DB access.
 
+Current state:
+
+- identity/project: public exact-session API available;
+- usage: public exact-session API available;
+- edits: positive attribution possible by nested `session_id`, but project-level pagination means missing matches are inconclusive;
+- live local session verification still required.
+
 ### S4. Failure boundary
 
 Test timeout, daemon unavailable, missing session, no token data, and unpriced model cases.
@@ -121,6 +197,8 @@ Test timeout, daemon unavailable, missing session, no token data, and unpriced m
 Pass condition:
 
 - all become optional/degraded observation states, not WorkSession failures.
+
+The probe implements this behavior without touching Maestro's server state; live cases remain to be executed.
 
 ## Go / Hold / No-Go
 
